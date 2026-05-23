@@ -14,6 +14,7 @@
 # Editor folders
 .vscode/
 .idea/
+.claude/
 
 # Node (if we ever add any tooling)
 node_modules/

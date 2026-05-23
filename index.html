@@ -8,23 +8,222 @@
 </head>
 <body>
 
-  <!-- This is the root element Vue.js will take over and run the app inside -->
   <div id="app">
-    <header class="app-header">
-      <h1>📖 StoryTime</h1>
-      <p class="tagline">Bedtime stories for Kai &amp; Nozomi</p>
-    </header>
 
-    <main class="app-main">
-      <p>App coming soon...</p>
-    </main>
+    <!-- ================================================================
+         SPLASH SCREEN
+         Auto-dismisses after 1.5s, or tap anywhere to skip.
+         ================================================================ -->
+    <div v-if="showSplash" class="splash" @click="dismissSplash">
+      <div class="splash-content">
+        <div class="splash-emoji">📖</div>
+        <h1 class="splash-title">StoryTime</h1>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         PASSWORD PROMPT
+         Shown on very first launch when no password is stored.
+         ================================================================ -->
+    <div v-else-if="showPasswordPrompt" class="modal-overlay">
+      <div class="modal">
+        <h2>Welcome</h2>
+        <p class="modal-text">Enter the app password to begin.</p>
+        <input
+          type="password"
+          v-model="passwordInput"
+          @keyup.enter="submitPassword"
+          placeholder="Password"
+          class="text-input"
+          autofocus
+        />
+        <button @click="submitPassword" class="btn-primary">Enter</button>
+        <p v-if="error" class="error-text">{{ error }}</p>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         MAIN APP (shown after splash + password are done)
+         ================================================================ -->
+    <template v-else>
+
+      <header class="app-header">
+        <h1 @click="handleNewStory">📖 StoryTime</h1>
+        <p class="tagline">Bedtime stories for Kai &amp; Nozomi</p>
+      </header>
+
+      <main class="app-main">
+
+        <!-- ============== LOADING STATE ============== -->
+        <div v-if="loading" class="loading-screen">
+          <div class="loading-spinner"></div>
+          <p class="loading-text">{{ loadingMessage }}</p>
+          <p class="loading-hint">This takes about 10–20 seconds.</p>
+        </div>
+
+        <!-- ============== STORY CREATION FORM ============== -->
+        <div v-else-if="view === 'create'" class="create-form">
+
+          <h2 class="section-title">Create a New Story</h2>
+
+          <div class="form-field">
+            <label>Age</label>
+            <div class="age-row">
+              <input
+                type="range"
+                min="1"
+                max="10"
+                v-model.number="formData.age"
+                class="age-slider"
+              />
+              <span class="age-display">{{ formData.age }}</span>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Story Length</label>
+            <div class="pill-group">
+              <button
+                v-for="option in lengths"
+                :key="option.value"
+                @click="formData.length = option.value"
+                :class="['pill', { active: formData.length === option.value }]"
+              >
+                <div class="pill-label">{{ option.label }}</div>
+                <div class="pill-subtitle">{{ option.subtitle }}</div>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Genre</label>
+            <select v-model="formData.genre" class="select-input">
+              <option v-for="g in genres" :key="g.value" :value="g.value">{{ g.label }}</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label>Main Characters</label>
+            <select v-model="formData.characterType" class="select-input">
+              <option v-for="c in characterTypes" :key="c.value" :value="c.value">{{ c.label }}</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label>Setting <span class="optional">(optional)</span></label>
+            <input
+              type="text"
+              v-model="formData.setting"
+              placeholder="e.g. enchanted forest, outer space, our backyard"
+              class="text-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label>Special Touches <span class="optional">(optional)</span></label>
+            <textarea
+              v-model="formData.specialTouches"
+              placeholder="e.g. include a dragon named Bumble, set in Hawaii, mention Geometry Dash"
+              class="textarea-input"
+              rows="2"
+            ></textarea>
+          </div>
+
+          <div class="form-field">
+            <label>Lesson or Theme <span class="optional">(optional)</span></label>
+            <input
+              type="text"
+              v-model="formData.lesson"
+              placeholder="e.g. about being brave, about sharing"
+              class="text-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label>Artwork Style <span class="optional">(coming soon — saved for later)</span></label>
+            <select v-model="formData.artStyle" class="select-input">
+              <option v-for="s in artStyles" :key="s.value" :value="s.value">{{ s.label }}</option>
+            </select>
+          </div>
+
+          <button @click="handleGenerate" class="btn-primary btn-large">
+            ✨ Generate Story
+          </button>
+
+          <p v-if="error" class="error-text">{{ error }}</p>
+
+        </div>
+
+        <!-- ============== STORY DISPLAY ============== -->
+        <div v-else-if="view === 'story' && currentStory" class="story-view">
+          <h2 class="story-title">{{ currentStory.title }}</h2>
+
+          <div class="story-pages">
+            <div v-for="page in currentStory.pages" :key="page.page_number" class="story-page">
+              <div class="page-number">Page {{ page.page_number }}</div>
+              <p class="page-text">{{ page.text }}</p>
+            </div>
+          </div>
+
+          <div class="story-meta">
+            Generated for {{ formattedCost }}
+          </div>
+
+          <div class="story-actions">
+            <button @click="handleRegenerate" class="btn-secondary">🔄 Regenerate</button>
+            <button @click="handleNewStory" class="btn-primary">📝 New Story</button>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- ============== DEBUG ICON (always visible) ============== -->
+      <button class="debug-icon" @click="toggleDebug" title="Debug panel">🐛</button>
+
+      <!-- ============== DEBUG PANEL (slides in when toggled) ============== -->
+      <aside v-if="showDebug" class="debug-panel">
+        <div class="debug-header">
+          <h3>🐛 Debug Panel</h3>
+          <button @click="toggleDebug" class="debug-close">✕</button>
+        </div>
+
+        <div class="debug-section">
+          <h4>Quick actions</h4>
+          <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story (no API call)</button>
+          <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
+        </div>
+
+        <div class="debug-section">
+          <h4>Last generation</h4>
+          <div class="debug-stat">Cost: <strong>${{ currentStoryCost.toFixed(6) }}</strong></div>
+          <div class="debug-stat" v-if="lastTokens">
+            Tokens: {{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out = {{ lastTokens.total_tokens }}
+          </div>
+        </div>
+
+        <div class="debug-section" v-if="lastPrompt">
+          <h4>Prompt sent to GPT-4o</h4>
+          <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
+          <pre class="debug-code">{{ lastPrompt }}</pre>
+        </div>
+
+        <div class="debug-section" v-if="lastRawResponse">
+          <h4>Raw response</h4>
+          <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
+          <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
+        </div>
+      </aside>
+
+    </template>
   </div>
 
-  <!-- Vue.js loaded from CDN (Content Delivery Network) -->
-  <!-- A CDN means we don't need to install anything — the browser fetches Vue directly from the internet -->
+  <!-- ================ Scripts (order matters) ================ -->
+  <!-- Vue.js from CDN -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
-  <!-- Our app logic -->
+  <!-- Our app modules: storage and api must load before app.js -->
+  <script src="js/storage.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/app.js"></script>
 
 </body>

@@ -1,8 +1,6 @@
 /* =============================================
-   StoryTime — Main Stylesheet
-   =============================================
-   We'll build this up as the app grows.
-   For now, just enough to confirm it loads.
+   StoryTime — Main Stylesheet (v0.3)
+   Simple, clean dark theme. Will polish later.
    ============================================= */
 
 /* Reset some browser defaults so things look consistent */
@@ -12,35 +10,540 @@
   padding: 0;
 }
 
+:root {
+  --bg-deep: #1a1a2e;
+  --bg-card: #232342;
+  --bg-input: #2c2c4e;
+  --text-main: #f0e6d3;
+  --text-dim: #a89880;
+  --accent: #f4a261;
+  --accent-warm: #e76f51;
+  --border-soft: #3a3a5e;
+  --error: #ff8b8b;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #1a1a2e;
-  color: #f0e6d3;
+  background-color: var(--bg-deep);
+  color: var(--text-main);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+#app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
+/* =============================================
+   SPLASH SCREEN
+   ============================================= */
+.splash {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: pointer;
+  animation: fadeIn 0.4s ease;
+}
+
+.splash-content {
+  text-align: center;
+  animation: splashPulse 1.5s ease-in-out;
+}
+
+.splash-emoji {
+  font-size: 5rem;
+  margin-bottom: 0.5rem;
+}
+
+.splash-title {
+  font-size: 3rem;
+  letter-spacing: 0.08em;
+  color: var(--text-main);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes splashPulse {
+  0%   { transform: scale(0.9); opacity: 0; }
+  30%  { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* =============================================
+   MODAL (password prompt + similar)
+   ============================================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  padding: 1rem;
+}
+
+.modal {
+  background: var(--bg-card);
+  padding: 2rem;
+  border-radius: 16px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+
+.modal h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+}
+
+.modal-text {
+  color: var(--text-dim);
+  margin-bottom: 1.5rem;
+}
+
+/* =============================================
+   HEADER
+   ============================================= */
 .app-header {
   text-align: center;
-  padding: 2rem 1rem 1rem;
+  padding: 1.5rem 1rem 1rem;
+  width: 100%;
 }
 
 .app-header h1 {
-  font-size: 2.5rem;
-  color: #f0e6d3;
-  letter-spacing: 0.05em;
+  font-size: 2rem;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
 }
 
 .tagline {
-  font-size: 1rem;
-  color: #a89880;
-  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
 }
 
+/* =============================================
+   MAIN CONTENT
+   ============================================= */
 .app-main {
-  padding: 2rem 1rem;
+  width: 100%;
+  max-width: 720px;
+  padding: 1rem;
+}
+
+.section-title {
+  font-size: 1.3rem;
+  margin-bottom: 1.5rem;
   text-align: center;
-  color: #a89880;
+  color: var(--text-main);
+}
+
+/* =============================================
+   FORM
+   ============================================= */
+.create-form {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: 16px;
+}
+
+.form-field {
+  margin-bottom: 1.5rem;
+}
+
+.form-field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Inputs */
+.text-input,
+.textarea-input,
+.select-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.text-input:focus,
+.textarea-input:focus,
+.select-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.textarea-input {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* Age slider */
+.age-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.age-slider {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.age-display {
+  background: var(--accent);
+  color: var(--bg-deep);
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 700;
+  min-width: 2.5rem;
+  text-align: center;
+}
+
+/* Length pills */
+.pill-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.5rem;
+}
+
+.pill {
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.6rem 0.4rem;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.pill:hover {
+  border-color: var(--accent);
+}
+
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-deep);
+}
+
+.pill-label {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.pill-subtitle {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin-top: 0.15rem;
+}
+
+/* =============================================
+   BUTTONS
+   ============================================= */
+.btn-primary,
+.btn-secondary {
+  display: inline-block;
+  padding: 0.7rem 1.4rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-deep);
+}
+
+.btn-primary:hover {
+  background: var(--accent-warm);
+}
+
+.btn-secondary {
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border-soft);
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+}
+
+.btn-primary:active,
+.btn-secondary:active {
+  transform: scale(0.97);
+}
+
+.btn-large {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.btn-small {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-tiny {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+/* =============================================
+   LOADING SCREEN
+   ============================================= */
+.loading-screen {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--border-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 auto 1.5rem;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 1.2rem;
+  color: var(--text-main);
+  margin-bottom: 0.5rem;
+}
+
+.loading-hint {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+/* =============================================
+   STORY VIEW
+   ============================================= */
+.story-view {
+  background: var(--bg-card);
+  padding: 2rem 1.5rem;
+  border-radius: 16px;
+}
+
+.story-title {
+  font-size: 1.8rem;
+  text-align: center;
+  color: var(--text-main);
+  margin-bottom: 2rem;
+  line-height: 1.3;
+}
+
+.story-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.story-page {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.story-page:last-child {
+  border-bottom: none;
+}
+
+.page-number {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+.page-text {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: var(--text-main);
+}
+
+.story-meta {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin: 1.5rem 0 1rem;
+}
+
+.story-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* =============================================
+   ERROR
+   ============================================= */
+.error-text {
+  color: var(--error);
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+/* =============================================
+   DEBUG ICON + PANEL
+   ============================================= */
+.debug-icon {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 500;
+}
+
+.debug-icon:hover {
+  background: var(--bg-input);
+}
+
+.debug-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-card);
+  padding: 1.5rem;
+  overflow-y: auto;
+  z-index: 600;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+  border-left: 1px solid var(--border-soft);
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.debug-header h3 {
+  font-size: 1.2rem;
+}
+
+.debug-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.debug-close:hover {
+  color: var(--text-main);
+}
+
+.debug-section {
+  margin-bottom: 1.5rem;
+}
+
+.debug-section h4 {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.debug-section button {
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.debug-stat {
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+
+.debug-code {
+  background: var(--bg-deep);
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  color: var(--text-dim);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* =============================================
+   RESPONSIVE
+   ============================================= */
+@media (max-width: 480px) {
+  .app-header h1 {
+    font-size: 1.7rem;
+  }
+
+  .splash-title {
+    font-size: 2.4rem;
+  }
+
+  .splash-emoji {
+    font-size: 4rem;
+  }
+
+  .story-title {
+    font-size: 1.5rem;
+  }
+
+  .page-text {
+    font-size: 1rem;
+  }
 }

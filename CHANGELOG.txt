@@ -9,6 +9,24 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.3 — 2026-05-23 — First Working Story Generation
+  • Built splash screen with auto-dismiss + tap-to-skip
+  • First-launch password prompt; password saved to localStorage per device
+  • Full story creation form with inputs:
+      age (1–10 slider), length (Short/Regular/Long/Extra-Long with read-time),
+      genre, character type, setting, special touches, lesson, artwork style
+  • Artwork style selector wired into UI but not yet connected to image gen
+  • "Generate Story" → calls Cloudflare Worker → GPT-4o with structured JSON output
+  • Loading screen with rotating friendly messages while waiting
+  • Story display: long-scroll layout, title + paginated text, per-story cost
+  • Regenerate and New Story buttons
+  • All generated stories silently saved to localStorage (ready for future library)
+  • Debug panel (🐛 icon) showing prompt sent, raw response, tokens, cost
+  • "Generate Fake Story" button in debug panel (test UI without API cost)
+  • Reset Password button in debug panel
+  • Split JS into modules: storage.js, api.js, app.js for clarity
+
+--------------------------
 v0.2 — 2026-05-23 — Cloudflare Worker API Proxy
   • Added Cloudflare Worker as secure middleman between app and OpenAI
   • OpenAI API key now lives only in Cloudflare environment, never in code
