@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.2 — 2026-05-23 — Cloudflare Worker API Proxy
+  • Added Cloudflare Worker as secure middleman between app and OpenAI
+  • OpenAI API key now lives only in Cloudflare environment, never in code
+  • Password-protected access (X-App-Password header required)
+  • Worker forwards any /v1/* OpenAI endpoint (text, images, TTS)
+  • CORS configured so browser requests are accepted
+  • Tested end-to-end: bad password rejected (401), good password forwards to OpenAI ✓
+  • Worker source kept in /cloudflare-worker for reference (actual code deployed via Cloudflare dashboard)
+
 v0.1 — 2026-05-23 — Project Scaffold
   • Created initial folder and file structure
   • Set up .gitignore to protect secrets and system files
