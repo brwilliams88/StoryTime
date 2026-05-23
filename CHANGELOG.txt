@@ -1,0 +1,17 @@
+StoryTime — Change History
+==========================
+Versioning guide:
+  v0.x   = Pre-release / building toward MVP
+  v1.0   = First fully working end-to-end app (generate, read, save, cross-device)
+  v1.x   = Feature additions and polish after MVP
+  v2.0   = Major redesign or architectural overhaul (rare)
+  Minor rev (+0.1): new feature, meaningful UI change, new integration
+  Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
+
+--------------------------
+v0.1 — 2026-05-23 — Project Scaffold
+  • Created initial folder and file structure
+  • Set up .gitignore to protect secrets and system files
+  • Added placeholder HTML shell (app loads in browser)
+  • Established CHANGELOG, README, and project conventions
+--------------------------

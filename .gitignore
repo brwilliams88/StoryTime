@@ -1,0 +1,19 @@
+# Environment and secrets — NEVER commit these
+.env
+.env.local
+*.env
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# iCloud Drive placeholders
+*.icloud
+
+# Editor folders
+.vscode/
+.idea/
+
+# Node (if we ever add any tooling)
+node_modules/

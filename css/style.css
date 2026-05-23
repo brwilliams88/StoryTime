@@ -1,0 +1,46 @@
+/* =============================================
+   StoryTime — Main Stylesheet
+   =============================================
+   We'll build this up as the app grows.
+   For now, just enough to confirm it loads.
+   ============================================= */
+
+/* Reset some browser defaults so things look consistent */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #1a1a2e;
+  color: #f0e6d3;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-header {
+  text-align: center;
+  padding: 2rem 1rem 1rem;
+}
+
+.app-header h1 {
+  font-size: 2.5rem;
+  color: #f0e6d3;
+  letter-spacing: 0.05em;
+}
+
+.tagline {
+  font-size: 1rem;
+  color: #a89880;
+  margin-top: 0.4rem;
+}
+
+.app-main {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #a89880;
+}
