@@ -3,22 +3,13 @@
 // =====================================================================
 // localStorage is a small key-value database that lives inside your
 // browser. Each website gets its own private space (~5–10 MB).
-// Data survives page refreshes and closing the browser, until the user
-// explicitly clears their browser data.
-//
-// We use it for:
-//   - Remembering the app password (so it's typed once per device)
-//   - Caching generated stories (so the library survives refreshes)
-//   - Remembering UI preferences (like whether debug mode is on)
-//
-// All functions here are intentionally simple and synchronous —
-// localStorage is fast and doesn't need async/await.
 // =====================================================================
 
 const STORAGE_KEYS = {
   PASSWORD: 'storytime_password',
   STORIES: 'storytime_stories',
   DEBUG_MODE: 'storytime_debug_mode',
+  STICKY_PREFS: 'storytime_sticky_prefs',  // age, length only
 };
 
 // ---- Password ----
@@ -35,8 +26,6 @@ function clearStoredPassword() {
 }
 
 // ---- Stories ----
-// Stories are stored as a JSON array. Each story object contains:
-//   { id, title, pages, formData, cost, createdAt, response }
 function getStoredStories() {
   const raw = localStorage.getItem(STORAGE_KEYS.STORIES);
   if (!raw) return [];
@@ -50,13 +39,17 @@ function getStoredStories() {
 
 function saveStoryToStorage(story) {
   const stories = getStoredStories();
-  stories.unshift(story); // newest first
+  stories.unshift(story);
   localStorage.setItem(STORAGE_KEYS.STORIES, JSON.stringify(stories));
 }
 
 function deleteStoryFromStorage(storyId) {
   const stories = getStoredStories().filter(s => s.id !== storyId);
   localStorage.setItem(STORAGE_KEYS.STORIES, JSON.stringify(stories));
+}
+
+function clearAllStories() {
+  localStorage.removeItem(STORAGE_KEYS.STORIES);
 }
 
 // ---- Debug mode ----
@@ -66,4 +59,43 @@ function getDebugMode() {
 
 function setDebugMode(enabled) {
   localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, enabled ? 'true' : 'false');
+}
+
+// ---- Sticky preferences (age, length only) ----
+function getStickyPrefs() {
+  const raw = localStorage.getItem(STORAGE_KEYS.STICKY_PREFS);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function setStickyPrefs(prefs) {
+  // Only persist the explicitly sticky fields
+  const toSave = {
+    age: prefs.age,
+    length: prefs.length,
+  };
+  localStorage.setItem(STORAGE_KEYS.STICKY_PREFS, JSON.stringify(toSave));
+}
+
+// ---- Storage size ----
+// Returns total bytes used by all localStorage keys for this app
+function getStorageSizeBytes() {
+  let total = 0;
+  for (const key of Object.values(STORAGE_KEYS)) {
+    const value = localStorage.getItem(key);
+    if (value) {
+      total += key.length + value.length;
+    }
+  }
+  return total;
+}
+
+function formatStorageSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }

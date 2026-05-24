@@ -1,22 +1,33 @@
 // =====================================================================
 // app.js — Main Vue Application
 // =====================================================================
-// Manages: splash, password prompt, story-creation form, generation
-// loading state, story display, debug panel, localStorage persistence.
-// =====================================================================
 
 const { createApp } = Vue
 
+// Default form values (used for init AND for Reset Form)
+function defaultFormData() {
+  return {
+    characters: '',
+    storyDetails: '',
+    age: 5,
+    length: 'regular',
+    genre: 'surprise-me',
+    ingredients: [],     // multi-select, max 3
+    theme: '',
+  };
+}
+
+const MAX_INGREDIENTS = 3;
+
 createApp({
-  // -------- App state --------
   data() {
     return {
       // Version
       appName: 'StoryTime',
-      version: 'v0.4.1',
+      version: 'v0.4.2',
       buildDate: '2026-05-23',
 
-      // Splash screen
+      // Splash
       showSplash: true,
 
       // Password
@@ -24,17 +35,18 @@ createApp({
       passwordInput: '',
       showPasswordPrompt: false,
 
-      // View navigation: 'create' | 'story'
+      // View: 'create' | 'story'
       view: 'create',
 
-      // Loading state
+      // Loading
       loading: false,
       loadingMessage: '',
       loadingHint: '',
 
-      // Current story being displayed
+      // Current story
       currentStory: null,
       currentStoryCost: 0,
+      currentStoryRecord: null,    // includes parent_story_id, series id, etc.
 
       // Last generation context (for debug + regenerate)
       lastFormData: null,
@@ -43,33 +55,34 @@ createApp({
       lastTokens: null,
 
       // Form data
-      formData: {
-        characters: '',
-        anythingElse: '',
-        age: 5,
-        length: 'regular',
-        genre: 'adventure',
-        mood: [],           // multi-select array
-        theme: '',          // single-select OR custom text
-      },
+      formData: defaultFormData(),
 
       // Selector options
       genres: [
-        { value: 'adventure',  emoji: '🗺️', label: 'Adventure' },
-        { value: 'fairy-tale', emoji: '🧚', label: 'Fairy Tale' },
-        { value: 'fantasy',    emoji: '✨', label: 'Fantasy' },
-        { value: 'sci-fi',     emoji: '🚀', label: 'Sci-Fi' },
-        { value: 'pirates',    emoji: '🏴‍☠️', label: 'Pirates' },
-        { value: 'superhero',  emoji: '🦸', label: 'Superhero' },
-        { value: 'mystery',    emoji: '🔍', label: 'Mystery' },
-        { value: 'spooky',     emoji: '👻', label: 'Spooky' },
+        { value: 'surprise-me', emoji: '🎲', label: 'Surprise me' },
+        { value: 'adventure',   emoji: '🗺️', label: 'Adventure' },
+        { value: 'fairy-tale',  emoji: '🧚', label: 'Fairy Tale' },
+        { value: 'fantasy',     emoji: '✨', label: 'Fantasy' },
+        { value: 'sci-fi',      emoji: '🚀', label: 'Sci-Fi' },
+        { value: 'pirates',     emoji: '🏴‍☠️', label: 'Pirates' },
+        { value: 'superhero',   emoji: '🦸', label: 'Superhero' },
+        { value: 'mystery',     emoji: '🔍', label: 'Mystery' },
+        { value: 'spooky',      emoji: '👻', label: 'Spooky' },
+        { value: 'animal-tales', emoji: '🦊', label: 'Animal Tales' },
       ],
-      moods: [
-        { value: 'funny',         emoji: '😄', label: 'Funny' },
-        { value: 'surprise',      emoji: '🎁', label: 'Surprise twist' },
-        { value: 'heartwarming',  emoji: '💝', label: 'Heartwarming' },
-        { value: 'action-packed', emoji: '⚡', label: 'Action-packed' },
-        { value: 'dreamy',        emoji: '🌙', label: 'Dreamy' },
+      ingredients: [
+        { value: 'funny',          emoji: '😄', label: 'Funny moments' },
+        { value: 'surprise',       emoji: '🎁', label: 'Surprise twist' },
+        { value: 'heartwarming',   emoji: '💝', label: 'Heartwarming' },
+        { value: 'action-packed',  emoji: '⚡', label: 'Action-packed' },
+        { value: 'bedtime',        emoji: '🌙', label: 'Bedtime' },
+        { value: 'love-story',     emoji: '💌', label: 'Love story' },
+        { value: 'puzzle',         emoji: '🧩', label: 'A clever puzzle' },
+        { value: 'magical-object', emoji: '🪄', label: 'A magical object' },
+        { value: 'sidekick',       emoji: '🐾', label: 'A funny sidekick' },
+        { value: 'song',           emoji: '🎵', label: 'A song or rhyme' },
+        { value: 'challenge',      emoji: '🏔️', label: 'A challenge' },
+        { value: 'cliffhanger',    emoji: '📖', label: 'Cliffhanger' },
       ],
       themes: [
         'Family', 'Sharing', 'Bravery', 'Friendship', 'Kindness',
@@ -82,51 +95,65 @@ createApp({
         { value: 'extra-long',  label: 'Extra-Long', subtitle: '~12 min' },
       ],
 
-      // Debug panel
+      // Debug
       showDebug: false,
+      storageSize: 0,
 
-      // Error display
+      // Error
       error: '',
     }
   },
 
-  // -------- Computed properties --------
   computed: {
     isReady() {
       return !this.showSplash && !this.showPasswordPrompt;
     },
     formattedCost() {
       return this.currentStoryCost > 0
-        ? `$${this.currentStoryCost.toFixed(4)}`
-        : '$0.00';
+        ? `$${this.currentStoryCost.toFixed(3)}`
+        : '$0.000';
+    },
+    coinBreakdown() {
+      return costToCoins(this.currentStoryCost);
+    },
+    ingredientCount() {
+      return this.formData.ingredients.length;
+    },
+    ingredientsAtMax() {
+      return this.ingredientCount >= MAX_INGREDIENTS;
+    },
+    formattedStorageSize() {
+      return formatStorageSize(this.storageSize);
     },
   },
 
-  // -------- Lifecycle --------
   mounted() {
     console.log(`${this.appName} ${this.version} loaded ✓`);
 
-    // Splash auto-dismiss after 1.5s
     setTimeout(() => this.dismissSplash(), 1500);
 
-    // Check for stored password
     const stored = getStoredPassword();
     if (stored) this.password = stored;
 
-    // Restore debug mode preference
     this.showDebug = getDebugMode();
+
+    // Restore sticky preferences (age, length only)
+    const sticky = getStickyPrefs();
+    if (sticky) {
+      if (sticky.age) this.formData.age = sticky.age;
+      if (sticky.length) this.formData.length = sticky.length;
+    }
+
+    this.refreshStorageSize();
   },
 
-  // -------- Methods --------
   methods: {
 
     // ---- Splash ----
     dismissSplash() {
       if (!this.showSplash) return;
       this.showSplash = false;
-      if (!this.password) {
-        this.showPasswordPrompt = true;
-      }
+      if (!this.password) this.showPasswordPrompt = true;
     },
 
     // ---- Password ----
@@ -148,21 +175,32 @@ createApp({
       this.showPasswordPrompt = true;
     },
 
-    // ---- Mood multi-select ----
-    toggleMood(value) {
-      const idx = this.formData.mood.indexOf(value);
-      if (idx === -1) this.formData.mood.push(value);
-      else this.formData.mood.splice(idx, 1);
+    // ---- Story Ingredients (multi-select, max 3) ----
+    toggleIngredient(value) {
+      const idx = this.formData.ingredients.indexOf(value);
+      if (idx !== -1) {
+        this.formData.ingredients.splice(idx, 1);
+      } else if (this.ingredientCount < MAX_INGREDIENTS) {
+        this.formData.ingredients.push(value);
+      }
     },
 
-    isMoodActive(value) {
-      return this.formData.mood.includes(value);
+    isIngredientActive(value) {
+      return this.formData.ingredients.includes(value);
+    },
+
+    isIngredientDisabled(value) {
+      return this.ingredientsAtMax && !this.isIngredientActive(value);
     },
 
     // ---- Theme preset ----
     selectThemePreset(theme) {
-      // Toggle: tap selected one to clear
       this.formData.theme = this.formData.theme === theme ? '' : theme;
+    },
+
+    // ---- Form: Reset ----
+    handleResetForm() {
+      this.formData = defaultFormData();
     },
 
     // ---- Generation ----
@@ -171,6 +209,9 @@ createApp({
       this.loading = true;
       this.loadingMessage = 'Writing your story…';
       this.loadingHint = loadingHintForLength(this.formData.length);
+
+      // Persist sticky preferences (age + length)
+      setStickyPrefs(this.formData);
 
       const messages = [
         'Writing your story…',
@@ -212,6 +253,8 @@ createApp({
 
       const storyRecord = {
         id: 'story_' + Date.now(),
+        parent_story_id: null,      // future-proofing for sequels
+        story_series_id: null,      // future-proofing for chapter groups
         title: result.story.title,
         pages: result.story.pages,
         formData: JSON.parse(JSON.stringify(this.formData)),
@@ -219,8 +262,10 @@ createApp({
         tokens: result.tokens,
         createdAt: new Date().toISOString(),
       };
+      this.currentStoryRecord = storyRecord;
       saveStoryToStorage(storyRecord);
 
+      this.refreshStorageSize();
       this.view = 'story';
     },
 
@@ -233,13 +278,41 @@ createApp({
 
     handleNewStory() {
       this.currentStory = null;
+      this.currentStoryRecord = null;
       this.view = 'create';
+    },
+
+    // ---- Nav between story and form (keeping the story) ----
+    editSettings() {
+      // Go to form but keep currentStory in memory
+      this.view = 'create';
+    },
+
+    backToStory() {
+      this.view = 'story';
+    },
+
+    // ---- Continue Story (future feature, disabled for now) ----
+    handleContinueStory() {
+      // Placeholder — feature coming with chapter/sequel support
+      alert('Continue Story is coming soon! This will let you make a Part 2 using the same characters and setting.');
     },
 
     // ---- Debug ----
     toggleDebug() {
       this.showDebug = !this.showDebug;
       setDebugMode(this.showDebug);
+      this.refreshStorageSize();
+    },
+
+    refreshStorageSize() {
+      this.storageSize = getStorageSizeBytes();
+    },
+
+    handleClearStories() {
+      if (!confirm('Clear all saved stories from this device? This cannot be undone.')) return;
+      clearAllStories();
+      this.refreshStorageSize();
     },
 
     async copyToClipboard(text) {

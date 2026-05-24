@@ -10,9 +10,7 @@
 
   <div id="app">
 
-    <!-- ================================================================
-         SPLASH SCREEN
-         ================================================================ -->
+    <!-- ============== SPLASH ============== -->
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-emoji">📖</div>
@@ -20,9 +18,7 @@
       </div>
     </div>
 
-    <!-- ================================================================
-         PASSWORD PROMPT (first launch only)
-         ================================================================ -->
+    <!-- ============== PASSWORD ============== -->
     <div v-else-if="showPasswordPrompt" class="modal-overlay">
       <div class="modal">
         <h2>Welcome</h2>
@@ -40,9 +36,7 @@
       </div>
     </div>
 
-    <!-- ================================================================
-         MAIN APP
-         ================================================================ -->
+    <!-- ============== MAIN APP ============== -->
     <template v-else>
 
       <header class="app-header">
@@ -52,17 +46,27 @@
 
       <main class="app-main">
 
-        <!-- ============== LOADING STATE ============== -->
+        <!-- ============== LOADING ============== -->
         <div v-if="loading" class="loading-screen">
           <div class="loading-spinner"></div>
           <p class="loading-text">{{ loadingMessage }}</p>
           <p class="loading-hint">This takes about {{ loadingHint }}.</p>
         </div>
 
-        <!-- ============== STORY CREATION FORM ============== -->
+        <!-- ============== FORM ============== -->
         <div v-else-if="view === 'create'" class="create-form">
 
-          <h2 class="section-title">Create a New Story</h2>
+          <div class="form-top-bar">
+            <h2 class="section-title">Create a New Story</h2>
+            <div class="form-top-actions">
+              <button
+                v-if="currentStory"
+                @click="backToStory"
+                class="btn-secondary btn-small"
+              >← Back to Story</button>
+              <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
+            </div>
+          </div>
 
           <!-- 1. Characters -->
           <div class="form-field">
@@ -75,12 +79,12 @@
             />
           </div>
 
-          <!-- 2. Anything Else -->
+          <!-- 2. Story Details -->
           <div class="form-field">
-            <label>Anything Else <span class="optional">(optional)</span></label>
+            <label>Story Details <span class="help-text">— make it your own with cool details</span> <span class="optional">(optional)</span></label>
             <textarea
-              v-model="formData.anythingElse"
-              placeholder="Setting, special touches, things to include... e.g. 'Set in space, include Geometry Dash, has a dragon named Bumble'"
+              v-model="formData.storyDetails"
+              placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'"
               class="textarea-input"
               rows="3"
             ></textarea>
@@ -131,18 +135,22 @@
             </div>
           </div>
 
-          <!-- 6. Mood (multi-select) -->
+          <!-- 6. Story Ingredients -->
           <div class="form-field">
-            <label>Mood <span class="help-text">— how it should feel</span> <span class="optional">(pick any)</span></label>
+            <label>
+              Story Ingredients <span class="help-text">— how it should feel</span>
+              <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span>
+            </label>
             <div class="pill-group wrap">
               <button
-                v-for="m in moods"
-                :key="m.value"
-                @click="toggleMood(m.value)"
-                :class="['pill pill-compact', { active: isMoodActive(m.value) }]"
+                v-for="ing in ingredients"
+                :key="ing.value"
+                @click="toggleIngredient(ing.value)"
+                :disabled="isIngredientDisabled(ing.value)"
+                :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]"
               >
-                <span class="pill-emoji">{{ m.emoji }}</span>
-                <span class="pill-text">{{ m.label }}</span>
+                <span class="pill-emoji">{{ ing.emoji }}</span>
+                <span class="pill-text">{{ ing.label }}</span>
               </button>
             </div>
           </div>
@@ -166,10 +174,7 @@
             />
           </div>
 
-          <!-- Generate -->
-          <button @click="handleGenerate" class="btn-primary btn-large">
-            Generate Story
-          </button>
+          <button @click="handleGenerate" class="btn-primary btn-large">Generate Story</button>
 
           <p v-if="error" class="error-text">{{ error }}</p>
 
@@ -177,6 +182,11 @@
 
         <!-- ============== STORY DISPLAY ============== -->
         <div v-else-if="view === 'story' && currentStory" class="story-view">
+
+          <div class="story-top-bar">
+            <button @click="editSettings" class="btn-secondary btn-small">← Edit Settings</button>
+          </div>
+
           <h2 class="story-title">{{ currentStory.title }}</h2>
 
           <div class="story-pages">
@@ -186,12 +196,31 @@
             </div>
           </div>
 
-          <div class="story-meta">
-            Generated for {{ formattedCost }}
+          <!-- Coin cost display -->
+          <div class="cost-display">
+            <div class="cost-amount">This story cost {{ formattedCost }}</div>
+            <div class="coin-row">
+              <template v-for="(group, idx) in coinBreakdown" :key="idx">
+                <span
+                  v-for="n in group.count"
+                  :key="group.type + '-' + n"
+                  :class="['coin', 'coin-' + group.type]"
+                  :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}"
+                >
+                  <img :src="'assets/images/coin-' + group.type + '.png'" :alt="group.type" />
+                </span>
+              </template>
+            </div>
           </div>
 
           <div class="story-actions">
             <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
+            <button
+              @click="handleContinueStory"
+              class="btn-secondary"
+              title="Coming soon — will let you write a Part 2 with the same characters"
+              disabled
+            >Continue Story</button>
             <button @click="handleNewStory" class="btn-primary">New Story</button>
           </div>
         </div>
@@ -212,6 +241,12 @@
           <h4>App</h4>
           <div class="debug-stat">Version: <strong>{{ version }}</strong></div>
           <div class="debug-stat">Build date: <strong>{{ buildDate }}</strong></div>
+        </div>
+
+        <div class="debug-section">
+          <h4>Storage</h4>
+          <div class="debug-stat">Used: <strong>{{ formattedStorageSize }}</strong></div>
+          <button @click="handleClearStories" class="btn-secondary btn-small">Clear All Stories</button>
         </div>
 
         <div class="debug-section">
@@ -244,7 +279,6 @@
     </template>
   </div>
 
-  <!-- ================ Scripts ================ -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/api.js"></script>

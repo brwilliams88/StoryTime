@@ -145,9 +145,25 @@ body {
 
 .section-title {
   font-size: 1.3rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
+  margin: 0;
   color: var(--text-main);
+}
+
+/* Top bar above form/story (title + action buttons) */
+.form-top-bar,
+.story-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-top-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* =============================================
@@ -258,6 +274,22 @@ body {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--bg-deep);
+}
+
+.pill.disabled,
+.pill:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pill.disabled:hover,
+.pill:disabled:hover {
+  border-color: var(--border-soft);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .pill-compact {
@@ -446,6 +478,54 @@ body {
   color: var(--text-dim);
   font-size: 0.85rem;
   margin: 1.5rem 0 1rem;
+}
+
+/* ==========================================
+   COIN COST DISPLAY
+   ========================================== */
+.cost-display {
+  margin: 2rem 0 1.5rem;
+  text-align: center;
+}
+
+.cost-amount {
+  font-size: 1.05rem;
+  color: var(--text-main);
+  margin-bottom: 0.8rem;
+  font-weight: 600;
+}
+
+.coin-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.coin {
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+}
+
+.coin img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Real-world relative sizes — dime smallest, quarter biggest */
+.coin-dime    { width: 38px; }
+.coin-penny   { width: 42px; }
+.coin-nickel  { width: 48px; }
+.coin-quarter { width: 56px; }
+
+@media (max-width: 480px) {
+  .coin-dime    { width: 30px; }
+  .coin-penny   { width: 33px; }
+  .coin-nickel  { width: 38px; }
+  .coin-quarter { width: 45px; }
 }
 
 .story-actions {
