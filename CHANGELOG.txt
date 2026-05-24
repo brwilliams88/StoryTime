@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.4.1 — 2026-05-23 — Form Polish
+  • Removed Friendship from Genre (kept in Theme — no more cross-category duplicates)
+  • Age slider replaced with tappable number pills 1–10
+  • Age label changed to "Story for age" (clearer)
+  • Added micro-help text under Genre / Mood / Theme labels
+
+--------------------------
 v0.4 — 2026-05-23 — Form Simplification + Prompt Quality
   • Form reduced to 7 fields, new order: Characters → Anything Else → Age → Length → Genre → Mood → Theme
   • Characters now free-text (any description or named characters)

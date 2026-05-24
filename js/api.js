@@ -35,7 +35,6 @@ const GENRE_GUIDANCE = {
   'pirates':     'high seas adventure — ships, treasure, salty crews',
   'superhero':   'heroes with special abilities solving problems with bravery and heart',
   'mystery':     'a gentle puzzle to discover and solve — curiosity, never danger',
-  'friendship':  'warm and heartfelt; the bond between characters is the focus',
   'spooky':      'playfully spooky — friendly ghosts, harmless surprises, no real fear',
 };
 

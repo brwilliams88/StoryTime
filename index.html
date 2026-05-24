@@ -88,16 +88,14 @@
 
           <!-- 3. Age -->
           <div class="form-field">
-            <label>Age</label>
-            <div class="age-row">
-              <input
-                type="range"
-                min="1"
-                max="10"
-                v-model.number="formData.age"
-                class="age-slider"
-              />
-              <span class="age-display">{{ formData.age }}</span>
+            <label>Story for age</label>
+            <div class="pill-group age-pills">
+              <button
+                v-for="n in 10"
+                :key="n"
+                @click="formData.age = n"
+                :class="['pill pill-num', { active: formData.age === n }]"
+              >{{ n }}</button>
             </div>
           </div>
 
@@ -119,7 +117,7 @@
 
           <!-- 5. Genre -->
           <div class="form-field">
-            <label>Genre</label>
+            <label>Genre <span class="help-text">— the type of story</span></label>
             <div class="pill-group wrap">
               <button
                 v-for="g in genres"
@@ -135,7 +133,7 @@
 
           <!-- 6. Mood (multi-select) -->
           <div class="form-field">
-            <label>Mood <span class="optional">(optional — pick any)</span></label>
+            <label>Mood <span class="help-text">— how it should feel</span> <span class="optional">(pick any)</span></label>
             <div class="pill-group wrap">
               <button
                 v-for="m in moods"
@@ -151,7 +149,7 @@
 
           <!-- 7. Theme -->
           <div class="form-field">
-            <label>Theme <span class="optional">(optional)</span></label>
+            <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
             <div class="pill-group wrap theme-presets">
               <button
                 v-for="t in themes"

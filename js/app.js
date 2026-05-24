@@ -13,7 +13,7 @@ createApp({
     return {
       // Version
       appName: 'StoryTime',
-      version: 'v0.4',
+      version: 'v0.4.1',
       buildDate: '2026-05-23',
 
       // Splash screen
@@ -62,7 +62,6 @@ createApp({
         { value: 'pirates',    emoji: '🏴‍☠️', label: 'Pirates' },
         { value: 'superhero',  emoji: '🦸', label: 'Superhero' },
         { value: 'mystery',    emoji: '🔍', label: 'Mystery' },
-        { value: 'friendship', emoji: '🤝', label: 'Friendship' },
         { value: 'spooky',     emoji: '👻', label: 'Spooky' },
       ],
       moods: [

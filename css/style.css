@@ -176,6 +176,13 @@ body {
   font-size: 0.85rem;
 }
 
+.help-text {
+  font-weight: 400;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
 /* Inputs */
 .text-input,
 .textarea-input,
@@ -202,25 +209,19 @@ body {
   min-height: 60px;
 }
 
-/* Age slider */
-.age-row {
+/* Age number pills */
+.age-pills {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
-.age-slider {
-  flex: 1;
-  accent-color: var(--accent);
-}
-
-.age-display {
-  background: var(--accent);
-  color: var(--bg-deep);
-  padding: 0.3rem 0.8rem;
-  border-radius: 999px;
+.pill-num {
+  flex: 1 0 auto;
+  min-width: 36px;
+  padding: 0.55rem 0;
   font-weight: 700;
-  min-width: 2.5rem;
+  font-size: 1rem;
   text-align: center;
 }
 
