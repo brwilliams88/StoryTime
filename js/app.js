@@ -1,14 +1,8 @@
 // =====================================================================
 // app.js — Main Vue Application
 // =====================================================================
-// This is the brain of the StoryTime app. It manages:
-//   - Splash screen on launch
-//   - Password prompt (first launch only)
-//   - The story-creation form
-//   - Story generation (calls api.js)
-//   - Story display
-//   - Debug panel
-//   - Saving stories to localStorage (via storage.js)
+// Manages: splash, password prompt, story-creation form, generation
+// loading state, story display, debug panel, localStorage persistence.
 // =====================================================================
 
 const { createApp } = Vue
@@ -19,7 +13,8 @@ createApp({
     return {
       // Version
       appName: 'StoryTime',
-      version: 'v0.3',
+      version: 'v0.4',
+      buildDate: '2026-05-23',
 
       // Splash screen
       showSplash: true,
@@ -35,9 +30,10 @@ createApp({
       // Loading state
       loading: false,
       loadingMessage: '',
+      loadingHint: '',
 
       // Current story being displayed
-      currentStory: null,           // parsed { title, pages: [...] }
+      currentStory: null,
       currentStoryCost: 0,
 
       // Last generation context (for debug + regenerate)
@@ -48,46 +44,43 @@ createApp({
 
       // Form data
       formData: {
+        characters: '',
+        anythingElse: '',
         age: 5,
         length: 'regular',
         genre: 'adventure',
-        characterType: 'animals',
-        setting: '',
-        specialTouches: '',
-        lesson: '',
-        artStyle: 'watercolor',     // visible but not yet wired to images
+        mood: [],           // multi-select array
+        theme: '',          // single-select OR custom text
       },
 
-      // Dropdown options shown in the UI
+      // Selector options
       genres: [
-        { value: 'adventure',       label: 'Adventure' },
-        { value: 'fairy-tale',      label: 'Fairy Tale' },
-        { value: 'fantasy',         label: 'Fantasy' },
-        { value: 'bedtime-calming', label: 'Bedtime / Calming' },
-        { value: 'funny',           label: 'Funny' },
-        { value: 'mystery',         label: 'Mystery' },
-        { value: 'friendship',      label: 'Friendship' },
+        { value: 'adventure',  emoji: '🗺️', label: 'Adventure' },
+        { value: 'fairy-tale', emoji: '🧚', label: 'Fairy Tale' },
+        { value: 'fantasy',    emoji: '✨', label: 'Fantasy' },
+        { value: 'sci-fi',     emoji: '🚀', label: 'Sci-Fi' },
+        { value: 'pirates',    emoji: '🏴‍☠️', label: 'Pirates' },
+        { value: 'superhero',  emoji: '🦸', label: 'Superhero' },
+        { value: 'mystery',    emoji: '🔍', label: 'Mystery' },
+        { value: 'friendship', emoji: '🤝', label: 'Friendship' },
+        { value: 'spooky',     emoji: '👻', label: 'Spooky' },
       ],
-      characterTypes: [
-        { value: 'animals',           label: 'Animals' },
-        { value: 'humans',            label: 'Humans' },
-        { value: 'monsters',          label: 'Friendly Monsters' },
-        { value: 'robots',            label: 'Robots' },
-        { value: 'magical-creatures', label: 'Magical Creatures' },
+      moods: [
+        { value: 'funny',         emoji: '😄', label: 'Funny' },
+        { value: 'surprise',      emoji: '🎁', label: 'Surprise twist' },
+        { value: 'heartwarming',  emoji: '💝', label: 'Heartwarming' },
+        { value: 'action-packed', emoji: '⚡', label: 'Action-packed' },
+        { value: 'dreamy',        emoji: '🌙', label: 'Dreamy' },
+      ],
+      themes: [
+        'Family', 'Sharing', 'Bravery', 'Friendship', 'Kindness',
+        'Honesty', 'Perseverance', 'Curiosity', 'Helping others', 'Being yourself',
       ],
       lengths: [
-        { value: 'short',       label: 'Short',      subtitle: '~3 min' },
-        { value: 'regular',     label: 'Regular',    subtitle: '~6 min' },
-        { value: 'long',        label: 'Long',       subtitle: '~10 min' },
-        { value: 'extra-long',  label: 'Extra-Long', subtitle: '~15 min' },
-      ],
-      artStyles: [
-        { value: 'watercolor', label: 'Warm Watercolor' },
-        { value: 'pixel',      label: 'Pixel Art' },
-        { value: 'anime',      label: 'Anime' },
-        { value: 'pencil',     label: 'Pencil Sketch' },
-        { value: 'claymation', label: 'Claymation' },
-        { value: 'comic',      label: 'Comic Book' },
+        { value: 'short',       label: 'Short',      subtitle: '~2 min' },
+        { value: 'regular',     label: 'Regular',    subtitle: '~5 min' },
+        { value: 'long',        label: 'Long',       subtitle: '~8 min' },
+        { value: 'extra-long',  label: 'Extra-Long', subtitle: '~12 min' },
       ],
 
       // Debug panel
@@ -110,20 +103,16 @@ createApp({
     },
   },
 
-  // -------- Lifecycle: runs once when app first loads --------
+  // -------- Lifecycle --------
   mounted() {
     console.log(`${this.appName} ${this.version} loaded ✓`);
 
-    // Splash auto-dismiss after 1.5s (also dismissable on click)
-    setTimeout(() => {
-      this.dismissSplash();
-    }, 1500);
+    // Splash auto-dismiss after 1.5s
+    setTimeout(() => this.dismissSplash(), 1500);
 
     // Check for stored password
     const stored = getStoredPassword();
-    if (stored) {
-      this.password = stored;
-    }
+    if (stored) this.password = stored;
 
     // Restore debug mode preference
     this.showDebug = getDebugMode();
@@ -132,18 +121,16 @@ createApp({
   // -------- Methods --------
   methods: {
 
-    // Splash
+    // ---- Splash ----
     dismissSplash() {
       if (!this.showSplash) return;
       this.showSplash = false;
-
-      // After splash, prompt for password if we don't have one yet
       if (!this.password) {
         this.showPasswordPrompt = true;
       }
     },
 
-    // Password
+    // ---- Password ----
     submitPassword() {
       if (!this.passwordInput.trim()) {
         this.error = 'Please enter a password.';
@@ -162,13 +149,30 @@ createApp({
       this.showPasswordPrompt = true;
     },
 
-    // Story generation
+    // ---- Mood multi-select ----
+    toggleMood(value) {
+      const idx = this.formData.mood.indexOf(value);
+      if (idx === -1) this.formData.mood.push(value);
+      else this.formData.mood.splice(idx, 1);
+    },
+
+    isMoodActive(value) {
+      return this.formData.mood.includes(value);
+    },
+
+    // ---- Theme preset ----
+    selectThemePreset(theme) {
+      // Toggle: tap selected one to clear
+      this.formData.theme = this.formData.theme === theme ? '' : theme;
+    },
+
+    // ---- Generation ----
     async handleGenerate() {
       this.error = '';
       this.loading = true;
       this.loadingMessage = 'Writing your story…';
+      this.loadingHint = loadingHintForLength(this.formData.length);
 
-      // Rotating loading messages keep things lively while waiting
       const messages = [
         'Writing your story…',
         'Choosing the right words…',
@@ -202,17 +206,16 @@ createApp({
     displayStoryResult(result) {
       this.currentStory = result.story;
       this.currentStoryCost = result.cost;
-      this.lastFormData = { ...this.formData };
+      this.lastFormData = JSON.parse(JSON.stringify(this.formData));
       this.lastPrompt = result.prompt;
       this.lastRawResponse = result.rawResponse;
       this.lastTokens = result.tokens;
 
-      // Save to localStorage (for the future library)
       const storyRecord = {
         id: 'story_' + Date.now(),
         title: result.story.title,
         pages: result.story.pages,
-        formData: { ...this.formData },
+        formData: JSON.parse(JSON.stringify(this.formData)),
         cost: result.cost,
         tokens: result.tokens,
         createdAt: new Date().toISOString(),
@@ -224,8 +227,7 @@ createApp({
 
     handleRegenerate() {
       if (this.lastFormData) {
-        // Restore the exact inputs and regenerate
-        this.formData = { ...this.lastFormData };
+        this.formData = JSON.parse(JSON.stringify(this.lastFormData));
       }
       this.handleGenerate();
     },
@@ -235,13 +237,12 @@ createApp({
       this.view = 'create';
     },
 
-    // Debug
+    // ---- Debug ----
     toggleDebug() {
       this.showDebug = !this.showDebug;
       setDebugMode(this.showDebug);
     },
 
-    // Copy to clipboard (used in debug panel)
     async copyToClipboard(text) {
       try {
         await navigator.clipboard.writeText(text);

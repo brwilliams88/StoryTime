@@ -224,22 +224,28 @@ body {
   text-align: center;
 }
 
-/* Length pills */
+/* Pills (used for length, genre, mood, theme) */
 .pill-group {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.5rem;
 }
 
+.pill-group.wrap {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .pill {
   background: var(--bg-input);
   border: 1px solid var(--border-soft);
   border-radius: 10px;
-  padding: 0.6rem 0.4rem;
+  padding: 0.6rem 0.7rem;
   color: var(--text-main);
   cursor: pointer;
   text-align: center;
   font-family: inherit;
+  font-size: 0.95rem;
   transition: all 0.15s ease;
 }
 
@@ -253,6 +259,30 @@ body {
   color: var(--bg-deep);
 }
 
+.pill-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.pill-small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 999px;
+}
+
+.pill-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.pill-text {
+  line-height: 1;
+}
+
 .pill-label {
   font-weight: 700;
   font-size: 0.95rem;
@@ -262,6 +292,15 @@ body {
   font-size: 0.75rem;
   opacity: 0.8;
   margin-top: 0.15rem;
+}
+
+/* Theme: pill row + text input combo */
+.theme-presets {
+  margin-bottom: 0.6rem;
+}
+
+.theme-input {
+  margin-top: 0.2rem;
 }
 
 /* =============================================

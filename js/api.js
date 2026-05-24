@@ -11,83 +11,108 @@
 // the password to actually get a response.
 const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
-// ----- Length targets (rough) -----
-// Words per minute for parent-to-kid reading aloud: ~120–150.
-// We aim slightly lower (~100 wpm) since the kids ask questions
-// and pause to look at pictures.
+// ----- Length targets -----
+// Aim ~125 wpm reading-aloud rate; rounded for cleaner targets.
 const LENGTH_PRESETS = {
-  short:      { words: 300,  pages: 4,  minutes: 3 },
-  regular:    { words: 700,  pages: 6,  minutes: 6 },
-  long:       { words: 1200, pages: 9,  minutes: 10 },
-  'extra-long': { words: 1800, pages: 13, minutes: 15 },
+  short:        { words: 250,  pages: 3,  minutes: 2 },
+  regular:      { words: 625,  pages: 6,  minutes: 5 },
+  long:         { words: 1000, pages: 8,  minutes: 8 },
+  'extra-long': { words: 1500, pages: 12, minutes: 12 },
 };
 
 // ----- OpenAI GPT-4o pricing (as of this build) -----
-// $2.50 per 1M input tokens, $10.00 per 1M output tokens.
 const PRICING = {
   inputPer1M: 2.50,
   outputPer1M: 10.00,
 };
 
+// ----- Genre guidance for the prompt -----
+const GENRE_GUIDANCE = {
+  'adventure':   'an exciting journey with gentle thrills and wonder',
+  'fairy-tale':  'classic fairy-tale feel — magic, archetypes, satisfying resolution',
+  'fantasy':     'a rich imaginative world with magical elements',
+  'sci-fi':      'imaginative science-fiction — space, robots, gadgets, future worlds',
+  'pirates':     'high seas adventure — ships, treasure, salty crews',
+  'superhero':   'heroes with special abilities solving problems with bravery and heart',
+  'mystery':     'a gentle puzzle to discover and solve — curiosity, never danger',
+  'friendship':  'warm and heartfelt; the bond between characters is the focus',
+  'spooky':      'playfully spooky — friendly ghosts, harmless surprises, no real fear',
+};
+
+const MOOD_GUIDANCE = {
+  'funny':         'sprinkle in light humor and silly moments',
+  'surprise':      'include a small unexpected twist that delights',
+  'heartwarming':  'aim for moments of warmth and connection',
+  'action-packed': 'keep momentum brisk with vivid scenes and motion',
+  'dreamy':        'lean into soft, imaginative, dreamlike imagery',
+};
+
 
 // =====================================================================
 // PROMPT BUILDER
-// Takes the form data the user filled out and turns it into the
-// actual text prompt we send to GPT-4o.
+// Quality directives first, structure second.
 // =====================================================================
 function buildStoryPrompt(formData) {
   const lengthInfo = LENGTH_PRESETS[formData.length] || LENGTH_PRESETS.regular;
+  const genreLabel = formData.genre.replace('-', ' ');
+  const genreNote = GENRE_GUIDANCE[formData.genre] || '';
 
-  // Genre-specific tone guidance
-  const genreGuidance = {
-    'adventure':       'An exciting journey with a sense of wonder — gentle thrills, never frightening.',
-    'fairy-tale':      'A classic fairy-tale feel — magic, archetypes, a satisfying happy ending.',
-    'fantasy':         'A rich imaginative world with magical elements and a hopeful tone.',
-    'bedtime-calming': 'Soothing, peaceful, dreamlike. The pace should slow toward the end as the character drifts to sleep.',
-    'funny':           'Playful, silly, lots of light humor. Should make a child giggle.',
-    'mystery':         'A gentle puzzle to solve. No real danger — more curiosity and discovery.',
-    'friendship':      'Warm, heartfelt, about connection and kindness between characters.',
-  };
+  // Compose mood guidance from selected tags
+  const moodNotes = (formData.mood || [])
+    .map(m => MOOD_GUIDANCE[m])
+    .filter(Boolean);
 
-  const characterGuidance = {
-    'animals':           'The main characters should be animals (the child can imagine which ones, but pick interesting ones).',
-    'humans':            'The main characters should be human children or families.',
-    'monsters':          'The main characters should be friendly, lovable monsters (never scary).',
-    'robots':            'The main characters should be robots — could be cute, clever, or both.',
-    'magical-creatures': 'The main characters should be magical creatures — dragons, unicorns, fairies, sprites, etc.',
-  };
+  const lines = [];
 
-  // Build the prompt piece by piece for clarity
-  const lines = [
-    `You are a warm, imaginative children's bedtime storyteller.`,
-    ``,
-    `Create a bedtime story with these parameters:`,
-    `- Target reader age: ${formData.age} years old`,
-    `- Approximate length: ~${lengthInfo.words} words across about ${lengthInfo.pages} pages (~${lengthInfo.minutes} min reading time)`,
-    `- Genre: ${formData.genre} — ${genreGuidance[formData.genre] || ''}`,
-    `- Main character type: ${formData.characterType} — ${characterGuidance[formData.characterType] || ''}`,
-  ];
-
-  if (formData.setting && formData.setting.trim()) {
-    lines.push(`- Setting: ${formData.setting.trim()}`);
-  }
-  if (formData.specialTouches && formData.specialTouches.trim()) {
-    lines.push(`- Special touches the reader requested: ${formData.specialTouches.trim()}`);
-  }
-  if (formData.lesson && formData.lesson.trim()) {
-    lines.push(`- Lesson or theme to convey: ${formData.lesson.trim()}`);
-  }
-
+  // ---- PERSONA ----
   lines.push(
-    ``,
-    `Writing guidelines:`,
-    `- Vocabulary, sentence length, and concepts must match a ${formData.age}-year-old.`,
-    `- Always end on a calm, positive, bedtime-appropriate note — no cliffhangers, no fear.`,
-    `- Each "page" should be one discrete scene that an illustrator could draw.`,
-    `- Vary sentence rhythm. Read aloud well.`,
-    `- For each page, also write an "image_prompt": a vivid visual description of that scene that an illustrator could use. Describe characters, setting, mood, and any specific actions. Image style will be added separately.`,
-    ``,
-    `Return ONLY valid JSON. No markdown, no explanation, no text outside the JSON.`,
+    `You are a master children's bedtime storyteller. Craft a story that is wonderful first, well-organized second.`,
+    ``
+  );
+
+  // ---- CRAFT REQUIREMENTS (quality first) ----
+  lines.push(
+    `CRAFT REQUIREMENTS (these matter most):`,
+    `- Tell ONE cohesive story with a clear arc: setup, rising action, a moment of change or discovery, and a calming satisfying conclusion.`,
+    `- Characters introduced on page 1 stay consistent throughout — same names, personalities, voices. Do NOT introduce new important characters in the final page.`,
+    `- Each page flows naturally from the previous — no jarring jumps in tone, location, or time without intentional transition.`,
+    `- Use varied sentence rhythm and beautiful read-aloud language. Avoid mechanical repetition.`,
+    `- End peaceful and warm — appropriate for the moment before sleep.`,
+    `- Write at a vocabulary, sentence length, and conceptual level appropriate for a ${formData.age}-year-old.`,
+  );
+
+  if (moodNotes.length > 0) {
+    lines.push(`- Mood: ${moodNotes.join('; ')}.`);
+  }
+
+  if (formData.theme && formData.theme.trim()) {
+    lines.push(`- Gently weave in this theme: ${formData.theme.trim()}. Do not be preachy or didactic; let it emerge through the story.`);
+  }
+
+  lines.push(``);
+
+  // ---- STORY PARAMETERS ----
+  lines.push(`STORY PARAMETERS:`);
+  lines.push(`- Target reader age: ${formData.age} years old`);
+  lines.push(`- Length: ~${lengthInfo.words} words across about ${lengthInfo.pages} pages (~${lengthInfo.minutes} min read aloud)`);
+  lines.push(`- Genre: ${genreLabel} — ${genreNote}`);
+
+  if (formData.characters && formData.characters.trim()) {
+    lines.push(`- Main characters: ${formData.characters.trim()}`);
+  } else {
+    lines.push(`- Main characters: invent them yourself, suited to the genre and age`);
+  }
+
+  if (formData.anythingElse && formData.anythingElse.trim()) {
+    lines.push(`- Additional details from the reader: ${formData.anythingElse.trim()}`);
+  }
+
+  lines.push(``);
+
+  // ---- OUTPUT FORMAT ----
+  lines.push(
+    `OUTPUT FORMAT:`,
+    `Return ONLY valid JSON. No markdown, no commentary, no text outside the JSON.`,
     `Exact structure:`,
     `{`,
     `  "title": "short evocative story title",`,
@@ -95,7 +120,8 @@ function buildStoryPrompt(formData) {
     `    { "page_number": 1, "text": "...", "image_prompt": "..." },`,
     `    { "page_number": 2, "text": "...", "image_prompt": "..." }`,
     `  ]`,
-    `}`
+    `}`,
+    `For each page, "image_prompt" is a vivid visual description of that scene for an illustrator (setting, characters, mood, action). Image style will be added separately.`
   );
 
   return lines.join('\n');
@@ -104,21 +130,35 @@ function buildStoryPrompt(formData) {
 
 // =====================================================================
 // STORY GENERATION
-// Calls GPT-4o through our Worker proxy. Returns a parsed story object
-// plus metadata (cost, token counts, raw response).
+// Calls GPT-4o through our Worker proxy. Auto-retries once on a
+// malformed-JSON response. Returns parsed story + metadata.
 // =====================================================================
 async function generateStory(formData, password) {
   const prompt = buildStoryPrompt(formData);
-
   const requestBody = {
     model: 'gpt-4o',
-    messages: [
-      { role: 'user', content: prompt }
-    ],
+    messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' },
-    temperature: 0.9, // a bit of creativity
+    temperature: 0.9,
   };
 
+  // Try up to twice — second attempt only on JSON parse failure.
+  let lastError = null;
+  let attempt = 0;
+  while (attempt < 2) {
+    attempt++;
+    try {
+      return await callOpenAI(requestBody, password, prompt);
+    } catch (err) {
+      lastError = err;
+      // Only retry on JSON parse errors — not auth, network, or quota issues
+      if (!err.isJsonParseError) break;
+    }
+  }
+  throw lastError;
+}
+
+async function callOpenAI(requestBody, password, prompt) {
   const response = await fetch(`${WORKER_URL}/v1/chat/completions`, {
     method: 'POST',
     headers: {
@@ -129,9 +169,8 @@ async function generateStory(formData, password) {
   });
 
   if (response.status === 401) {
-    throw new Error('Wrong password. Tap the corner debug icon to reset.');
+    throw new Error('Wrong password. Open the debug panel to reset.');
   }
-
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(`Story generation failed (HTTP ${response.status}): ${errText}`);
@@ -139,26 +178,26 @@ async function generateStory(formData, password) {
 
   const data = await response.json();
 
-  // Parse the JSON the model gave us inside the response message
   let story;
   try {
     story = JSON.parse(data.choices[0].message.content);
   } catch (e) {
-    throw new Error('The AI returned content I could not parse as JSON. Try regenerating.');
+    const err = new Error('The AI returned content I could not parse as JSON.');
+    err.isJsonParseError = true;
+    throw err;
   }
 
-  // Compute cost from usage tokens
   const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0 };
   const cost =
     (usage.prompt_tokens     * PRICING.inputPer1M  / 1_000_000) +
     (usage.completion_tokens * PRICING.outputPer1M / 1_000_000);
 
   return {
-    story,                       // parsed { title, pages: [...] }
-    prompt,                      // the full prompt we sent (for debug)
-    rawResponse: data,           // the full OpenAI response (for debug)
-    tokens: usage,               // { prompt_tokens, completion_tokens, total_tokens }
-    cost,                        // number, in USD
+    story,
+    prompt,
+    rawResponse: data,
+    tokens: usage,
+    cost,
   };
 }
 
@@ -182,4 +221,19 @@ function generateFakeStory(formData) {
     tokens: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
     cost: 0,
   };
+}
+
+
+// =====================================================================
+// LOADING HINT
+// Roughly how long generation should take, based on story length.
+// =====================================================================
+function loadingHintForLength(lengthKey) {
+  const map = {
+    short:        '~10 seconds',
+    regular:      '~15 seconds',
+    long:         '~20 seconds',
+    'extra-long': '~25 seconds',
+  };
+  return map[lengthKey] || '~15 seconds';
 }

@@ -9,6 +9,23 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.4 — 2026-05-23 — Form Simplification + Prompt Quality
+  • Form reduced to 7 fields, new order: Characters → Anything Else → Age → Length → Genre → Mood → Theme
+  • Characters now free-text (any description or named characters)
+  • Anything Else merges old Setting + Special Touches into one box
+  • New Mood multi-select (Funny, Surprise twist, Heartwarming, Action-packed, Dreamy)
+  • New Theme field: 10 preset pills + custom text input ("the moral of the story is...")
+  • Genres rebuilt: Adventure, Fairy Tale, Fantasy, Sci-Fi, Pirates, Superhero, Mystery, Friendship, Spooky
+  • Removed: Bedtime/Calming genre, character-type dropdown, separate Setting/Lesson fields, Artwork Style selector (returns with image gen)
+  • Length minutes updated: 2 / 5 / 8 / 12
+  • Prompt rewritten: quality directives first (cohesion, arc, consistent characters), structure second
+  • Auto-retry once silently on malformed JSON
+  • All selectors now pill-style (no native HTML dropdowns)
+  • Removed emoji from action buttons (kept on content tags)
+  • Debug panel: app version + build date displayed
+  • Loading hint scales by length
+
+--------------------------
 v0.3 — 2026-05-23 — First Working Story Generation
   • Built splash screen with auto-dismiss + tap-to-skip
   • First-launch password prompt; password saved to localStorage per device
