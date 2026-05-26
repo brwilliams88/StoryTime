@@ -9,6 +9,22 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.5.1 — 2026-05-25 — Character UX Polish
+  • Renamed "Enhance Description" → "✨ Bring to Life"; result section now labeled "Character Profile"
+  • Character rows redesigned: clear "+ Add" / "✓ Added" button instead of subtle ○/✓ circle
+  • Selected rows have stronger visual state (background, border, glow)
+  • Max 5 characters selectable per story; cap shown in label and "+ Add" disables to "Max" when reached
+  • Better empty state in character list (icon + friendly text)
+  • Onboarding hint at top of modal: "Tap a character to add them to your story (up to 5)"
+  • Random-character notice clearly states "newly invented but not saved yet"
+  • Empty-state hint on main form when no characters selected
+  • Character count in modal header: "Manage Characters (3)"
+  • Expandable "Character Profile" preview on each row — tap chevron to peek at the full visual description
+  • Removed Cancel button from create/edit form (X in header handles same action — consistent UI)
+  • "Try Again" replaces "Regenerate" wording for clarity
+  • Compact button sizing optimized for iPhone widths
+
+--------------------------
 v0.5 — 2026-05-25 — Saved Characters
   • New Manage Characters modal — create, edit, delete, list with most-recent-first sorting
   • Characters stored in localStorage; visual_description used in prompts for consistency

@@ -18,13 +18,14 @@ function defaultFormData() {
 }
 
 const MAX_INGREDIENTS = 3;
+const MAX_SELECTED_CHARACTERS = 5;
 
 createApp({
   data() {
     return {
       // Version
       appName: 'StoryTime',
-      version: 'v0.5',
+      version: 'v0.5.1',
       buildDate: '2026-05-25',
 
       // Splash
@@ -62,8 +63,10 @@ createApp({
       showCharactersModal: false,
       charModalMode: 'list',         // 'list' | 'create' | 'edit'
       charForm: emptyCharForm(),     // create/edit form state
-      enhancing: false,              // loading state for Enhance Description
+      enhancing: false,              // loading state for Bring to Life
       generatingRandom: false,       // loading state for Generate Random Character
+      isRandomNew: false,            // true when current charForm came from Generate Random (not yet saved)
+      expandedCharIds: [],           // character IDs whose profile preview is expanded in the list
 
       // ---- Selector options ----
       genres: [
@@ -130,10 +133,15 @@ createApp({
       return formatStorageSize(this.storageSize);
     },
     selectedCharacters() {
-      // Returns full character objects for selected IDs (preserves order of selection)
       return this.formData.selectedCharacterIds
         .map(id => this.characters.find(c => c.id === id))
         .filter(Boolean);
+    },
+    selectedCharCount() {
+      return this.formData.selectedCharacterIds.length;
+    },
+    charactersAtMax() {
+      return this.selectedCharCount >= MAX_SELECTED_CHARACTERS;
     },
     sortedCharacters() {
       // Sort by last_used_at desc, never-used at the bottom (by created_at desc)
@@ -232,17 +240,30 @@ createApp({
     openCharactersModal() {
       this.charModalMode = 'list';
       this.charForm = emptyCharForm();
+      this.isRandomNew = false;
+      this.expandedCharIds = [];
       this.showCharactersModal = true;
     },
     closeCharactersModal() {
       this.showCharactersModal = false;
       this.charForm = emptyCharForm();
+      this.isRandomNew = false;
     },
 
-    // Selecting characters for the story
+    // X button: in form mode → back to list; in list mode → close modal
+    handleModalX() {
+      if (this.charModalMode === 'list') {
+        this.closeCharactersModal();
+      } else {
+        this.cancelCharForm();
+      }
+    },
+
+    // Selecting characters for the story (respects max)
     toggleCharacterSelected(charId) {
       const idx = this.formData.selectedCharacterIds.indexOf(charId);
       if (idx === -1) {
+        if (this.charactersAtMax) return;  // hit the cap
         this.formData.selectedCharacterIds.push(charId);
         if (!this.formData.characterRoles[charId]) {
           this.formData.characterRoles[charId] = 'none';
@@ -251,6 +272,19 @@ createApp({
         this.formData.selectedCharacterIds.splice(idx, 1);
         delete this.formData.characterRoles[charId];
       }
+    },
+
+    canAddCharacter(charId) {
+      return this.isCharacterSelected(charId) || !this.charactersAtMax;
+    },
+
+    toggleCharProfileExpanded(charId) {
+      const idx = this.expandedCharIds.indexOf(charId);
+      if (idx === -1) this.expandedCharIds.push(charId);
+      else this.expandedCharIds.splice(idx, 1);
+    },
+    isCharProfileExpanded(charId) {
+      return this.expandedCharIds.includes(charId);
     },
     isCharacterSelected(charId) {
       return this.formData.selectedCharacterIds.includes(charId);
@@ -273,6 +307,7 @@ createApp({
     // Create / Edit
     startCreateCharacter() {
       this.charForm = emptyCharForm();
+      this.isRandomNew = false;
       this.charModalMode = 'create';
     },
     startEditCharacter(char) {
@@ -284,10 +319,12 @@ createApp({
         created_at: char.created_at,
         last_used_at: char.last_used_at,
       };
+      this.isRandomNew = false;
       this.charModalMode = 'edit';
     },
     cancelCharForm() {
       this.charForm = emptyCharForm();
+      this.isRandomNew = false;
       this.charModalMode = 'list';
     },
 
@@ -323,6 +360,7 @@ createApp({
           created_at: null,
           last_used_at: null,
         };
+        this.isRandomNew = true;
         this.charModalMode = 'create';
       } catch (err) {
         console.error('Random character failed:', err);
@@ -346,6 +384,7 @@ createApp({
       saveCharacter(record);
       this.characters = getStoredCharacters();
       this.charForm = emptyCharForm();
+      this.isRandomNew = false;
       this.charModalMode = 'list';
     },
 
