@@ -3,8 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Cache control: prevent stale HTML from sticking around -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
   <title>StoryTime</title>
-  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- iOS home screen icon (placeholder pre-MVP) -->
+  <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
+  <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
+
+  <!-- Stylesheet with cache-busting version -->
+  <link rel="stylesheet" href="css/style.css?v=0.5.2" />
 </head>
 <body>
 
@@ -15,6 +27,7 @@
       <div class="splash-content">
         <div class="splash-emoji">📖</div>
         <h1 class="splash-title">StoryTime</h1>
+        <div class="splash-version">{{ version }}</div>
       </div>
     </div>
 
@@ -410,6 +423,7 @@
           <h4>Quick actions</h4>
           <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
           <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
+          <button @click="handleForceUpdate" class="btn-secondary btn-small">⚠️ Force Update</button>
         </div>
 
         <div class="debug-section">
@@ -445,9 +459,44 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/storage.js?v=0.5.2"></script>
+  <script src="js/api.js?v=0.5.2"></script>
+  <script src="js/app.js?v=0.5.2"></script>
+
+  <!-- Service Worker registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then((reg) => {
+            console.log('SW registered. Scope:', reg.scope);
+
+            // Detect new SW waiting to activate
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (!newWorker) return;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // A new version is installed and waiting. Tell it to activate now.
+                  console.log('New SW installed. Activating…');
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
+            });
+          })
+          .catch((err) => console.error('SW registration failed:', err));
+
+        // When the SW takes control of the page (new version), reload once.
+        let reloadedForUpdate = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloadedForUpdate) return;
+          reloadedForUpdate = true;
+          console.log('SW controller changed — reloading for fresh version.');
+          window.location.reload();
+        });
+      });
+    }
+  </script>
 
 </body>
 </html>

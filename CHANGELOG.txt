@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.5.2 — 2026-05-26 — Service Worker + Cache Reliability
+  • Added Service Worker (sw.js) — network-first for HTML, cache-first for assets, version-tagged caches with auto-cleanup
+  • Auto-reload page when new SW takes over (so iPhone webapp updates without manual icon remove/re-add)
+  • Cache-control meta tags + cache-busted ?v= query strings on CSS/JS for belt-and-suspenders update reliability
+  • Apple touch icon set to appicon-preMVP.png (placeholder until MVP branding pass)
+  • Version number now displayed under splash title (live, updates with every rev)
+  • "Force Update" button in debug panel — nukes SW + all caches + hard reload for stuck states
+
+--------------------------
 v0.5.1 — 2026-05-25 — Character UX Polish
   • Renamed "Enhance Description" → "✨ Bring to Life"; result section now labeled "Character Profile"
   • Character rows redesigned: clear "+ Add" / "✓ Added" button instead of subtle ○/✓ circle

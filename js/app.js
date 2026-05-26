@@ -25,8 +25,8 @@ createApp({
     return {
       // Version
       appName: 'StoryTime',
-      version: 'v0.5.1',
-      buildDate: '2026-05-25',
+      version: 'v0.5.2',
+      buildDate: '2026-05-26',
 
       // Splash
       showSplash: true,
@@ -513,6 +513,29 @@ createApp({
     async copyToClipboard(text) {
       try { await navigator.clipboard.writeText(text); alert('Copied to clipboard'); }
       catch (e) { console.error('Clipboard write failed', e); }
+    },
+
+    // ---- Force Update ----
+    // Nukes Service Worker + all caches + reloads.
+    // Use when something is stuck on an old version.
+    async handleForceUpdate() {
+      if (!confirm('Force update: clears all cached files and reloads. Continue?')) return;
+      try {
+        // Unregister all service workers for this site
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        }
+        // Clear all caches
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch (err) {
+        console.error('Force update cleanup failed:', err);
+      }
+      // Hard reload (cache-busted)
+      window.location.href = window.location.pathname + '?_t=' + Date.now();
     },
   },
 
