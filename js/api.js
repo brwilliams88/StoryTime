@@ -1,12 +1,7 @@
 // =====================================================================
 // api.js — Talking to OpenAI via the Cloudflare Worker proxy
 // =====================================================================
-// All API calls go through OUR Cloudflare Worker, which adds the
-// real OpenAI API key on the server side (where the browser can't
-// see it). We only need to send the password and the request body.
-// =====================================================================
 
-// The public URL of our Cloudflare Worker.
 const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
 // ----- Length targets -----
@@ -17,13 +12,11 @@ const LENGTH_PRESETS = {
   'extra-long': { words: 1500, pages: 12, minutes: 12 },
 };
 
-// ----- OpenAI GPT-4o pricing -----
 const PRICING = {
   inputPer1M: 2.50,
   outputPer1M: 10.00,
 };
 
-// ----- Genre guidance -----
 const GENRE_GUIDANCE = {
   'surprise-me':  'pick the genre that best fits the reader\'s other inputs',
   'adventure':    'an exciting journey with gentle thrills and wonder',
@@ -55,9 +48,8 @@ const INGREDIENT_GUIDANCE = {
 
 // =====================================================================
 // PROMPT BUILDER
-// Quality first, structure second. Story Details takes priority.
 // =====================================================================
-function buildStoryPrompt(formData) {
+function buildStoryPrompt(formData, selectedCharacters) {
   const lengthInfo = LENGTH_PRESETS[formData.length] || LENGTH_PRESETS.regular;
   const genreLabel = (formData.genre || 'surprise-me').replace('-', ' ');
   const genreNote = GENRE_GUIDANCE[formData.genre] || GENRE_GUIDANCE['surprise-me'];
@@ -70,13 +62,11 @@ function buildStoryPrompt(formData) {
 
   const lines = [];
 
-  // ---- PERSONA ----
   lines.push(
     `You are a master children's storyteller. Your job is to tell a great story.`,
     ``
   );
 
-  // ---- CRAFT REQUIREMENTS ----
   lines.push(
     `CRAFT REQUIREMENTS:`,
     `- Tell ONE cohesive story with a clear arc: setup, rising action, a moment of change or discovery, and a resolved conclusion.`,
@@ -89,14 +79,26 @@ function buildStoryPrompt(formData) {
   if (ingredientNotes.length > 0) {
     lines.push(`- Story ingredients to weave in: ${ingredientNotes.join('; ')}.`);
   }
-
   if (formData.theme && formData.theme.trim()) {
     lines.push(`- Gently weave in this theme: ${formData.theme.trim()}. Do not be preachy or didactic; let it emerge through the story.`);
   }
-
   lines.push(``);
 
-  // ---- STORY DETAILS — TOP PRIORITY ----
+  // ---- SELECTED SAVED CHARACTERS ----
+  if (selectedCharacters && selectedCharacters.length > 0) {
+    lines.push(`CHARACTERS IN THIS STORY:`);
+    selectedCharacters.forEach(c => {
+      const rolePart = c.role && c.role !== 'none' ? ` (Role: ${c.role === 'good-guy' ? 'Good Guy / hero' : 'Bad Guy / villain'})` : '';
+      lines.push(`- ${c.name}${rolePart}`);
+      lines.push(`  Visual description: ${c.visual_description}`);
+      if (c.user_description && c.user_description.trim()) {
+        lines.push(`  Personality notes from creator: ${c.user_description.trim()}`);
+      }
+    });
+    lines.push(``);
+  }
+
+  // ---- STORY DETAILS — HIGHEST PRIORITY ----
   if (hasStoryDetails) {
     lines.push(
       `STORY DETAILS (HIGHEST PRIORITY — these are the reader's specific direct requests):`,
@@ -113,15 +115,12 @@ function buildStoryPrompt(formData) {
   lines.push(`- Length: ~${lengthInfo.words} words across about ${lengthInfo.pages} pages (~${lengthInfo.minutes} min read aloud)`);
   lines.push(`- Genre: ${genreLabel} — ${genreNote}`);
 
-  if (formData.characters && formData.characters.trim()) {
-    lines.push(`- Main characters: ${formData.characters.trim()}`);
-  } else {
-    lines.push(`- Main characters: invent them yourself, suited to the genre and age`);
+  if (!selectedCharacters || selectedCharacters.length === 0) {
+    lines.push(`- Main characters: invent original, memorable characters specifically suited to the genre, age, and reader's wishes. Give them names and personality. Avoid bland archetypes.`);
   }
 
   lines.push(``);
 
-  // ---- OUTPUT FORMAT ----
   lines.push(
     `OUTPUT FORMAT:`,
     `Return ONLY valid JSON. No markdown, no commentary, no text outside the JSON.`,
@@ -141,10 +140,10 @@ function buildStoryPrompt(formData) {
 
 
 // =====================================================================
-// STORY GENERATION — auto-retries once on malformed JSON
+// STORY GENERATION
 // =====================================================================
-async function generateStory(formData, password) {
-  const prompt = buildStoryPrompt(formData);
+async function generateStory(formData, selectedCharacters, password) {
+  const prompt = buildStoryPrompt(formData, selectedCharacters);
   const requestBody = {
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
@@ -157,7 +156,7 @@ async function generateStory(formData, password) {
   while (attempt < 2) {
     attempt++;
     try {
-      return await callOpenAI(requestBody, password, prompt);
+      return await callOpenAIChat(requestBody, password, prompt);
     } catch (err) {
       lastError = err;
       if (!err.isJsonParseError) break;
@@ -166,7 +165,7 @@ async function generateStory(formData, password) {
   throw lastError;
 }
 
-async function callOpenAI(requestBody, password, prompt) {
+async function callOpenAIChat(requestBody, password, prompt) {
   const response = await fetch(`${WORKER_URL}/v1/chat/completions`, {
     method: 'POST',
     headers: {
@@ -181,14 +180,14 @@ async function callOpenAI(requestBody, password, prompt) {
   }
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Story generation failed (HTTP ${response.status}): ${errText}`);
+    throw new Error(`API call failed (HTTP ${response.status}): ${errText}`);
   }
 
   const data = await response.json();
 
-  let story;
+  let parsed;
   try {
-    story = JSON.parse(data.choices[0].message.content);
+    parsed = JSON.parse(data.choices[0].message.content);
   } catch (e) {
     const err = new Error('The AI returned content I could not parse as JSON.');
     err.isJsonParseError = true;
@@ -201,17 +200,81 @@ async function callOpenAI(requestBody, password, prompt) {
     (usage.completion_tokens * PRICING.outputPer1M / 1_000_000);
 
   return {
-    story,
+    story: parsed,
     prompt,
     rawResponse: data,
     tokens: usage,
     cost,
+    parsed,
   };
 }
 
 
 // =====================================================================
-// FAKE STORY (debug — UI testing without API cost)
+// CHARACTER: Enhance Description
+// =====================================================================
+async function enhanceCharacterDescription(name, userDescription, password) {
+  const prompt = `You are helping create a stable character profile for use across multiple children's book stories and illustrations.
+
+Given the rough input below, write a richly detailed visual + personality description (~100–150 words) that an illustrator could use to draw this character consistently every time, and that a storyteller could use to write them in character.
+
+Be specific and concrete, not generic. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully — do not contradict them.
+
+Character name: ${name}
+User-provided description: ${userDescription || '(none provided — infer thoughtfully from name and create a delightful original)'}
+
+Return ONLY valid JSON with this exact structure (no other text):
+{ "visual_description": "the rich description here" }`;
+
+  const requestBody = {
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' },
+    temperature: 0.8,
+  };
+
+  const result = await callOpenAIChat(requestBody, password, prompt);
+  return {
+    visual_description: result.parsed.visual_description,
+    cost: result.cost,
+    tokens: result.tokens,
+  };
+}
+
+
+// =====================================================================
+// CHARACTER: Generate Random
+// =====================================================================
+async function generateRandomCharacter(password) {
+  const prompt = `Invent a delightful, original character for a children's bedtime story.
+
+Return ONLY valid JSON with this exact structure (no other text):
+{
+  "name": "the character's name",
+  "user_description": "1–2 sentences a parent might write describing this character",
+  "visual_description": "a richly detailed visual + personality description (100–150 words) for illustrators and storytellers — include hair, eyes, skin, build, distinctive features, signature look, posture, energy, personality"
+}
+
+Make the character memorable, specific, charming. Avoid generic archetypes.`;
+
+  const requestBody = {
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' },
+    temperature: 1.0,
+  };
+
+  const result = await callOpenAIChat(requestBody, password, prompt);
+  return {
+    character: result.parsed,
+    cost: result.cost,
+    tokens: result.tokens,
+  };
+}
+
+
+// =====================================================================
+// FAKE STORY
 // =====================================================================
 function generateFakeStory(formData) {
   return {
@@ -227,14 +290,11 @@ function generateFakeStory(formData) {
     prompt: '[FAKE STORY — no API call was made]',
     rawResponse: { fake: true },
     tokens: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-    cost: 0.0237,  // fake cost for UI testing
+    cost: 0.0237,
   };
 }
 
 
-// =====================================================================
-// LOADING HINT
-// =====================================================================
 function loadingHintForLength(lengthKey) {
   const map = {
     short:        '~10 seconds',
@@ -246,24 +306,15 @@ function loadingHintForLength(lengthKey) {
 }
 
 
-// =====================================================================
-// COIN BREAKDOWN
-// Convert dollar cost into quarters/dimes/nickels/pennies for display.
-// Returns an array of { type, count, partial } where partial (0..1)
-// is only used for the final penny if cost is under a cent.
-// =====================================================================
 function costToCoins(costInDollars) {
-  // Round to nearest tenth of a cent for display
   let remaining = Math.round(costInDollars * 1000) / 1000;
   const result = [];
-
   const denominations = [
     { type: 'quarter', value: 0.25 },
     { type: 'dime',    value: 0.10 },
     { type: 'nickel',  value: 0.05 },
     { type: 'penny',   value: 0.01 },
   ];
-
   for (const d of denominations) {
     const count = Math.floor(remaining / d.value + 1e-9);
     if (count > 0) {
@@ -272,12 +323,9 @@ function costToCoins(costInDollars) {
       remaining = Math.round(remaining * 1000) / 1000;
     }
   }
-
-  // If there's still cost under a penny, show one partial penny
   if (remaining > 0 && remaining < 0.01) {
-    const partial = remaining / 0.01; // 0..1
+    const partial = remaining / 0.01;
     result.push({ type: 'penny', count: 1, partial });
   }
-
   return result;
 }

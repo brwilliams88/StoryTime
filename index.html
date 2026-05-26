@@ -59,11 +59,7 @@
           <div class="form-top-bar">
             <h2 class="section-title">Create a New Story</h2>
             <div class="form-top-actions">
-              <button
-                v-if="currentStory"
-                @click="backToStory"
-                class="btn-secondary btn-small"
-              >← Back to Story</button>
+              <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
             </div>
           </div>
@@ -71,12 +67,22 @@
           <!-- 1. Characters -->
           <div class="form-field">
             <label>Characters <span class="optional">(optional)</span></label>
-            <input
-              type="text"
-              v-model="formData.characters"
-              placeholder="e.g. Mario and Luigi · a small fox afraid of heights · two best friends"
-              class="text-input"
-            />
+            <div class="character-chips">
+              <div
+                v-for="c in selectedCharacters"
+                :key="c.id"
+                class="char-chip"
+              >
+                <span class="char-chip-name">{{ c.name }}</span>
+                <span v-if="getCharacterRole(c.id) !== 'none'" class="char-chip-role">
+                  {{ roleLabel(getCharacterRole(c.id)) }}
+                </span>
+                <button class="char-chip-remove" @click="toggleCharacterSelected(c.id)" title="Remove">✕</button>
+              </div>
+              <button @click="openCharactersModal" class="btn-secondary btn-small">
+                👥 Choose Characters
+              </button>
+            </div>
           </div>
 
           <!-- 2. Story Details -->
@@ -196,7 +202,6 @@
             </div>
           </div>
 
-          <!-- Coin cost display -->
           <div class="cost-display">
             <div class="cost-amount">This story cost {{ formattedCost }}</div>
             <div class="coin-row">
@@ -215,17 +220,143 @@
 
           <div class="story-actions">
             <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
-            <button
-              @click="handleContinueStory"
-              class="btn-secondary"
-              title="Coming soon — will let you write a Part 2 with the same characters"
-              disabled
-            >Continue Story</button>
+            <button @click="handleContinueStory" class="btn-secondary" title="Coming soon — will let you write a Part 2 with the same characters" disabled>Continue Story</button>
             <button @click="handleNewStory" class="btn-primary">New Story</button>
           </div>
         </div>
 
       </main>
+
+      <!-- ============== CHARACTERS MODAL ============== -->
+      <div v-if="showCharactersModal" class="modal-overlay" @click.self="closeCharactersModal">
+        <div class="modal modal-wide">
+
+          <!-- ===== List Mode ===== -->
+          <template v-if="charModalMode === 'list'">
+            <div class="modal-header">
+              <h2>Manage Characters</h2>
+              <button @click="closeCharactersModal" class="modal-close">✕</button>
+            </div>
+
+            <div class="modal-actions">
+              <button @click="startCreateCharacter" class="btn-primary btn-small">+ Create New</button>
+              <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">
+                🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}
+              </button>
+            </div>
+
+            <div v-if="error" class="error-text" style="margin: 0.5rem 0;">{{ error }}</div>
+
+            <div class="char-list">
+              <div v-if="characters.length === 0" class="char-list-empty">
+                No saved characters yet. Tap "Create New" or "Generate Random" to add one.
+              </div>
+              <div
+                v-for="c in sortedCharacters"
+                :key="c.id"
+                :class="['char-row', { selected: isCharacterSelected(c.id) }]"
+              >
+                <div class="char-row-main" @click="toggleCharacterSelected(c.id)">
+                  <div class="char-row-check">
+                    {{ isCharacterSelected(c.id) ? '✓' : '○' }}
+                  </div>
+                  <div class="char-row-info">
+                    <div class="char-row-name">{{ c.name }}</div>
+                    <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}</div>
+                  </div>
+                </div>
+
+                <!-- Role pills (only if selected) -->
+                <div v-if="isCharacterSelected(c.id)" class="char-role-pills">
+                  <button
+                    :class="['pill pill-small', { active: getCharacterRole(c.id) === 'good-guy' }]"
+                    @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'good-guy' ? 'none' : 'good-guy')"
+                  >Good Guy</button>
+                  <button
+                    :class="['pill pill-small', { active: getCharacterRole(c.id) === 'bad-guy' }]"
+                    @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'bad-guy' ? 'none' : 'bad-guy')"
+                  >Bad Guy</button>
+                </div>
+
+                <div class="char-row-actions">
+                  <button @click="startEditCharacter(c)" class="btn-secondary btn-tiny">Edit</button>
+                  <button @click="handleDeleteCharacter(c)" class="btn-secondary btn-tiny btn-danger">Delete</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button @click="closeCharactersModal" class="btn-primary">Done</button>
+            </div>
+          </template>
+
+          <!-- ===== Create / Edit Mode ===== -->
+          <template v-else>
+            <div class="modal-header">
+              <h2>{{ charModalMode === 'create' ? 'Create Character' : 'Edit Character' }}</h2>
+              <button @click="cancelCharForm" class="modal-close">✕</button>
+            </div>
+
+            <div class="char-form">
+
+              <div class="form-field">
+                <label>Name</label>
+                <input
+                  type="text"
+                  v-model="charForm.name"
+                  placeholder="e.g. Kai, Bumble, Lord Frostbeard"
+                  class="text-input"
+                />
+              </div>
+
+              <div class="form-field">
+                <label>Description</label>
+                <textarea
+                  v-model="charForm.user_description"
+                  placeholder="Describe them in your own words — appearance, personality, anything you want consistent. e.g. '6-year-old boy with short black hair, brave, loves dinosaurs'"
+                  class="textarea-input"
+                  rows="4"
+                ></textarea>
+              </div>
+
+              <button
+                @click="handleEnhance"
+                :disabled="!charFormCanEnhance"
+                class="btn-primary"
+              >
+                ✨ {{ enhancing ? 'Enhancing…' : 'Enhance Description' }}
+              </button>
+
+              <div v-if="charForm.visual_description" class="form-field" style="margin-top: 1.2rem;">
+                <label>Enhanced description <span class="help-text">— this is what goes into stories and images</span></label>
+                <textarea
+                  v-model="charForm.visual_description"
+                  class="textarea-input"
+                  rows="6"
+                ></textarea>
+              </div>
+
+              <div v-if="error" class="error-text">{{ error }}</div>
+
+              <div class="modal-footer">
+                <button @click="cancelCharForm" class="btn-secondary">Cancel</button>
+                <button
+                  v-if="charForm.visual_description"
+                  @click="handleEnhance"
+                  :disabled="enhancing"
+                  class="btn-secondary"
+                >🔁 Regenerate</button>
+                <button
+                  @click="handleSaveCharacter"
+                  :disabled="!charFormCanSave"
+                  class="btn-primary"
+                >💾 Save</button>
+              </div>
+            </div>
+          </template>
+
+        </div>
+      </div>
 
       <!-- ============== DEBUG ICON ============== -->
       <button class="debug-icon" @click="toggleDebug" title="Debug panel">🐛</button>
@@ -245,7 +376,8 @@
 
         <div class="debug-section">
           <h4>Storage</h4>
-          <div class="debug-stat">Used: <strong>{{ formattedStorageSize }}</strong></div>
+          <div class="debug-stat">Stories used: <strong>{{ formattedStorageSize }}</strong></div>
+          <div class="debug-stat">Characters saved: <strong>{{ characters.length }}</strong></div>
           <button @click="handleClearStories" class="btn-secondary btn-small">Clear All Stories</button>
         </div>
 
@@ -260,6 +392,14 @@
           <div class="debug-stat">Cost: <strong>${{ currentStoryCost.toFixed(6) }}</strong></div>
           <div class="debug-stat" v-if="lastTokens">
             Tokens: {{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out = {{ lastTokens.total_tokens }}
+          </div>
+        </div>
+
+        <div class="debug-section" v-if="selectedCharacters.length > 0">
+          <h4>Selected characters (for next story)</h4>
+          <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
+            <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}</div>
+            <pre class="debug-code">{{ c.visual_description }}</pre>
           </div>
         </div>
 

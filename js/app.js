@@ -4,16 +4,16 @@
 
 const { createApp } = Vue
 
-// Default form values (used for init AND for Reset Form)
 function defaultFormData() {
   return {
-    characters: '',
     storyDetails: '',
     age: 5,
     length: 'regular',
     genre: 'surprise-me',
-    ingredients: [],     // multi-select, max 3
+    ingredients: [],
     theme: '',
+    selectedCharacterIds: [],     // ids of saved characters chosen for this story
+    characterRoles: {},           // { characterId: 'good-guy' | 'bad-guy' | 'none' }
   };
 }
 
@@ -24,8 +24,8 @@ createApp({
     return {
       // Version
       appName: 'StoryTime',
-      version: 'v0.4.2',
-      buildDate: '2026-05-23',
+      version: 'v0.5',
+      buildDate: '2026-05-25',
 
       // Splash
       showSplash: true,
@@ -35,7 +35,7 @@ createApp({
       passwordInput: '',
       showPasswordPrompt: false,
 
-      // View: 'create' | 'story'
+      // View
       view: 'create',
 
       // Loading
@@ -46,9 +46,9 @@ createApp({
       // Current story
       currentStory: null,
       currentStoryCost: 0,
-      currentStoryRecord: null,    // includes parent_story_id, series id, etc.
+      currentStoryRecord: null,
 
-      // Last generation context (for debug + regenerate)
+      // Last gen context
       lastFormData: null,
       lastPrompt: '',
       lastRawResponse: null,
@@ -57,7 +57,15 @@ createApp({
       // Form data
       formData: defaultFormData(),
 
-      // Selector options
+      // ---- Characters state ----
+      characters: [],                // all saved characters (loaded from localStorage)
+      showCharactersModal: false,
+      charModalMode: 'list',         // 'list' | 'create' | 'edit'
+      charForm: emptyCharForm(),     // create/edit form state
+      enhancing: false,              // loading state for Enhance Description
+      generatingRandom: false,       // loading state for Generate Random Character
+
+      // ---- Selector options ----
       genres: [
         { value: 'surprise-me', emoji: '🎲', label: 'Surprise me' },
         { value: 'adventure',   emoji: '🗺️', label: 'Adventure' },
@@ -86,7 +94,7 @@ createApp({
       ],
       themes: [
         'Family', 'Sharing', 'Bravery', 'Friendship', 'Kindness',
-        'Honesty', 'Perseverance', 'Curiosity', 'Helping others', 'Being yourself',
+        'Honesty', 'Keep trying', 'Being curious', 'Helping others', 'Being yourself',
       ],
       lengths: [
         { value: 'short',       label: 'Short',      subtitle: '~2 min' },
@@ -99,15 +107,11 @@ createApp({
       showDebug: false,
       storageSize: 0,
 
-      // Error
       error: '',
     }
   },
 
   computed: {
-    isReady() {
-      return !this.showSplash && !this.showPasswordPrompt;
-    },
     formattedCost() {
       return this.currentStoryCost > 0
         ? `$${this.currentStoryCost.toFixed(3)}`
@@ -125,6 +129,31 @@ createApp({
     formattedStorageSize() {
       return formatStorageSize(this.storageSize);
     },
+    selectedCharacters() {
+      // Returns full character objects for selected IDs (preserves order of selection)
+      return this.formData.selectedCharacterIds
+        .map(id => this.characters.find(c => c.id === id))
+        .filter(Boolean);
+    },
+    sortedCharacters() {
+      // Sort by last_used_at desc, never-used at the bottom (by created_at desc)
+      return [...this.characters].sort((a, b) => {
+        if (!a.last_used_at && !b.last_used_at) {
+          return (b.created_at || '').localeCompare(a.created_at || '');
+        }
+        if (!a.last_used_at) return 1;
+        if (!b.last_used_at) return -1;
+        return b.last_used_at.localeCompare(a.last_used_at);
+      });
+    },
+    charFormCanSave() {
+      // Save only available once the visual_description has been generated
+      return this.charForm.name.trim().length > 0
+        && (this.charForm.visual_description || '').trim().length > 0;
+    },
+    charFormCanEnhance() {
+      return this.charForm.name.trim().length > 0 && !this.enhancing;
+    },
   },
 
   mounted() {
@@ -136,8 +165,8 @@ createApp({
     if (stored) this.password = stored;
 
     this.showDebug = getDebugMode();
+    this.characters = getStoredCharacters();
 
-    // Restore sticky preferences (age, length only)
     const sticky = getStickyPrefs();
     if (sticky) {
       if (sticky.age) this.formData.age = sticky.age;
@@ -168,14 +197,13 @@ createApp({
       this.showPasswordPrompt = false;
       this.error = '';
     },
-
     resetPassword() {
       clearStoredPassword();
       this.password = '';
       this.showPasswordPrompt = true;
     },
 
-    // ---- Story Ingredients (multi-select, max 3) ----
+    // ---- Form Ingredients ----
     toggleIngredient(value) {
       const idx = this.formData.ingredients.indexOf(value);
       if (idx !== -1) {
@@ -184,34 +212,169 @@ createApp({
         this.formData.ingredients.push(value);
       }
     },
+    isIngredientActive(v) { return this.formData.ingredients.includes(v); },
+    isIngredientDisabled(v) { return this.ingredientsAtMax && !this.isIngredientActive(v); },
 
-    isIngredientActive(value) {
-      return this.formData.ingredients.includes(value);
+    // ---- Theme ----
+    selectThemePreset(t) {
+      this.formData.theme = this.formData.theme === t ? '' : t;
     },
 
-    isIngredientDisabled(value) {
-      return this.ingredientsAtMax && !this.isIngredientActive(value);
-    },
-
-    // ---- Theme preset ----
-    selectThemePreset(theme) {
-      this.formData.theme = this.formData.theme === theme ? '' : theme;
-    },
-
-    // ---- Form: Reset ----
+    // ---- Reset ----
     handleResetForm() {
       this.formData = defaultFormData();
     },
 
-    // ---- Generation ----
+    // =========================================================
+    // CHARACTERS — modal, selection, create/edit
+    // =========================================================
+
+    openCharactersModal() {
+      this.charModalMode = 'list';
+      this.charForm = emptyCharForm();
+      this.showCharactersModal = true;
+    },
+    closeCharactersModal() {
+      this.showCharactersModal = false;
+      this.charForm = emptyCharForm();
+    },
+
+    // Selecting characters for the story
+    toggleCharacterSelected(charId) {
+      const idx = this.formData.selectedCharacterIds.indexOf(charId);
+      if (idx === -1) {
+        this.formData.selectedCharacterIds.push(charId);
+        if (!this.formData.characterRoles[charId]) {
+          this.formData.characterRoles[charId] = 'none';
+        }
+      } else {
+        this.formData.selectedCharacterIds.splice(idx, 1);
+        delete this.formData.characterRoles[charId];
+      }
+    },
+    isCharacterSelected(charId) {
+      return this.formData.selectedCharacterIds.includes(charId);
+    },
+    setCharacterRole(charId, role) {
+      this.formData.characterRoles[charId] = role;
+    },
+    getCharacterRole(charId) {
+      return this.formData.characterRoles[charId] || 'none';
+    },
+    roleLabel(role) {
+      if (role === 'good-guy') return 'Good Guy';
+      if (role === 'bad-guy') return 'Bad Guy';
+      return '';
+    },
+    formatRelative(iso) {
+      return formatRelativeTime(iso);
+    },
+
+    // Create / Edit
+    startCreateCharacter() {
+      this.charForm = emptyCharForm();
+      this.charModalMode = 'create';
+    },
+    startEditCharacter(char) {
+      this.charForm = {
+        id: char.id,
+        name: char.name,
+        user_description: char.user_description || '',
+        visual_description: char.visual_description || '',
+        created_at: char.created_at,
+        last_used_at: char.last_used_at,
+      };
+      this.charModalMode = 'edit';
+    },
+    cancelCharForm() {
+      this.charForm = emptyCharForm();
+      this.charModalMode = 'list';
+    },
+
+    async handleEnhance() {
+      if (!this.charFormCanEnhance) return;
+      this.enhancing = true;
+      this.error = '';
+      try {
+        const result = await enhanceCharacterDescription(
+          this.charForm.name.trim(),
+          this.charForm.user_description.trim(),
+          this.password,
+        );
+        this.charForm.visual_description = result.visual_description;
+      } catch (err) {
+        console.error('Enhance failed:', err);
+        this.error = err.message || 'Could not enhance description. Try again.';
+      } finally {
+        this.enhancing = false;
+      }
+    },
+
+    async handleGenerateRandom() {
+      this.generatingRandom = true;
+      this.error = '';
+      try {
+        const result = await generateRandomCharacter(this.password);
+        this.charForm = {
+          id: null,
+          name: result.character.name,
+          user_description: result.character.user_description,
+          visual_description: result.character.visual_description,
+          created_at: null,
+          last_used_at: null,
+        };
+        this.charModalMode = 'create';
+      } catch (err) {
+        console.error('Random character failed:', err);
+        this.error = err.message || 'Could not generate a random character. Try again.';
+      } finally {
+        this.generatingRandom = false;
+      }
+    },
+
+    handleSaveCharacter() {
+      if (!this.charFormCanSave) return;
+      const now = new Date().toISOString();
+      const record = {
+        id: this.charForm.id || ('char_' + Date.now()),
+        name: this.charForm.name.trim(),
+        user_description: this.charForm.user_description.trim(),
+        visual_description: this.charForm.visual_description.trim(),
+        created_at: this.charForm.created_at || now,
+        last_used_at: this.charForm.last_used_at || null,
+      };
+      saveCharacter(record);
+      this.characters = getStoredCharacters();
+      this.charForm = emptyCharForm();
+      this.charModalMode = 'list';
+    },
+
+    handleDeleteCharacter(char) {
+      if (!confirm(`Delete "${char.name}"? This cannot be undone.`)) return;
+      deleteCharacter(char.id);
+      this.characters = getStoredCharacters();
+      // Also remove from current selection
+      const idx = this.formData.selectedCharacterIds.indexOf(char.id);
+      if (idx !== -1) this.formData.selectedCharacterIds.splice(idx, 1);
+      delete this.formData.characterRoles[char.id];
+    },
+
+    // =========================================================
+    // GENERATE STORY
+    // =========================================================
+
     async handleGenerate() {
       this.error = '';
       this.loading = true;
       this.loadingMessage = 'Writing your story…';
       this.loadingHint = loadingHintForLength(this.formData.length);
-
-      // Persist sticky preferences (age + length)
       setStickyPrefs(this.formData);
+
+      // Build the selected characters list with roles for the prompt
+      const selected = this.selectedCharacters.map(c => ({
+        ...c,
+        role: this.getCharacterRole(c.id),
+      }));
 
       const messages = [
         'Writing your story…',
@@ -226,7 +389,10 @@ createApp({
       }, 2500);
 
       try {
-        const result = await generateStory(this.formData, this.password);
+        const result = await generateStory(this.formData, selected, this.password);
+        // Update last_used_at for each selected character
+        selected.forEach(c => touchCharacterLastUsed(c.id));
+        this.characters = getStoredCharacters();
         this.displayStoryResult(result);
       } catch (err) {
         console.error('Generation failed:', err);
@@ -253,11 +419,13 @@ createApp({
 
       const storyRecord = {
         id: 'story_' + Date.now(),
-        parent_story_id: null,      // future-proofing for sequels
-        story_series_id: null,      // future-proofing for chapter groups
+        parent_story_id: null,
+        story_series_id: null,
         title: result.story.title,
         pages: result.story.pages,
         formData: JSON.parse(JSON.stringify(this.formData)),
+        character_ids: [...this.formData.selectedCharacterIds],
+        character_roles: { ...this.formData.characterRoles },
         cost: result.cost,
         tokens: result.tokens,
         createdAt: new Date().toISOString(),
@@ -282,19 +450,10 @@ createApp({
       this.view = 'create';
     },
 
-    // ---- Nav between story and form (keeping the story) ----
-    editSettings() {
-      // Go to form but keep currentStory in memory
-      this.view = 'create';
-    },
+    editSettings() { this.view = 'create'; },
+    backToStory() { this.view = 'story'; },
 
-    backToStory() {
-      this.view = 'story';
-    },
-
-    // ---- Continue Story (future feature, disabled for now) ----
     handleContinueStory() {
-      // Placeholder — feature coming with chapter/sequel support
       alert('Continue Story is coming soon! This will let you make a Part 2 using the same characters and setting.');
     },
 
@@ -304,25 +463,31 @@ createApp({
       setDebugMode(this.showDebug);
       this.refreshStorageSize();
     },
-
     refreshStorageSize() {
       this.storageSize = getStorageSizeBytes();
     },
-
     handleClearStories() {
       if (!confirm('Clear all saved stories from this device? This cannot be undone.')) return;
       clearAllStories();
       this.refreshStorageSize();
     },
-
     async copyToClipboard(text) {
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('Copied to clipboard');
-      } catch (e) {
-        console.error('Clipboard write failed', e);
-      }
+      try { await navigator.clipboard.writeText(text); alert('Copied to clipboard'); }
+      catch (e) { console.error('Clipboard write failed', e); }
     },
   },
 
 }).mount('#app')
+
+
+// Helper: blank character form
+function emptyCharForm() {
+  return {
+    id: null,
+    name: '',
+    user_description: '',
+    visual_description: '',
+    created_at: null,
+    last_used_at: null,
+  };
+}

@@ -9,6 +9,23 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.5 — 2026-05-25 — Saved Characters
+  • New Manage Characters modal — create, edit, delete, list with most-recent-first sorting
+  • Characters stored in localStorage; visual_description used in prompts for consistency
+  • "Enhance Description" button polishes a user's short input into a richly detailed AI description
+  • Save is gated — must Enhance first before character can be saved
+  • "🎲 Generate Random Character" creates a full character profile in one click
+  • Multi-select on main form via character chips; per-story role assignment (Good Guy / Bad Guy / None)
+  • Relative-time labels ("Used today / 3 days ago / last week / months ago") live-computed
+  • Saved characters injected into the story prompt with role + visual_description
+  • Story records now store character_ids and character_roles for future library use
+  • Removed free-text Characters field from main form (saved characters only)
+  • Bug fixes: simpler theme words (Perseverance → Keep trying; Curiosity → Being curious)
+  • Bug fix: debug section titles no longer ALL-CAPS (preserves "GPT-4o" casing)
+  • Bug fix: Storage display now counts only stories key (reads 0 B after Clear)
+  • Debug panel: shows count of saved characters; expanded inspection of selected characters' visual_descriptions
+
+--------------------------
 v0.4.2 — 2026-05-23 — Story Ingredients, Coins, Nav, and Prompt Polish
   • Renamed Mood → Story Ingredients (12 options, max 3 selectable with counter)
   • Renamed Anything Else → Story Details with new placeholder
