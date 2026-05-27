@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=0.6" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.1" />
 </head>
 <body>
 
@@ -42,7 +42,6 @@
     <!-- ============== MAIN APP ============== -->
     <template v-else>
 
-      <!-- Header is hidden when in reading view to maximize space -->
       <header v-if="view !== 'story' || !currentStory" class="app-header">
         <h1 @click="handleNewStory">📖 StoryTime</h1>
         <p class="tagline">Bedtime stories for Kai &amp; Nozomi</p>
@@ -68,7 +67,6 @@
             </div>
           </div>
 
-          <!-- 1. Characters -->
           <div class="form-field">
             <label>Characters <span class="optional">({{ selectedCharCount }}/5 selected)</span></label>
             <div class="character-chips">
@@ -82,13 +80,11 @@
             <p v-if="selectedCharCount === 0" class="form-hint">No characters selected — tap above to add. Leave empty and the storyteller will invent them.</p>
           </div>
 
-          <!-- 2. Story Details -->
           <div class="form-field">
             <label>Story Details <span class="help-text">— make it your own with cool details</span> <span class="optional">(optional)</span></label>
             <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input" rows="3"></textarea>
           </div>
 
-          <!-- 3. Age -->
           <div class="form-field">
             <label>Story for age</label>
             <div class="pill-group age-pills">
@@ -96,7 +92,6 @@
             </div>
           </div>
 
-          <!-- 4. Length -->
           <div class="form-field">
             <label>Story Length</label>
             <div class="pill-group">
@@ -107,7 +102,6 @@
             </div>
           </div>
 
-          <!-- 5. Genre -->
           <div class="form-field">
             <label>Genre <span class="help-text">— the type of story</span></label>
             <div class="pill-group wrap">
@@ -118,7 +112,6 @@
             </div>
           </div>
 
-          <!-- 6. Story Ingredients -->
           <div class="form-field">
             <label>Story Ingredients <span class="help-text">— how it should feel</span> <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span></label>
             <div class="pill-group wrap">
@@ -129,7 +122,6 @@
             </div>
           </div>
 
-          <!-- 7. Theme -->
           <div class="form-field">
             <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
             <div class="pill-group wrap theme-presets">
@@ -145,74 +137,58 @@
         </div>
 
         <!-- ============== READING VIEW ============== -->
-        <div v-else-if="view === 'story' && currentStory" class="reading-view">
+        <div v-else-if="view === 'story' && currentStory" class="reading-view" :class="{ 'portrait-mode': isPortrait }">
 
-          <!-- Portrait rotate overlay -->
-          <div v-if="isPortrait" class="rotate-overlay">
-            <div class="rotate-icon">📱↻</div>
-            <div class="rotate-title">Please rotate your device</div>
-            <div class="rotate-text">StoryTime reads best in landscape mode, like a real picture book.</div>
-          </div>
-
-          <!-- Top bar (back to settings + progress indicator) -->
+          <!-- Top bar: back + progress -->
           <div class="reading-top-bar">
-            <button @click="editSettings" class="btn-secondary btn-small">← Settings</button>
+            <button @click="editSettings" class="btn-secondary btn-small">← Back</button>
             <div v-if="loadingProgress" class="reading-progress">{{ loadingProgress }}</div>
             <button @click="handleNewStory" class="btn-secondary btn-small">New Story</button>
           </div>
 
-          <!-- ===== COVER PAGE ===== -->
-          <div v-if="isOnCover" class="book-page cover-page">
-            <div class="cover-image-wrap"
-                 @mousedown="handleImageMouseDown('cover')"
-                 @mouseup="handleImageMouseUp"
-                 @mouseleave="handleImageMouseUp"
-                 @touchstart="handleImageMouseDown('cover')"
-                 @touchend="handleImageMouseUp"
-                 @contextmenu="handleImageContextMenu($event, 'cover')">
-              <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
-                <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="cover-image" />
-              </template>
-              <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
-                <div class="image-placeholder">
-                  <div class="loading-spinner small"></div>
-                  <div class="placeholder-label">Drawing the cover…</div>
-                </div>
-              </template>
-              <template v-else-if="currentStory.cover.image_status === 'skipped'">
-                <div class="image-placeholder skipped">
-                  <div class="placeholder-label">[Skipped]</div>
-                  <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
-                </div>
-              </template>
-              <template v-else-if="currentStory.cover.image_status === 'failed'">
-                <div class="image-placeholder failed">
-                  <div class="placeholder-label">Image failed</div>
-                  <button @click="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
-                </div>
-              </template>
-            </div>
-            <div class="cover-title-overlay">
-              <h1 class="cover-title">{{ currentStory.title }}</h1>
-            </div>
+          <!-- Dismissible rotate hint (portrait only) -->
+          <div v-if="showRotateHint" class="rotate-banner">
+            <span>📱↻ Best in landscape</span>
+            <button class="rotate-banner-close" @click="dismissRotateHint" aria-label="Dismiss">✕</button>
           </div>
 
-          <!-- ===== STORY SPREAD ===== -->
-          <div v-else-if="currentStoryPage" class="book-page story-spread">
-            <div class="spread-left">
-              <div class="page-number-label">Page {{ currentStoryPage.page_number }}</div>
-              <p class="spread-text">{{ currentStoryPage.text }}</p>
+          <!-- Page content area -->
+          <div class="page-area">
+
+            <!-- ===== COVER ===== -->
+            <div v-if="isOnCover" class="book-page cover-page" :class="{ portrait: isPortrait }">
+              <h1 class="cover-title">{{ currentStory.title }}</h1>
+              <div class="cover-image-wrap" @click="handleImageTap('cover')">
+                <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
+                  <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="cover-image" draggable="false" />
+                </template>
+                <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
+                  <div class="image-placeholder">
+                    <div class="loading-spinner small"></div>
+                    <div class="placeholder-label">Drawing the cover…</div>
+                  </div>
+                </template>
+                <template v-else-if="currentStory.cover.image_status === 'skipped'">
+                  <div class="image-placeholder skipped">
+                    <div class="placeholder-label">[Skipped]</div>
+                    <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
+                  </div>
+                </template>
+                <template v-else-if="currentStory.cover.image_status === 'failed'">
+                  <div class="image-placeholder failed">
+                    <div class="placeholder-label">Image failed</div>
+                    <button @click.stop="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
+                  </div>
+                </template>
+              </div>
             </div>
-            <div class="spread-right">
-              <div class="page-image-wrap"
-                   @mousedown="handleImageMouseDown(currentPageIndex - 1)"
-                   @mouseup="handleImageMouseUp"
-                   @mouseleave="handleImageMouseUp"
-                   @touchstart="handleImageMouseDown(currentPageIndex - 1)"
-                   @touchend="handleImageMouseUp"
-                   @contextmenu="handleImageContextMenu($event, currentPageIndex - 1)">
+
+            <!-- ===== STORY SPREAD (landscape) or stacked (portrait) ===== -->
+            <div v-else-if="currentStoryPage" class="book-page story-spread" :class="{ portrait: isPortrait }">
+
+              <div class="spread-image" @click="handleImageTap(currentPageIndex - 1)">
                 <template v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)">
-                  <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" />
+                  <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" draggable="false" />
                 </template>
                 <template v-else-if="currentStoryPage.image_status === 'loading' || currentStoryPage.image_status === 'pending'">
                   <div class="image-placeholder">
@@ -223,86 +199,107 @@
                 <template v-else-if="currentStoryPage.image_status === 'skipped'">
                   <div class="image-placeholder skipped">
                     <div class="placeholder-label">[Image skipped]</div>
-                    <pre class="placeholder-prompt">{{ currentStoryPage.image_prompt || '(uses previous image)' }}</pre>
+                    <pre class="placeholder-prompt">{{ currentStoryPage.image_prompt }}</pre>
                   </div>
                 </template>
                 <template v-else-if="currentStoryPage.image_status === 'failed'">
                   <div class="image-placeholder failed">
                     <div class="placeholder-label">Image failed</div>
-                    <button @click="regenerateOneImage(currentPageIndex - 1)" class="btn-secondary btn-tiny">Try Again</button>
+                    <button @click.stop="regenerateOneImage(currentPageIndex - 1)" class="btn-secondary btn-tiny">Try Again</button>
                   </div>
                 </template>
               </div>
-            </div>
-          </div>
 
-          <!-- ===== END CREDITS ===== -->
-          <div v-else-if="isOnEndCredits" class="book-page end-credits-page">
-            <h2 class="end-title">✨ The End ✨</h2>
-            <p class="end-subtitle">This book was made for you in this moment.</p>
-            <div class="cost-display">
-              <div class="cost-amount">{{ formattedCost }}</div>
-              <div class="coin-row">
-                <template v-for="(group, idx) in coinBreakdown" :key="idx">
-                  <span v-for="n in group.count" :key="group.type + '-' + n" :class="['coin', 'coin-' + group.type]" :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}">
-                    <img :src="'assets/images/coin-' + group.type + '.png'" :alt="group.type" />
-                  </span>
-                </template>
-              </div>
-              <div class="cost-breakdown">
-                <div>📝 Text: ${{ currentTextCost.toFixed(3) }}</div>
-                <div>🎨 Illustrations: ${{ currentImagesCost.toFixed(3) }}</div>
+              <div class="spread-text">
+                <p>{{ currentStoryPage.text }}</p>
+                <div v-if="isOnLastTextPage" class="the-end">✨ The End ✨</div>
               </div>
             </div>
-            <div class="end-actions">
-              <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
-              <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
-              <button @click="handleNewStory" class="btn-primary">New Story</button>
+
+            <!-- ===== STORY COMPLETE ===== -->
+            <div v-else-if="isOnStoryComplete" class="book-page complete-page">
+              <h2 class="complete-title">Story Complete</h2>
+
+              <div class="complete-cost">
+                <div class="complete-cost-amount">This book cost {{ formattedCost }}</div>
+                <div class="coin-row">
+                  <template v-for="(group, idx) in coinBreakdown" :key="idx">
+                    <span v-for="n in group.count" :key="group.type + '-' + n" :class="['coin', 'coin-' + group.type]" :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}">
+                      <img :src="'assets/images/coin-' + group.type + '.png'" :alt="group.type" />
+                    </span>
+                  </template>
+                </div>
+                <div class="cost-breakdown">
+                  📝 Text: {{ formatCostFriendly(currentTextCost) }} · 🎨 Illustrations: {{ formatCostFriendly(currentImagesCost) }}
+                </div>
+              </div>
+
+              <div class="rating-section">
+                <div class="rating-label">Rate this story</div>
+                <div class="rating-stars">
+                  <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
+                </div>
+              </div>
+
+              <div class="complete-meta">Created {{ formattedCreatedAt }}</div>
+
+              <div class="complete-actions">
+                <button @click="readAgain" class="btn-secondary">Read Again</button>
+                <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
+                <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
+                <button @click="handleNewStory" class="btn-primary">New Story</button>
+              </div>
             </div>
+
           </div>
 
-          <!-- Page navigation: tap zones + visible arrows + counter -->
-          <button class="nav-zone nav-zone-left" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page">
-            <div class="nav-arrow">‹</div>
-          </button>
-          <button class="nav-zone nav-zone-right" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page">
-            <div class="nav-arrow">›</div>
-          </button>
+          <!-- Invisible edge tap zones -->
+          <button class="nav-zone nav-zone-left" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page"></button>
+          <button class="nav-zone nav-zone-right" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page"></button>
 
-          <div class="page-counter-bar">
-            {{ currentDisplayPageNumber }} / {{ totalReadingPages }}
+          <!-- Bottom nav bar -->
+          <div class="reading-bottom-bar">
+            <button class="page-arrow" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page">‹</button>
+            <div class="page-counter">{{ currentDisplayPageNumber }} / {{ totalReadingPages }}</div>
+            <button class="page-arrow" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page">›</button>
           </div>
 
         </div>
 
       </main>
 
-      <!-- ============== IMAGE INSPECTION MODAL (long-press) ============== -->
+      <!-- ============== IMAGE INSPECTION MODAL (double-tap) ============== -->
       <div v-if="inspectingImage" class="modal-overlay" @click.self="closeImageInspection">
-        <div class="modal modal-wide">
+        <div class="modal modal-inspect">
           <div class="modal-header">
             <h2>Image Details</h2>
             <button @click="closeImageInspection" class="modal-close">✕</button>
           </div>
-          <div class="form-field">
-            <label>Status</label>
-            <div>{{ inspectingImage.status }}</div>
+
+          <!-- Thumbnail at top -->
+          <div v-if="inspectingImage.image_id && getImageURL(inspectingImage.image_id)" class="inspect-thumb">
+            <img :src="getImageURL(inspectingImage.image_id)" alt="Preview" />
           </div>
-          <div class="form-field">
-            <label>Cost</label>
-            <div>${{ (inspectingImage.cost || 0).toFixed(4) }}</div>
+
+          <div class="inspect-stats">
+            <div><strong>Status:</strong> {{ inspectingImage.status }}</div>
+            <div><strong>Quality:</strong> {{ inspectingImage.quality }}</div>
+            <div><strong>Cost:</strong> ${{ (inspectingImage.cost || 0).toFixed(4) }}</div>
           </div>
-          <div class="form-field">
-            <label>Image Prompt</label>
+
+          <details class="inspect-section">
+            <summary>Image Prompt (from GPT-4o)</summary>
             <pre class="debug-code">{{ inspectingImage.image_prompt || '(none)' }}</pre>
-          </div>
-          <div class="form-field">
-            <label>Full Prompt Sent to gpt-image-1</label>
+          </details>
+
+          <details class="inspect-section" open>
+            <summary>Full Prompt Sent to gpt-image-1</summary>
             <pre class="debug-code">{{ inspectingImage.full_prompt }}</pre>
-          </div>
+          </details>
+
           <div class="modal-footer">
             <button @click="closeImageInspection" class="btn-secondary">Close</button>
-            <button @click="regenerateOneImage(inspectingImage.target)" class="btn-primary">🔁 Regenerate This Image</button>
+            <button @click="regenerateOneImage(inspectingImage.target)" class="btn-primary">🔁 Regenerate</button>
           </div>
         </div>
       </div>
@@ -331,11 +328,15 @@
               <div v-for="c in sortedCharacters" :key="c.id" :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]">
                 <div class="char-row-top">
                   <div class="char-row-info">
-                    <div class="char-row-name">{{ c.name }}</div>
+                    <div class="char-row-name-line">
+                      <span class="char-row-name">{{ c.name }}</span>
+                      <span v-if="isCharacterNew(c)" class="char-new-badge">NEW</span>
+                    </div>
+                    <div v-if="c.tagline" class="char-row-tagline">{{ c.tagline }}</div>
                     <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}</div>
                   </div>
                   <button @click="toggleCharacterSelected(c.id)" :disabled="!canAddCharacter(c.id)" :class="['add-btn', { added: isCharacterSelected(c.id) }]">
-                    {{ isCharacterSelected(c.id) ? '✓ Added' : (canAddCharacter(c.id) ? '+ Add' : 'Max') }}
+                    {{ isCharacterSelected(c.id) ? '✓ Added' : (canAddCharacter(c.id) ? '+ Add to Story' : 'Max') }}
                   </button>
                 </div>
                 <div v-if="isCharacterSelected(c.id)" class="char-role-pills">
@@ -343,7 +344,7 @@
                   <button :class="['pill pill-small', { active: getCharacterRole(c.id) === 'bad-guy' }]" @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'bad-guy' ? 'none' : 'bad-guy')">Bad Guy</button>
                 </div>
                 <div class="char-row-bottom">
-                  <button class="char-expand-toggle" @click="toggleCharProfileExpanded(c.id)">{{ isCharProfileExpanded(c.id) ? '▾' : '▸' }} Character Profile</button>
+                  <button class="char-expand-toggle" @click="toggleCharProfileExpanded(c.id)">{{ isCharProfileExpanded(c.id) ? '▾' : '▸' }} Expanded Character Profile</button>
                   <div class="char-row-edit-actions">
                     <button @click="startEditCharacter(c)" class="text-link">Edit</button>
                     <span class="text-link-sep">·</span>
@@ -373,7 +374,11 @@
                 <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent. e.g. '6-year-old boy with short black hair, brave, loves dinosaurs'" class="textarea-input" rows="4"></textarea>
               </div>
               <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
-              <div v-if="charForm.visual_description" class="form-field" style="margin-top: 1.2rem;">
+              <div v-if="charForm.tagline" class="form-field" style="margin-top: 1.2rem;">
+                <label>Tagline <span class="help-text">— short identifier shown in the list</span></label>
+                <input type="text" v-model="charForm.tagline" class="text-input" />
+              </div>
+              <div v-if="charForm.visual_description" class="form-field">
                 <label>Character Profile <span class="help-text">— how the storyteller and illustrator will see them</span></label>
                 <textarea v-model="charForm.visual_description" class="textarea-input" rows="6"></textarea>
               </div>
@@ -437,7 +442,7 @@
         <div class="debug-section" v-if="selectedCharacters.length > 0">
           <h4>Selected characters (for next story)</h4>
           <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
-            <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}</div>
+            <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }} {{ c.tagline ? '· ' + c.tagline : '' }}</div>
             <pre class="debug-code">{{ c.visual_description }}</pre>
           </div>
         </div>
@@ -464,10 +469,10 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.6"></script>
-  <script src="js/imageStorage.js?v=0.6"></script>
-  <script src="js/api.js?v=0.6"></script>
-  <script src="js/app.js?v=0.6"></script>
+  <script src="js/storage.js?v=0.6.1"></script>
+  <script src="js/imageStorage.js?v=0.6.1"></script>
+  <script src="js/api.js?v=0.6.1"></script>
+  <script src="js/app.js?v=0.6.1"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

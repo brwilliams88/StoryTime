@@ -9,6 +9,36 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.1 — 2026-05-27 — Reading View Polish
+  • Portrait reading mode (image top, text bottom) — replaces the "rotate device" overlay entirely
+  • Small dismissible "Best in landscape" hint shows once in portrait mode
+  • One unique image per page (no more shared images across pages)
+  • Image quality mixed: GPT-4o decides medium (key scenes) or low (simple/transition) per page to keep cost in check
+  • Story prompt rewritten: age-scaled intensity — gentler for under 6, real stakes allowed for 7+
+  • "Bedtime" ingredient is now the trigger for calming-pacing endings (not the default)
+  • Per-page word count target sent to GPT-4o so text fits one screen
+  • Strong character-name discipline in prompt (no more "RedKai")
+  • Variety in image prompts: not every image needs all characters, focus on key visuals
+  • Almost full-bleed images on story spreads (no extra padding around image)
+  • Title moved to TOP of cover page
+  • Removed "PAGE 4" labels (page counter at bottom is sufficient)
+  • "✨ The End ✨" now appears at the bottom of the last text page
+  • New "Story Complete" page (replaces "End Credits"): "This book cost X", coin breakdown, text/illustrations split, creation date, 5-star rating, Read Again + Regenerate + Continue Story (disabled) + New Story
+  • Kid-friendly cost format: ¢ for under $1, $X.XX for over, <1¢ for sub-cent
+  • Partial penny only shown when total cost is under 1¢; otherwise rounds to nearest cent
+  • Bottom nav bar with arrows + page counter (replaces visible edge arrows that overlapped content)
+  • Invisible edge tap zones still work for navigation
+  • Long-press replaced with double-tap (double-click) on image to open inspection — no more conflict with iOS save-image gesture
+  • Image inspection modal redesigned: thumbnail at top, compact mobile layout, collapsible sections
+  • "+ Add" button on character rows is now "+ Add to Story" (clearer label)
+  • Character tagline field — short 3-6 word identifier shown under name in list (e.g. "8-year-old curious boy")
+  • Full description renamed to "Expanded Character Profile"
+  • Newly created characters sort to top of list with "NEW" badge until first use
+  • Bug icon moved to top-right, smaller, more transparent (less in the way)
+  • Image draggable attribute disabled to prevent accidental drag/save
+  • Scroll-to-top on page navigation and orientation changes
+
+--------------------------
 v0.6 — 2026-05-26 — Image Generation + Landscape Reading View
   • Image generation via gpt-image-1 (medium quality, 1024x1024) for cover + each unique story page
   • Smart image distribution: short=3, regular=5, long=6, x-long=7 unique images (+1 cover) — pages can share illustrations

@@ -5,21 +5,19 @@
 const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
 // ----- Length presets -----
-// pages = how many text pages; unique_images = how many distinct illustrations
-// (cover is generated separately on top of that).
+// total_pages = how many pages in the book (each gets its own illustration now)
+// words_per_page = soft target so each page fits a phone screen
 const LENGTH_PRESETS = {
-  short:        { words: 250,  pages: 3,  unique_images: 3, minutes: 2 },
-  regular:      { words: 625,  pages: 6,  unique_images: 5, minutes: 5 },
-  long:         { words: 1000, pages: 8,  unique_images: 6, minutes: 8 },
-  'extra-long': { words: 1500, pages: 12, unique_images: 7, minutes: 12 },
+  short:        { total_pages: 3,  words_per_page: 85,  total_words: 255,  minutes: 2 },
+  regular:      { total_pages: 6,  words_per_page: 100, total_words: 600,  minutes: 5 },
+  long:         { total_pages: 8,  words_per_page: 125, total_words: 1000, minutes: 8 },
+  'extra-long': { total_pages: 12, words_per_page: 125, total_words: 1500, minutes: 12 },
 };
 
 // ----- Pricing -----
 const PRICING = {
-  // GPT-4o text
   inputPer1M: 2.50,
   outputPer1M: 10.00,
-  // gpt-image-1 (rough estimates per image at standard sizes)
   image: {
     '1024x1024': { low: 0.011, medium: 0.042, high: 0.167 },
     '1024x1536': { low: 0.016, medium: 0.063, high: 0.25 },
@@ -29,13 +27,13 @@ const PRICING = {
 
 const GENRE_GUIDANCE = {
   'surprise-me':  'pick the genre that best fits the reader\'s other inputs',
-  'adventure':    'an exciting journey with gentle thrills and wonder',
+  'adventure':    'an exciting journey with thrills and wonder',
   'fairy-tale':   'classic fairy-tale feel — magic, archetypes, satisfying resolution',
   'fantasy':      'a rich imaginative world with magical elements',
   'sci-fi':       'imaginative science-fiction — space, robots, gadgets, future worlds',
   'pirates':      'high seas adventure — ships, treasure, salty crews',
   'superhero':    'heroes with special abilities solving problems with bravery and heart',
-  'mystery':      'a gentle puzzle to discover and solve — curiosity, never danger',
+  'mystery':      'a gentle puzzle to discover and solve',
   'spooky':       'playfully spooky — friendly ghosts, harmless surprises, no real fear',
   'animal-tales': 'animals are the main focus — their world, their feelings, their adventures',
 };
@@ -45,7 +43,7 @@ const INGREDIENT_GUIDANCE = {
   'surprise':      'include a small unexpected twist that delights',
   'heartwarming':  'aim for moments of warmth and connection',
   'action-packed': 'keep momentum brisk with vivid scenes and motion',
-  'bedtime':       'soft, calming, sleepy — pace slows toward the end like a lullaby',
+  'bedtime':       'soft, calming, sleepy — pace slows toward the end like a lullaby. End with the characters falling asleep or in a peaceful resolution.',
   'love-story':    'a sweet age-appropriate love or affection thread between characters',
   'puzzle':        'work in a clever puzzle or riddle that gets solved',
   'magical-object':'feature a magical object that matters to the plot',
@@ -57,7 +55,7 @@ const INGREDIENT_GUIDANCE = {
 
 
 // =====================================================================
-// PROMPT BUILDER — story text + image prompts + style anchor
+// PROMPT BUILDER
 // =====================================================================
 function buildStoryPrompt(formData, selectedCharacters) {
   const lengthInfo = LENGTH_PRESETS[formData.length] || LENGTH_PRESETS.regular;
@@ -68,12 +66,24 @@ function buildStoryPrompt(formData, selectedCharacters) {
     .map(i => INGREDIENT_GUIDANCE[i])
     .filter(Boolean);
 
+  const isBedtime = (formData.ingredients || []).includes('bedtime');
   const hasStoryDetails = formData.storyDetails && formData.storyDetails.trim();
+
+  // Age-scaled intensity guidance
+  const ageNum = parseInt(formData.age, 10) || 5;
+  let intensityNote;
+  if (ageNum <= 5) {
+    intensityNote = `For this young reader (age ${ageNum}), keep stakes gentle. Conflict can exist but resolution should be quick and reassuring. No real fear or peril.`;
+  } else if (ageNum <= 7) {
+    intensityNote = `For this reader (age ${ageNum}), moderate stakes are appropriate. Tension is welcome but always rooted in eventual safety and resolution.`;
+  } else {
+    intensityNote = `For this older reader (age ${ageNum}), stakes can feel real. Characters may face genuine fear, conflict, or loss. Don't water down challenges — make them feel earned. Avoid graphic content, but don't soften the emotional truth of the story.`;
+  }
 
   const lines = [];
 
   lines.push(
-    `You are a master children's storyteller AND art director. Your job is to tell a great story AND describe vivid illustrations for it.`,
+    `You are a master children's storyteller AND art director. Tell a great story AND describe vivid illustrations.`,
     ``
   );
 
@@ -82,9 +92,15 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `- Tell ONE cohesive story with a clear arc: setup, rising action, a moment of change or discovery, and a resolved conclusion.`,
     `- Characters introduced on page 1 stay consistent throughout — same names, personalities, voices. Do NOT introduce new important characters in the final page.`,
     `- Use varied sentence rhythm and beautiful read-aloud language.`,
-    `- Write at vocabulary, sentence length, and conceptual level appropriate for a ${formData.age}-year-old.`,
-    `- End with a satisfying, resolved conclusion. If a calm, peaceful ending fits, lean that way (many stories are read at bedtime).`,
+    `- Write at vocabulary, sentence length, and conceptual level appropriate for a ${ageNum}-year-old.`,
+    `- ${intensityNote}`,
   );
+
+  if (isBedtime) {
+    lines.push(`- BEDTIME story: pace slows toward the end like a lullaby; finish with peace and stillness.`);
+  } else {
+    lines.push(`- Ending should be SATISFYING and RESOLVED, not necessarily calm. Match the energy of the genre.`);
+  }
 
   if (ingredientNotes.length > 0) {
     lines.push(`- Story ingredients to weave in: ${ingredientNotes.join('; ')}.`);
@@ -92,23 +108,32 @@ function buildStoryPrompt(formData, selectedCharacters) {
   if (formData.theme && formData.theme.trim()) {
     lines.push(`- Gently weave in this theme: ${formData.theme.trim()}. Do not be preachy or didactic.`);
   }
+
   lines.push(``);
 
   lines.push(
+    `PAGE STRUCTURE:`,
+    `- The book has exactly ${lengthInfo.total_pages} pages.`,
+    `- Each page's text should be approximately ${lengthInfo.words_per_page} words (range: ${Math.round(lengthInfo.words_per_page * 0.7)}–${Math.round(lengthInfo.words_per_page * 1.2)}). Keep close to the target — pages must fit on a phone screen without scrolling.`,
+    ``
+  );
+
+  lines.push(
     `ILLUSTRATION REQUIREMENTS:`,
-    `- Choose ONE consistent illustration style for this whole story (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output it as "style_anchor".`,
-    `- The story will have ${lengthInfo.pages} text pages but only ${lengthInfo.unique_images} unique illustrations (plus a separate cover).`,
-    `- For each page, decide whether it gets a NEW illustration or shares with the previous page. Set "new_image": true for pages that get a fresh illustration.`,
-    `- Place new illustrations where they matter MOST visually (key moments, character introductions, big scene changes). Quiet transitional pages can share.`,
-    `- For pages where new_image is true, the image_prompt MUST describe specifically and concretely what that page's TEXT depicts — image should match what's being read aloud.`,
-    `- For pages where new_image is false, set image_prompt to null or repeat the previous prompt.`,
-    `- Also provide a "cover_image_prompt" describing the book cover scene.`,
-    `- Image prompts should be vivid, specific, concrete. Mention named characters by name + reference. Mention setting, mood, action.`,
+    `- Each page gets its OWN unique illustration.`,
+    `- Choose ONE consistent illustration style for the whole story (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output it as "style_anchor".`,
+    `- Plus a separate "cover_image_prompt" for the book cover.`,
+    `- For each page, decide image_quality: "medium" for KEY scenes (character introductions, climaxes, dramatic moments, emotional beats) or "low" for simpler/transition scenes (atmosphere, simple settings, fewer characters, less complex action).`,
+    `- Pages with "low" quality should be visually simpler — fewer characters, simpler props/composition.`,
+    `- VARIETY IS GOOD. Not every image needs to show every character. Some scenes show only atmosphere or setting. Some show one character. Some show multiple. Match the visual emphasis to what the page text is really about.`,
+    `- Image prompts must be vivid, specific, concrete. Mention named characters BY EXACT NAME (do not modify or prefix them — if character is "Kai", do NOT call them "RedKai" or similar).`,
+    `- Image prompts should describe what THE PAGE TEXT depicts — image must match what's being read aloud.`,
     ``
   );
 
   if (selectedCharacters && selectedCharacters.length > 0) {
-    lines.push(`CHARACTERS IN THIS STORY (use these names; refer to them visually using the descriptions provided when building image_prompts):`);
+    lines.push(`CHARACTERS IN THIS STORY:`);
+    lines.push(`Use these EXACT names. Do not modify, prefix, or combine them.`);
     selectedCharacters.forEach(c => {
       const rolePart = c.role && c.role !== 'none' ? ` (Role: ${c.role === 'good-guy' ? 'Good Guy / hero' : 'Bad Guy / villain'})` : '';
       lines.push(`- ${c.name}${rolePart}`);
@@ -125,14 +150,14 @@ function buildStoryPrompt(formData, selectedCharacters) {
       `STORY DETAILS (HIGHEST PRIORITY — reader's specific direct requests):`,
       formData.storyDetails.trim(),
       ``,
-      `If these conflict with or override other parameters (genre, characters, etc.), prioritize the story details.`,
+      `If these conflict with other parameters, prioritize the story details.`,
       ``
     );
   }
 
   lines.push(`OTHER PARAMETERS:`);
-  lines.push(`- Target reader age: ${formData.age} years old`);
-  lines.push(`- Length target: ~${lengthInfo.words} words across ${lengthInfo.pages} pages (~${lengthInfo.minutes} min read aloud)`);
+  lines.push(`- Target reader age: ${ageNum} years old`);
+  lines.push(`- Total length: ~${lengthInfo.total_words} words, ~${lengthInfo.minutes} min read aloud`);
   lines.push(`- Genre: ${genreLabel} — ${genreNote}`);
 
   if (!selectedCharacters || selectedCharacters.length === 0) {
@@ -147,11 +172,11 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `Exact structure:`,
     `{`,
     `  "title": "short evocative story title",`,
-    `  "style_anchor": "the consistent illustration style for this entire story (a phrase)",`,
+    `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
     `  "cover_image_prompt": "vivid scene for the book cover",`,
     `  "pages": [`,
-    `    { "page_number": 1, "text": "...", "image_prompt": "scene description", "new_image": true },`,
-    `    { "page_number": 2, "text": "...", "image_prompt": null, "new_image": false }`,
+    `    { "page_number": 1, "text": "...", "image_prompt": "scene description", "image_quality": "medium" },`,
+    `    { "page_number": 2, "text": "...", "image_prompt": "scene description", "image_quality": "low" }`,
     `  ]`,
     `}`
   );
@@ -232,20 +257,25 @@ async function callOpenAIChat(requestBody, password, prompt) {
 
 
 // =====================================================================
-// CHARACTER: Enhance Description
+// CHARACTER: Enhance Description (now returns tagline + visual description)
 // =====================================================================
 async function enhanceCharacterDescription(name, userDescription, password) {
   const prompt = `You are helping create a stable character profile for use across multiple children's book stories and illustrations.
 
-Given the rough input below, write a richly detailed visual + personality description (~100–150 words) that an illustrator could use to draw this character consistently every time, and that a storyteller could use to write them in character.
+Given the rough input below, create:
+1. A short "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf")
+2. A richly detailed "visual_description" — ~100–150 words an illustrator could use to draw this character consistently every time, and a storyteller could use to write them in character.
 
 Be specific and concrete, not generic. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully — do not contradict them.
 
 Character name: ${name}
-User-provided description: ${userDescription || '(none provided — infer thoughtfully from name and create a delightful original)'}
+User-provided description: ${userDescription || '(none — infer thoughtfully from name and create a delightful original)'}
 
 Return ONLY valid JSON with this exact structure (no other text):
-{ "visual_description": "the rich description here" }`;
+{
+  "tagline": "short 3-6 word identifier",
+  "visual_description": "the rich 100-150 word description"
+}`;
 
   const requestBody = {
     model: 'gpt-4o',
@@ -256,6 +286,7 @@ Return ONLY valid JSON with this exact structure (no other text):
 
   const result = await callOpenAIChat(requestBody, password, prompt);
   return {
+    tagline: result.parsed.tagline,
     visual_description: result.parsed.visual_description,
     cost: result.cost,
     tokens: result.tokens,
@@ -264,7 +295,7 @@ Return ONLY valid JSON with this exact structure (no other text):
 
 
 // =====================================================================
-// CHARACTER: Generate Random
+// CHARACTER: Generate Random (also includes tagline)
 // =====================================================================
 async function generateRandomCharacter(password) {
   const prompt = `Invent a delightful, original character for a children's bedtime story.
@@ -272,6 +303,7 @@ async function generateRandomCharacter(password) {
 Return ONLY valid JSON with this exact structure (no other text):
 {
   "name": "the character's name",
+  "tagline": "3-6 word identifier (e.g. 'magical purple unicorn', '8-year-old brave girl')",
   "user_description": "1–2 sentences a parent might write describing this character",
   "visual_description": "a richly detailed visual + personality description (100–150 words) for illustrators and storytellers — include hair, eyes, skin, build, distinctive features, signature look, posture, energy, personality"
 }
@@ -307,7 +339,7 @@ function buildImagePrompt(styleAnchor, scenePrompt, characters) {
   parts.push(`Scene: ${scenePrompt}`);
 
   if (characters && characters.length > 0) {
-    parts.push(`Characters present in this scene:`);
+    parts.push(`Character references (use these EXACT names and appearances if mentioned in the scene):`);
     characters.forEach(c => {
       parts.push(`- ${c.name}: ${c.visual_description}`);
     });
@@ -330,7 +362,6 @@ async function generateImage(fullPrompt, password, options = {}) {
     n: 1,
   };
 
-  // Retry once on transient errors
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -347,7 +378,6 @@ async function generateImage(fullPrompt, password, options = {}) {
         throw new Error('Wrong password. Open the debug panel to reset.');
       }
       if (response.status >= 500 && attempt === 0) {
-        // Transient — retry
         lastError = new Error(`Image API error (HTTP ${response.status}) — retrying`);
         await new Promise((r) => setTimeout(r, 1000));
         continue;
@@ -393,10 +423,10 @@ function generateFakeStory(formData) {
       style_anchor: 'warm watercolor children\'s book illustration, soft amber and cream tones',
       cover_image_prompt: 'A small amber fox standing on a mossy log under a moonlit forest canopy, glowing acorn in the foreground.',
       pages: [
-        { page_number: 1, text: 'Once upon a time, in a quiet forest where the trees whispered lullabies, lived a small fox named Pip. Pip had soft amber fur and big curious eyes.', image_prompt: 'A small amber fox in a quiet moonlit forest, big curious eyes, soft watercolor.', new_image: true },
-        { page_number: 2, text: 'One evening, Pip discovered a glowing acorn beneath the oldest oak tree. It shimmered like a tiny captured star.', image_prompt: 'Close-up of a glowing acorn at the base of an enormous oak, magical light.', new_image: true },
-        { page_number: 3, text: 'When Pip picked it up, the forest hummed with magic. All the sleepy creatures opened their eyes just a little, smiling.', image_prompt: null, new_image: false },
-        { page_number: 4, text: 'Pip placed the acorn back where it belonged. The forest let out a contented sigh, and Pip curled up and drifted to sleep.', image_prompt: 'Fox curled up sleeping next to the glowing acorn, peaceful watercolor.', new_image: true },
+        { page_number: 1, text: 'Once upon a time, in a quiet forest where the trees whispered lullabies, lived a small fox named Pip. Pip had soft amber fur and big curious eyes.', image_prompt: 'A small amber fox in a quiet moonlit forest, big curious eyes, soft watercolor.', image_quality: 'medium' },
+        { page_number: 2, text: 'One evening, Pip discovered a glowing acorn beneath the oldest oak tree. It shimmered like a tiny captured star.', image_prompt: 'Close-up of a glowing acorn at the base of an enormous oak, magical light.', image_quality: 'medium' },
+        { page_number: 3, text: 'When Pip picked it up, the forest hummed with magic. All the sleepy creatures opened their eyes just a little, smiling.', image_prompt: 'Forest at night, hint of magical glow, peaceful.', image_quality: 'low' },
+        { page_number: 4, text: 'Pip placed the acorn back where it belonged. The forest let out a contented sigh, and Pip curled up and drifted to sleep.', image_prompt: 'Fox curled up sleeping next to the glowing acorn, peaceful watercolor.', image_quality: 'medium' },
       ],
     },
     prompt: '[FAKE STORY — no API call was made]',
@@ -409,17 +439,25 @@ function generateFakeStory(formData) {
 
 function loadingHintForLength(lengthKey) {
   const map = {
-    short:        '~30 seconds',
-    regular:      '~75 seconds',
-    long:         '~90 seconds',
-    'extra-long': '~120 seconds',
+    short:        '~45 seconds',
+    regular:      '~90 seconds',
+    long:         '~120 seconds',
+    'extra-long': '~180 seconds',
   };
-  return map[lengthKey] || '~75 seconds';
+  return map[lengthKey] || '~90 seconds';
 }
 
 
 function costToCoins(costInDollars) {
-  let remaining = Math.round(costInDollars * 1000) / 1000;
+  // For totals under 1¢, return a single partial penny.
+  // Otherwise, round to nearest cent and return whole-coin counts (no partial pennies).
+  if (costInDollars < 0.01) {
+    if (costInDollars <= 0) return [];
+    return [{ type: 'penny', count: 1, partial: costInDollars / 0.01 }];
+  }
+
+  // Round to nearest cent
+  let remaining = Math.round(costInDollars * 100) / 100;
   const result = [];
   const denominations = [
     { type: 'quarter', value: 0.25 },
@@ -428,16 +466,27 @@ function costToCoins(costInDollars) {
     { type: 'penny',   value: 0.01 },
   ];
   for (const d of denominations) {
-    const count = Math.floor(remaining / d.value + 1e-9);
-    if (count > 0) {
-      result.push({ type: d.type, count, partial: 1 });
-      remaining -= count * d.value;
-      remaining = Math.round(remaining * 1000) / 1000;
+    const count = Math.round((remaining + 1e-9) / d.value | 0);  // floor
+    const c = Math.floor(remaining / d.value + 1e-9);
+    if (c > 0) {
+      result.push({ type: d.type, count: c, partial: 1 });
+      remaining -= c * d.value;
+      remaining = Math.round(remaining * 100) / 100;
     }
   }
-  if (remaining > 0 && remaining < 0.01) {
-    const partial = remaining / 0.01;
-    result.push({ type: 'penny', count: 1, partial });
-  }
   return result;
+}
+
+// User-friendly cost formatting (kid-friendly):
+// - >= $1.00 → "$X.XX"
+// - 1¢..99¢ → "Xc" (using cents symbol)
+// - < 1¢ → "<1¢"
+function formatCostFriendly(cost) {
+  if (cost <= 0) return '0¢';
+  if (cost < 0.01) return '<1¢';
+  if (cost < 1.00) {
+    const cents = Math.round(cost * 100);
+    return `${cents}¢`;
+  }
+  return `$${cost.toFixed(2)}`;
 }
