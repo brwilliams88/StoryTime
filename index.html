@@ -4,19 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Cache control: prevent stale HTML from sticking around -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
 
   <title>StoryTime</title>
 
-  <!-- iOS home screen icon (placeholder pre-MVP) -->
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <!-- Stylesheet with cache-busting version -->
-  <link rel="stylesheet" href="css/style.css?v=0.5.2" />
+  <link rel="stylesheet" href="css/style.css?v=0.6" />
 </head>
 <body>
 
@@ -36,14 +33,7 @@
       <div class="modal">
         <h2>Welcome</h2>
         <p class="modal-text">Enter the app password to begin.</p>
-        <input
-          type="password"
-          v-model="passwordInput"
-          @keyup.enter="submitPassword"
-          placeholder="Password"
-          class="text-input"
-          autofocus
-        />
+        <input type="password" v-model="passwordInput" @keyup.enter="submitPassword" placeholder="Password" class="text-input" autofocus />
         <button @click="submitPassword" class="btn-primary">Enter</button>
         <p v-if="error" class="error-text">{{ error }}</p>
       </div>
@@ -52,12 +42,13 @@
     <!-- ============== MAIN APP ============== -->
     <template v-else>
 
-      <header class="app-header">
+      <!-- Header is hidden when in reading view to maximize space -->
+      <header v-if="view !== 'story' || !currentStory" class="app-header">
         <h1 @click="handleNewStory">📖 StoryTime</h1>
         <p class="tagline">Bedtime stories for Kai &amp; Nozomi</p>
       </header>
 
-      <main class="app-main">
+      <main class="app-main" :class="{ 'app-main-reading': view === 'story' && currentStory }">
 
         <!-- ============== LOADING ============== -->
         <div v-if="loading" class="loading-screen">
@@ -79,27 +70,14 @@
 
           <!-- 1. Characters -->
           <div class="form-field">
-            <label>
-              Characters
-              <span class="optional">
-                ({{ selectedCharCount }}/{{ 5 }} selected)
-              </span>
-            </label>
+            <label>Characters <span class="optional">({{ selectedCharCount }}/5 selected)</span></label>
             <div class="character-chips">
-              <div
-                v-for="c in selectedCharacters"
-                :key="c.id"
-                class="char-chip"
-              >
+              <div v-for="c in selectedCharacters" :key="c.id" class="char-chip">
                 <span class="char-chip-name">{{ c.name }}</span>
-                <span v-if="getCharacterRole(c.id) !== 'none'" class="char-chip-role">
-                  {{ roleLabel(getCharacterRole(c.id)) }}
-                </span>
+                <span v-if="getCharacterRole(c.id) !== 'none'" class="char-chip-role">{{ roleLabel(getCharacterRole(c.id)) }}</span>
                 <button class="char-chip-remove" @click="toggleCharacterSelected(c.id)" title="Remove">✕</button>
               </div>
-              <button @click="openCharactersModal" class="btn-secondary btn-small">
-                👥 Choose Characters
-              </button>
+              <button @click="openCharactersModal" class="btn-secondary btn-small">👥 Choose Characters</button>
             </div>
             <p v-if="selectedCharCount === 0" class="form-hint">No characters selected — tap above to add. Leave empty and the storyteller will invent them.</p>
           </div>
@@ -107,24 +85,14 @@
           <!-- 2. Story Details -->
           <div class="form-field">
             <label>Story Details <span class="help-text">— make it your own with cool details</span> <span class="optional">(optional)</span></label>
-            <textarea
-              v-model="formData.storyDetails"
-              placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'"
-              class="textarea-input"
-              rows="3"
-            ></textarea>
+            <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input" rows="3"></textarea>
           </div>
 
           <!-- 3. Age -->
           <div class="form-field">
             <label>Story for age</label>
             <div class="pill-group age-pills">
-              <button
-                v-for="n in 10"
-                :key="n"
-                @click="formData.age = n"
-                :class="['pill pill-num', { active: formData.age === n }]"
-              >{{ n }}</button>
+              <button v-for="n in 10" :key="n" @click="formData.age = n" :class="['pill pill-num', { active: formData.age === n }]">{{ n }}</button>
             </div>
           </div>
 
@@ -132,12 +100,7 @@
           <div class="form-field">
             <label>Story Length</label>
             <div class="pill-group">
-              <button
-                v-for="option in lengths"
-                :key="option.value"
-                @click="formData.length = option.value"
-                :class="['pill', { active: formData.length === option.value }]"
-              >
+              <button v-for="option in lengths" :key="option.value" @click="formData.length = option.value" :class="['pill', { active: formData.length === option.value }]">
                 <div class="pill-label">{{ option.label }}</div>
                 <div class="pill-subtitle">{{ option.subtitle }}</div>
               </button>
@@ -148,12 +111,7 @@
           <div class="form-field">
             <label>Genre <span class="help-text">— the type of story</span></label>
             <div class="pill-group wrap">
-              <button
-                v-for="g in genres"
-                :key="g.value"
-                @click="formData.genre = g.value"
-                :class="['pill pill-compact', { active: formData.genre === g.value }]"
-              >
+              <button v-for="g in genres" :key="g.value" @click="formData.genre = g.value" :class="['pill pill-compact', { active: formData.genre === g.value }]">
                 <span class="pill-emoji">{{ g.emoji }}</span>
                 <span class="pill-text">{{ g.label }}</span>
               </button>
@@ -162,18 +120,9 @@
 
           <!-- 6. Story Ingredients -->
           <div class="form-field">
-            <label>
-              Story Ingredients <span class="help-text">— how it should feel</span>
-              <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span>
-            </label>
+            <label>Story Ingredients <span class="help-text">— how it should feel</span> <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span></label>
             <div class="pill-group wrap">
-              <button
-                v-for="ing in ingredients"
-                :key="ing.value"
-                @click="toggleIngredient(ing.value)"
-                :disabled="isIngredientDisabled(ing.value)"
-                :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]"
-              >
+              <button v-for="ing in ingredients" :key="ing.value" @click="toggleIngredient(ing.value)" :disabled="isIngredientDisabled(ing.value)" :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]">
                 <span class="pill-emoji">{{ ing.emoji }}</span>
                 <span class="pill-text">{{ ing.label }}</span>
               </button>
@@ -184,19 +133,9 @@
           <div class="form-field">
             <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
             <div class="pill-group wrap theme-presets">
-              <button
-                v-for="t in themes"
-                :key="t"
-                @click="selectThemePreset(t)"
-                :class="['pill pill-small', { active: formData.theme === t }]"
-              >{{ t }}</button>
+              <button v-for="t in themes" :key="t" @click="selectThemePreset(t)" :class="['pill pill-small', { active: formData.theme === t }]">{{ t }}</button>
             </div>
-            <input
-              type="text"
-              v-model="formData.theme"
-              placeholder="Or type your own — e.g. 'the moral of the story is to keep trying'"
-              class="text-input theme-input"
-            />
+            <input type="text" v-model="formData.theme" placeholder="Or type your own — e.g. 'the moral of the story is to keep trying'" class="text-input theme-input" />
           </div>
 
           <button @click="handleGenerate" class="btn-primary btn-large">Generate Story</button>
@@ -205,119 +144,212 @@
 
         </div>
 
-        <!-- ============== STORY DISPLAY ============== -->
-        <div v-else-if="view === 'story' && currentStory" class="story-view">
+        <!-- ============== READING VIEW ============== -->
+        <div v-else-if="view === 'story' && currentStory" class="reading-view">
 
-          <div class="story-top-bar">
-            <button @click="editSettings" class="btn-secondary btn-small">← Edit Settings</button>
+          <!-- Portrait rotate overlay -->
+          <div v-if="isPortrait" class="rotate-overlay">
+            <div class="rotate-icon">📱↻</div>
+            <div class="rotate-title">Please rotate your device</div>
+            <div class="rotate-text">StoryTime reads best in landscape mode, like a real picture book.</div>
           </div>
 
-          <h2 class="story-title">{{ currentStory.title }}</h2>
-
-          <div class="story-pages">
-            <div v-for="page in currentStory.pages" :key="page.page_number" class="story-page">
-              <div class="page-number">Page {{ page.page_number }}</div>
-              <p class="page-text">{{ page.text }}</p>
-            </div>
+          <!-- Top bar (back to settings + progress indicator) -->
+          <div class="reading-top-bar">
+            <button @click="editSettings" class="btn-secondary btn-small">← Settings</button>
+            <div v-if="loadingProgress" class="reading-progress">{{ loadingProgress }}</div>
+            <button @click="handleNewStory" class="btn-secondary btn-small">New Story</button>
           </div>
 
-          <div class="cost-display">
-            <div class="cost-amount">This story cost {{ formattedCost }}</div>
-            <div class="coin-row">
-              <template v-for="(group, idx) in coinBreakdown" :key="idx">
-                <span
-                  v-for="n in group.count"
-                  :key="group.type + '-' + n"
-                  :class="['coin', 'coin-' + group.type]"
-                  :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}"
-                >
-                  <img :src="'assets/images/coin-' + group.type + '.png'" :alt="group.type" />
-                </span>
+          <!-- ===== COVER PAGE ===== -->
+          <div v-if="isOnCover" class="book-page cover-page">
+            <div class="cover-image-wrap"
+                 @mousedown="handleImageMouseDown('cover')"
+                 @mouseup="handleImageMouseUp"
+                 @mouseleave="handleImageMouseUp"
+                 @touchstart="handleImageMouseDown('cover')"
+                 @touchend="handleImageMouseUp"
+                 @contextmenu="handleImageContextMenu($event, 'cover')">
+              <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
+                <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="cover-image" />
+              </template>
+              <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
+                <div class="image-placeholder">
+                  <div class="loading-spinner small"></div>
+                  <div class="placeholder-label">Drawing the cover…</div>
+                </div>
+              </template>
+              <template v-else-if="currentStory.cover.image_status === 'skipped'">
+                <div class="image-placeholder skipped">
+                  <div class="placeholder-label">[Skipped]</div>
+                  <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
+                </div>
+              </template>
+              <template v-else-if="currentStory.cover.image_status === 'failed'">
+                <div class="image-placeholder failed">
+                  <div class="placeholder-label">Image failed</div>
+                  <button @click="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
+                </div>
               </template>
             </div>
+            <div class="cover-title-overlay">
+              <h1 class="cover-title">{{ currentStory.title }}</h1>
+            </div>
           </div>
 
-          <div class="story-actions">
-            <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
-            <button @click="handleContinueStory" class="btn-secondary" title="Coming soon — will let you write a Part 2 with the same characters" disabled>Continue Story</button>
-            <button @click="handleNewStory" class="btn-primary">New Story</button>
+          <!-- ===== STORY SPREAD ===== -->
+          <div v-else-if="currentStoryPage" class="book-page story-spread">
+            <div class="spread-left">
+              <div class="page-number-label">Page {{ currentStoryPage.page_number }}</div>
+              <p class="spread-text">{{ currentStoryPage.text }}</p>
+            </div>
+            <div class="spread-right">
+              <div class="page-image-wrap"
+                   @mousedown="handleImageMouseDown(currentPageIndex - 1)"
+                   @mouseup="handleImageMouseUp"
+                   @mouseleave="handleImageMouseUp"
+                   @touchstart="handleImageMouseDown(currentPageIndex - 1)"
+                   @touchend="handleImageMouseUp"
+                   @contextmenu="handleImageContextMenu($event, currentPageIndex - 1)">
+                <template v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)">
+                  <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" />
+                </template>
+                <template v-else-if="currentStoryPage.image_status === 'loading' || currentStoryPage.image_status === 'pending'">
+                  <div class="image-placeholder">
+                    <div class="loading-spinner small"></div>
+                    <div class="placeholder-label">Drawing this page…</div>
+                  </div>
+                </template>
+                <template v-else-if="currentStoryPage.image_status === 'skipped'">
+                  <div class="image-placeholder skipped">
+                    <div class="placeholder-label">[Image skipped]</div>
+                    <pre class="placeholder-prompt">{{ currentStoryPage.image_prompt || '(uses previous image)' }}</pre>
+                  </div>
+                </template>
+                <template v-else-if="currentStoryPage.image_status === 'failed'">
+                  <div class="image-placeholder failed">
+                    <div class="placeholder-label">Image failed</div>
+                    <button @click="regenerateOneImage(currentPageIndex - 1)" class="btn-secondary btn-tiny">Try Again</button>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
+
+          <!-- ===== END CREDITS ===== -->
+          <div v-else-if="isOnEndCredits" class="book-page end-credits-page">
+            <h2 class="end-title">✨ The End ✨</h2>
+            <p class="end-subtitle">This book was made for you in this moment.</p>
+            <div class="cost-display">
+              <div class="cost-amount">{{ formattedCost }}</div>
+              <div class="coin-row">
+                <template v-for="(group, idx) in coinBreakdown" :key="idx">
+                  <span v-for="n in group.count" :key="group.type + '-' + n" :class="['coin', 'coin-' + group.type]" :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}">
+                    <img :src="'assets/images/coin-' + group.type + '.png'" :alt="group.type" />
+                  </span>
+                </template>
+              </div>
+              <div class="cost-breakdown">
+                <div>📝 Text: ${{ currentTextCost.toFixed(3) }}</div>
+                <div>🎨 Illustrations: ${{ currentImagesCost.toFixed(3) }}</div>
+              </div>
+            </div>
+            <div class="end-actions">
+              <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
+              <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
+              <button @click="handleNewStory" class="btn-primary">New Story</button>
+            </div>
+          </div>
+
+          <!-- Page navigation: tap zones + visible arrows + counter -->
+          <button class="nav-zone nav-zone-left" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page">
+            <div class="nav-arrow">‹</div>
+          </button>
+          <button class="nav-zone nav-zone-right" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page">
+            <div class="nav-arrow">›</div>
+          </button>
+
+          <div class="page-counter-bar">
+            {{ currentDisplayPageNumber }} / {{ totalReadingPages }}
+          </div>
+
         </div>
 
       </main>
+
+      <!-- ============== IMAGE INSPECTION MODAL (long-press) ============== -->
+      <div v-if="inspectingImage" class="modal-overlay" @click.self="closeImageInspection">
+        <div class="modal modal-wide">
+          <div class="modal-header">
+            <h2>Image Details</h2>
+            <button @click="closeImageInspection" class="modal-close">✕</button>
+          </div>
+          <div class="form-field">
+            <label>Status</label>
+            <div>{{ inspectingImage.status }}</div>
+          </div>
+          <div class="form-field">
+            <label>Cost</label>
+            <div>${{ (inspectingImage.cost || 0).toFixed(4) }}</div>
+          </div>
+          <div class="form-field">
+            <label>Image Prompt</label>
+            <pre class="debug-code">{{ inspectingImage.image_prompt || '(none)' }}</pre>
+          </div>
+          <div class="form-field">
+            <label>Full Prompt Sent to gpt-image-1</label>
+            <pre class="debug-code">{{ inspectingImage.full_prompt }}</pre>
+          </div>
+          <div class="modal-footer">
+            <button @click="closeImageInspection" class="btn-secondary">Close</button>
+            <button @click="regenerateOneImage(inspectingImage.target)" class="btn-primary">🔁 Regenerate This Image</button>
+          </div>
+        </div>
+      </div>
 
       <!-- ============== CHARACTERS MODAL ============== -->
       <div v-if="showCharactersModal" class="modal-overlay" @click.self="closeCharactersModal">
         <div class="modal modal-wide">
 
-          <!-- ===== List Mode ===== -->
           <template v-if="charModalMode === 'list'">
             <div class="modal-header">
               <h2>Manage Characters <span class="modal-count">({{ characters.length }})</span></h2>
               <button @click="handleModalX" class="modal-close" aria-label="Close">✕</button>
             </div>
-
             <p class="modal-hint">Tap a character to add them to your story (up to 5).</p>
-
             <div class="modal-actions">
               <button @click="startCreateCharacter" class="btn-primary btn-small">+ Create New</button>
-              <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">
-                🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}
-              </button>
+              <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}</button>
             </div>
-
             <div v-if="error" class="error-text" style="margin: 0.5rem 0;">{{ error }}</div>
-
             <div class="char-list">
               <div v-if="characters.length === 0" class="char-list-empty">
                 <div class="empty-emoji">👤</div>
                 <div class="empty-title">No characters yet</div>
                 <div class="empty-text">Tap <strong>+ Create New</strong> to make one, or <strong>🎲 Generate Random</strong> to let the AI invent one.</div>
               </div>
-
-              <div
-                v-for="c in sortedCharacters"
-                :key="c.id"
-                :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]"
-              >
+              <div v-for="c in sortedCharacters" :key="c.id" :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]">
                 <div class="char-row-top">
                   <div class="char-row-info">
                     <div class="char-row-name">{{ c.name }}</div>
                     <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}</div>
                   </div>
-                  <button
-                    @click="toggleCharacterSelected(c.id)"
-                    :disabled="!canAddCharacter(c.id)"
-                    :class="['add-btn', { added: isCharacterSelected(c.id) }]"
-                  >
+                  <button @click="toggleCharacterSelected(c.id)" :disabled="!canAddCharacter(c.id)" :class="['add-btn', { added: isCharacterSelected(c.id) }]">
                     {{ isCharacterSelected(c.id) ? '✓ Added' : (canAddCharacter(c.id) ? '+ Add' : 'Max') }}
                   </button>
                 </div>
-
-                <!-- Role pills (only when selected) -->
                 <div v-if="isCharacterSelected(c.id)" class="char-role-pills">
-                  <button
-                    :class="['pill pill-small', { active: getCharacterRole(c.id) === 'good-guy' }]"
-                    @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'good-guy' ? 'none' : 'good-guy')"
-                  >Good Guy</button>
-                  <button
-                    :class="['pill pill-small', { active: getCharacterRole(c.id) === 'bad-guy' }]"
-                    @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'bad-guy' ? 'none' : 'bad-guy')"
-                  >Bad Guy</button>
+                  <button :class="['pill pill-small', { active: getCharacterRole(c.id) === 'good-guy' }]" @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'good-guy' ? 'none' : 'good-guy')">Good Guy</button>
+                  <button :class="['pill pill-small', { active: getCharacterRole(c.id) === 'bad-guy' }]" @click="setCharacterRole(c.id, getCharacterRole(c.id) === 'bad-guy' ? 'none' : 'bad-guy')">Bad Guy</button>
                 </div>
-
-                <!-- Expandable profile preview -->
                 <div class="char-row-bottom">
-                  <button class="char-expand-toggle" @click="toggleCharProfileExpanded(c.id)">
-                    {{ isCharProfileExpanded(c.id) ? '▾' : '▸' }} Character Profile
-                  </button>
+                  <button class="char-expand-toggle" @click="toggleCharProfileExpanded(c.id)">{{ isCharProfileExpanded(c.id) ? '▾' : '▸' }} Character Profile</button>
                   <div class="char-row-edit-actions">
                     <button @click="startEditCharacter(c)" class="text-link">Edit</button>
                     <span class="text-link-sep">·</span>
                     <button @click="handleDeleteCharacter(c)" class="text-link text-link-danger">Delete</button>
                   </div>
                 </div>
-
                 <div v-if="isCharProfileExpanded(c.id)" class="char-profile-preview">
                   <p>{{ c.visual_description || '(no description yet)' }}</p>
                 </div>
@@ -325,70 +357,30 @@
             </div>
           </template>
 
-          <!-- ===== Create / Edit Mode ===== -->
           <template v-else>
             <div class="modal-header">
               <h2>{{ charModalMode === 'create' ? 'Create Character' : 'Edit Character' }}</h2>
               <button @click="handleModalX" class="modal-close" aria-label="Back to list">✕</button>
             </div>
-
-            <p v-if="isRandomNew" class="modal-hint modal-hint-emphasize">
-              ✨ This character is newly invented but not saved yet. Tap <strong>Save</strong> below to keep them.
-            </p>
-
+            <p v-if="isRandomNew" class="modal-hint modal-hint-emphasize">✨ This character is newly invented but not saved yet. Tap <strong>Save</strong> below to keep them.</p>
             <div class="char-form">
-
               <div class="form-field">
                 <label>Name</label>
-                <input
-                  type="text"
-                  v-model="charForm.name"
-                  placeholder="e.g. Kai, Bumble, Lord Frostbeard"
-                  class="text-input"
-                />
+                <input type="text" v-model="charForm.name" placeholder="e.g. Kai, Bumble, Lord Frostbeard" class="text-input" />
               </div>
-
               <div class="form-field">
                 <label>Description</label>
-                <textarea
-                  v-model="charForm.user_description"
-                  placeholder="Describe them in your own words — appearance, personality, anything you want consistent. e.g. '6-year-old boy with short black hair, brave, loves dinosaurs'"
-                  class="textarea-input"
-                  rows="4"
-                ></textarea>
+                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent. e.g. '6-year-old boy with short black hair, brave, loves dinosaurs'" class="textarea-input" rows="4"></textarea>
               </div>
-
-              <button
-                @click="handleEnhance"
-                :disabled="!charFormCanEnhance"
-                class="btn-primary"
-              >
-                ✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}
-              </button>
-
+              <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
               <div v-if="charForm.visual_description" class="form-field" style="margin-top: 1.2rem;">
                 <label>Character Profile <span class="help-text">— how the storyteller and illustrator will see them</span></label>
-                <textarea
-                  v-model="charForm.visual_description"
-                  class="textarea-input"
-                  rows="6"
-                ></textarea>
+                <textarea v-model="charForm.visual_description" class="textarea-input" rows="6"></textarea>
               </div>
-
               <div v-if="error" class="error-text">{{ error }}</div>
-
               <div class="modal-footer">
-                <button
-                  v-if="charForm.visual_description"
-                  @click="handleEnhance"
-                  :disabled="enhancing"
-                  class="btn-secondary"
-                >🔁 Try Again</button>
-                <button
-                  @click="handleSaveCharacter"
-                  :disabled="!charFormCanSave"
-                  class="btn-primary"
-                >💾 Save</button>
+                <button v-if="charForm.visual_description" @click="handleEnhance" :disabled="enhancing" class="btn-secondary">🔁 Try Again</button>
+                <button @click="handleSaveCharacter" :disabled="!charFormCanSave" class="btn-primary">💾 Save</button>
               </div>
             </div>
           </template>
@@ -396,10 +388,9 @@
         </div>
       </div>
 
-      <!-- ============== DEBUG ICON ============== -->
+      <!-- ============== DEBUG ICON & PANEL ============== -->
       <button class="debug-icon" @click="toggleDebug" title="Debug panel">🐛</button>
 
-      <!-- ============== DEBUG PANEL ============== -->
       <aside v-if="showDebug" class="debug-panel">
         <div class="debug-header">
           <h3>Debug Panel</h3>
@@ -413,10 +404,19 @@
         </div>
 
         <div class="debug-section">
+          <h4>Image Generation Mode</h4>
+          <label class="debug-toggle">
+            <input type="checkbox" :checked="skipImages" @change="toggleSkipImages" />
+            <span>Skip image generation (placeholders only — saves money)</span>
+          </label>
+        </div>
+
+        <div class="debug-section">
           <h4>Storage</h4>
-          <div class="debug-stat">Stories used: <strong>{{ formattedStorageSize }}</strong></div>
-          <div class="debug-stat">Characters saved: <strong>{{ characters.length }}</strong></div>
+          <div class="debug-stat">Stories: <strong>{{ formattedStorageSize }}</strong></div>
+          <div class="debug-stat">Images: <strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
           <button @click="handleClearStories" class="btn-secondary btn-small">Clear All Stories</button>
+          <button @click="handleClearImages" class="btn-secondary btn-small">Clear All Images</button>
         </div>
 
         <div class="debug-section">
@@ -428,10 +428,10 @@
 
         <div class="debug-section">
           <h4>Last generation</h4>
-          <div class="debug-stat">Cost: <strong>${{ currentStoryCost.toFixed(6) }}</strong></div>
-          <div class="debug-stat" v-if="lastTokens">
-            Tokens: {{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out = {{ lastTokens.total_tokens }}
-          </div>
+          <div class="debug-stat">Text cost: <strong>${{ currentTextCost.toFixed(6) }}</strong></div>
+          <div class="debug-stat">Images cost: <strong>${{ currentImagesCost.toFixed(6) }}</strong></div>
+          <div class="debug-stat">Total: <strong>${{ currentStoryCost.toFixed(6) }}</strong></div>
+          <div class="debug-stat" v-if="lastTokens">Tokens: {{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out</div>
         </div>
 
         <div class="debug-section" v-if="selectedCharacters.length > 0">
@@ -443,15 +443,20 @@
         </div>
 
         <div class="debug-section" v-if="lastPrompt">
-          <h4>Prompt sent to GPT-4o</h4>
+          <h4>Prompt sent to GPT-4o (text)</h4>
           <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
           <pre class="debug-code">{{ lastPrompt }}</pre>
         </div>
 
         <div class="debug-section" v-if="lastRawResponse">
-          <h4>Raw response</h4>
+          <h4>Raw text response</h4>
           <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
           <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
+        </div>
+
+        <div class="debug-section" v-if="currentStory && currentStory.style_anchor">
+          <h4>Style anchor</h4>
+          <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
         </div>
       </aside>
 
@@ -459,26 +464,22 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.5.2"></script>
-  <script src="js/api.js?v=0.5.2"></script>
-  <script src="js/app.js?v=0.5.2"></script>
+  <script src="js/storage.js?v=0.6"></script>
+  <script src="js/imageStorage.js?v=0.6"></script>
+  <script src="js/api.js?v=0.6"></script>
+  <script src="js/app.js?v=0.6"></script>
 
-  <!-- Service Worker registration -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
           .then((reg) => {
             console.log('SW registered. Scope:', reg.scope);
-
-            // Detect new SW waiting to activate
             reg.addEventListener('updatefound', () => {
               const newWorker = reg.installing;
               if (!newWorker) return;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // A new version is installed and waiting. Tell it to activate now.
-                  console.log('New SW installed. Activating…');
                   newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
@@ -486,12 +487,10 @@
           })
           .catch((err) => console.error('SW registration failed:', err));
 
-        // When the SW takes control of the page (new version), reload once.
         let reloadedForUpdate = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (reloadedForUpdate) return;
           reloadedForUpdate = true;
-          console.log('SW controller changed — reloading for fresh version.');
           window.location.reload();
         });
       });

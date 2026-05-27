@@ -9,6 +9,28 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6 — 2026-05-26 — Image Generation + Landscape Reading View
+  • Image generation via gpt-image-1 (medium quality, 1024x1024) for cover + each unique story page
+  • Smart image distribution: short=3, regular=5, long=6, x-long=7 unique images (+1 cover) — pages can share illustrations
+  • GPT-4o now outputs a "style_anchor" per story to keep all images visually consistent
+  • Character visual_descriptions injected into every image prompt featuring that character
+  • Landscape 2-page spread reading view: text on left, image on right
+  • Cover page with title overlay; end credits page with cost breakdown + coins
+  • Tap-zone navigation (left/right edges) + visible arrow buttons + page counter
+  • Portrait mode shows rotate-device overlay
+  • Progressive loading: text generates first, switch to reading view immediately with placeholders, images fill in as they complete
+  • Long-press (or right-click) any image: opens inspection modal showing full prompt + cost + per-image regenerate
+  • Per-image regenerate from inspection modal
+  • Graceful failure: failed images show error placeholder with retry button
+  • Auto-retry once on transient (5xx) image API errors
+  • "Skip Images" debug toggle: generates text + image prompts only, placeholders shown with the prompt visible (saves $$ during testing)
+  • IndexedDB storage for image blobs (much larger capacity than localStorage)
+  • Debug panel: image count + total image storage size, clear-all-images button
+  • Image alt-text set to image_prompt for accessibility + easy inspection
+  • End credits page shows breakdown: text cost + image cost separately
+  • Loading hint duration scales by story length (30s for short, 120s for extra-long)
+
+--------------------------
 v0.5.2 — 2026-05-26 — Service Worker + Cache Reliability
   • Added Service Worker (sw.js) — network-first for HTML, cache-first for assets, version-tagged caches with auto-cleanup
   • Auto-reload page when new SW takes over (so iPhone webapp updates without manual icon remove/re-add)
