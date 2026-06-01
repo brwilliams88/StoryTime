@@ -5,8 +5,7 @@
 const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
 // ----- Length presets -----
-// total_pages = how many pages in the book (each gets its own illustration now)
-// words_per_page = soft target so each page fits a phone screen
+// Each page gets a unique illustration (no sharing across pages).
 const LENGTH_PRESETS = {
   short:        { total_pages: 3,  words_per_page: 85,  total_words: 255,  minutes: 2 },
   regular:      { total_pages: 6,  words_per_page: 100, total_words: 600,  minutes: 5 },
@@ -14,10 +13,11 @@ const LENGTH_PRESETS = {
   'extra-long': { total_pages: 12, words_per_page: 125, total_words: 1500, minutes: 12 },
 };
 
-// ----- Pricing -----
 const PRICING = {
   inputPer1M: 2.50,
   outputPer1M: 10.00,
+  miniInputPer1M:  0.15,
+  miniOutputPer1M: 0.60,
   image: {
     '1024x1024': { low: 0.011, medium: 0.042, high: 0.167 },
     '1024x1536': { low: 0.016, medium: 0.063, high: 0.25 },
@@ -55,29 +55,29 @@ const INGREDIENT_GUIDANCE = {
 
 
 // =====================================================================
-// PROMPT BUILDER
+// STORY PROMPT BUILDER
 // =====================================================================
 function buildStoryPrompt(formData, selectedCharacters) {
   const lengthInfo = LENGTH_PRESETS[formData.length] || LENGTH_PRESETS.regular;
   const genreLabel = (formData.genre || 'surprise-me').replace('-', ' ');
   const genreNote = GENRE_GUIDANCE[formData.genre] || GENRE_GUIDANCE['surprise-me'];
-
-  const ingredientNotes = (formData.ingredients || [])
-    .map(i => INGREDIENT_GUIDANCE[i])
-    .filter(Boolean);
-
+  const ingredientNotes = (formData.ingredients || []).map(i => INGREDIENT_GUIDANCE[i]).filter(Boolean);
   const isBedtime = (formData.ingredients || []).includes('bedtime');
   const hasStoryDetails = formData.storyDetails && formData.storyDetails.trim();
 
-  // Age-scaled intensity guidance
-  const ageNum = parseInt(formData.age, 10) || 5;
+  // Age-scaled intensity guidance — formData.ageRange is "1-2", "3-4", ...
+  const ageRange = formData.ageRange || '5-6';
+  const [ageMin, ageMax] = ageRange.split('-').map(n => parseInt(n, 10));
+  const midAge = Math.round((ageMin + ageMax) / 2);
   let intensityNote;
-  if (ageNum <= 5) {
-    intensityNote = `For this young reader (age ${ageNum}), keep stakes gentle. Conflict can exist but resolution should be quick and reassuring. No real fear or peril.`;
-  } else if (ageNum <= 7) {
-    intensityNote = `For this reader (age ${ageNum}), moderate stakes are appropriate. Tension is welcome but always rooted in eventual safety and resolution.`;
+  if (ageMax <= 4) {
+    intensityNote = `For young readers (ages ${ageRange}), keep stakes gentle. Conflict can exist but resolution should be quick and reassuring. No real fear or peril. Simple vocabulary.`;
+  } else if (ageMax <= 6) {
+    intensityNote = `For these readers (ages ${ageRange}), moderate stakes are appropriate. Tension is welcome but always rooted in eventual safety. Some character growth.`;
+  } else if (ageMax <= 8) {
+    intensityNote = `For these readers (ages ${ageRange}), stakes can feel real. Characters may face fear or conflict. Resolution should feel earned. More complex emotional arcs welcome.`;
   } else {
-    intensityNote = `For this older reader (age ${ageNum}), stakes can feel real. Characters may face genuine fear, conflict, or loss. Don't water down challenges — make them feel earned. Avoid graphic content, but don't soften the emotional truth of the story.`;
+    intensityNote = `For these older readers (ages ${ageRange}), don't water down challenges. Genuine fear, conflict, even moments of loss are appropriate. Make the emotional truth land. Avoid graphic content, but don't soften the story.`;
   }
 
   const lines = [];
@@ -92,7 +92,6 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `- Tell ONE cohesive story with a clear arc: setup, rising action, a moment of change or discovery, and a resolved conclusion.`,
     `- Characters introduced on page 1 stay consistent throughout — same names, personalities, voices. Do NOT introduce new important characters in the final page.`,
     `- Use varied sentence rhythm and beautiful read-aloud language.`,
-    `- Write at vocabulary, sentence length, and conceptual level appropriate for a ${ageNum}-year-old.`,
     `- ${intensityNote}`,
   );
 
@@ -102,9 +101,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     lines.push(`- Ending should be SATISFYING and RESOLVED, not necessarily calm. Match the energy of the genre.`);
   }
 
-  if (ingredientNotes.length > 0) {
-    lines.push(`- Story ingredients to weave in: ${ingredientNotes.join('; ')}.`);
-  }
+  if (ingredientNotes.length > 0) lines.push(`- Story ingredients to weave in: ${ingredientNotes.join('; ')}.`);
   if (formData.theme && formData.theme.trim()) {
     lines.push(`- Gently weave in this theme: ${formData.theme.trim()}. Do not be preachy or didactic.`);
   }
@@ -121,13 +118,15 @@ function buildStoryPrompt(formData, selectedCharacters) {
   lines.push(
     `ILLUSTRATION REQUIREMENTS:`,
     `- Each page gets its OWN unique illustration.`,
-    `- Choose ONE consistent illustration style for the whole story (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output it as "style_anchor".`,
-    `- Plus a separate "cover_image_prompt" for the book cover.`,
-    `- For each page, decide image_quality: "medium" for KEY scenes (character introductions, climaxes, dramatic moments, emotional beats) or "low" for simpler/transition scenes (atmosphere, simple settings, fewer characters, less complex action).`,
-    `- Pages with "low" quality should be visually simpler — fewer characters, simpler props/composition.`,
-    `- VARIETY IS GOOD. Not every image needs to show every character. Some scenes show only atmosphere or setting. Some show one character. Some show multiple. Match the visual emphasis to what the page text is really about.`,
-    `- Image prompts must be vivid, specific, concrete. Mention named characters BY EXACT NAME (do not modify or prefix them — if character is "Kai", do NOT call them "RedKai" or similar).`,
-    `- Image prompts should describe what THE PAGE TEXT depicts — image must match what's being read aloud.`,
+    `- Choose ONE consistent illustration style for the whole story (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output as "style_anchor".`,
+    `- Plus a separate "cover_image_prompt" for the book cover — describe the SCENE only. Do NOT mention "book cover" or include the story title in the image_prompt. The title is shown separately above the image.`,
+    `- Each image_prompt MUST include a specific ACTION VERB — show what characters are DOING, not just standing. Specify the moment.`,
+    `- Vary CAMERA ANGLE / COMPOSITION across the story: close-ups, wide shots, over-the-shoulder, top-down, etc. Don't repeat the same framing.`,
+    `- Mention named characters BY EXACT NAME (if "Kai", call them "Kai" — do not modify like "RedKai").`,
+    `- VARIETY in who appears: not every image needs all characters. Some scenes show one character. Some show several. Some show only scenery or an important object (when that's the visual heart of the page). Match what the page text is really about.`,
+    `- Images should depict EXACTLY what the page text describes — no inventing scenes not in the text.`,
+    `- For each page, set image_quality to "medium" by default. The app may override this globally.`,
+    `- The app will enrich your image prompts further before sending to the image model — your job is to nail the SCENE accurately.`,
     ``
   );
 
@@ -156,7 +155,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
   }
 
   lines.push(`OTHER PARAMETERS:`);
-  lines.push(`- Target reader age: ${ageNum} years old`);
+  lines.push(`- Target reader age range: ${ageRange} years old (write for the middle of this range, ~age ${midAge}).`);
   lines.push(`- Total length: ~${lengthInfo.total_words} words, ~${lengthInfo.minutes} min read aloud`);
   lines.push(`- Genre: ${genreLabel} — ${genreNote}`);
 
@@ -173,10 +172,10 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `{`,
     `  "title": "short evocative story title",`,
     `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
-    `  "cover_image_prompt": "vivid scene for the book cover",`,
+    `  "cover_image_prompt": "vivid scene for the cover — describe characters and setting only, no mention of 'book cover' or text",`,
     `  "pages": [`,
-    `    { "page_number": 1, "text": "...", "image_prompt": "scene description", "image_quality": "medium" },`,
-    `    { "page_number": 2, "text": "...", "image_prompt": "scene description", "image_quality": "low" }`,
+    `    { "page_number": 1, "text": "...", "image_prompt": "scene description with action verb and composition" },`,
+    `    { "page_number": 2, "text": "...", "image_prompt": "..." }`,
     `  ]`,
     `}`
   );
@@ -186,7 +185,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
 
 
 // =====================================================================
-// GENERATE STORY (text + image prompts)
+// GENERATE STORY
 // =====================================================================
 async function generateStory(formData, selectedCharacters, password) {
   const prompt = buildStoryPrompt(formData, selectedCharacters);
@@ -211,26 +210,20 @@ async function generateStory(formData, selectedCharacters, password) {
   throw lastError;
 }
 
-async function callOpenAIChat(requestBody, password, prompt) {
+async function callOpenAIChat(requestBody, password, promptForReturn) {
   const response = await fetch(`${WORKER_URL}/v1/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-App-Password': password,
-    },
+    headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
     body: JSON.stringify(requestBody),
   });
 
-  if (response.status === 401) {
-    throw new Error('Wrong password. Open the debug panel to reset.');
-  }
+  if (response.status === 401) throw new Error('Wrong password. Open Settings to reset.');
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(`API call failed (HTTP ${response.status}): ${errText}`);
   }
 
   const data = await response.json();
-
   let parsed;
   try {
     parsed = JSON.parse(data.choices[0].message.content);
@@ -241,13 +234,14 @@ async function callOpenAIChat(requestBody, password, prompt) {
   }
 
   const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0 };
-  const cost =
-    (usage.prompt_tokens     * PRICING.inputPer1M  / 1_000_000) +
-    (usage.completion_tokens * PRICING.outputPer1M / 1_000_000);
+  const isMini = requestBody.model && requestBody.model.includes('mini');
+  const inputRate = isMini ? PRICING.miniInputPer1M : PRICING.inputPer1M;
+  const outputRate = isMini ? PRICING.miniOutputPer1M : PRICING.outputPer1M;
+  const cost = (usage.prompt_tokens * inputRate / 1e6) + (usage.completion_tokens * outputRate / 1e6);
 
   return {
     story: parsed,
-    prompt,
+    prompt: promptForReturn,
     rawResponse: data,
     tokens: usage,
     cost,
@@ -257,24 +251,27 @@ async function callOpenAIChat(requestBody, password, prompt) {
 
 
 // =====================================================================
-// CHARACTER: Enhance Description (now returns tagline + visual description)
+// CHARACTER: Enhance — now returns tagline + visual_description + safe_fallback
 // =====================================================================
 async function enhanceCharacterDescription(name, userDescription, password) {
   const prompt = `You are helping create a stable character profile for use across multiple children's book stories and illustrations.
 
-Given the rough input below, create:
-1. A short "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf")
-2. A richly detailed "visual_description" — ~100–150 words an illustrator could use to draw this character consistently every time, and a storyteller could use to write them in character.
+Given the rough input below, return JSON with THREE things:
 
-Be specific and concrete, not generic. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully — do not contradict them.
+1. "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf").
+
+2. "visual_description" — a richly detailed ~100–150 word visual + personality description an illustrator could use to draw this character consistently and a storyteller could use to write them in character. Be specific and concrete. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully.
+
+3. "safe_fallback_visual_description" — a paraphrased GENERIC version of the same character. Same vibe and visual hooks, but with all copyrighted franchise terms replaced with descriptive generic equivalents. For example, "Pikachu" becomes "a small yellow electric mouse-like creature with red cheek circles and a lightning-bolt tail." This version is used if an image model refuses the original due to copyright. If the character is original (no copyrighted franchise references), this can be very similar to the visual_description.
 
 Character name: ${name}
-User-provided description: ${userDescription || '(none — infer thoughtfully from name and create a delightful original)'}
+User-provided description: ${userDescription || '(none — invent a delightful original from the name)'}
 
-Return ONLY valid JSON with this exact structure (no other text):
+Return ONLY valid JSON (no other text):
 {
-  "tagline": "short 3-6 word identifier",
-  "visual_description": "the rich 100-150 word description"
+  "tagline": "...",
+  "visual_description": "...",
+  "safe_fallback_visual_description": "..."
 }`;
 
   const requestBody = {
@@ -288,6 +285,7 @@ Return ONLY valid JSON with this exact structure (no other text):
   return {
     tagline: result.parsed.tagline,
     visual_description: result.parsed.visual_description,
+    safe_fallback_visual_description: result.parsed.safe_fallback_visual_description,
     cost: result.cost,
     tokens: result.tokens,
   };
@@ -295,17 +293,18 @@ Return ONLY valid JSON with this exact structure (no other text):
 
 
 // =====================================================================
-// CHARACTER: Generate Random (also includes tagline)
+// CHARACTER: Generate Random
 // =====================================================================
 async function generateRandomCharacter(password) {
   const prompt = `Invent a delightful, original character for a children's bedtime story.
 
-Return ONLY valid JSON with this exact structure (no other text):
+Return ONLY valid JSON:
 {
   "name": "the character's name",
-  "tagline": "3-6 word identifier (e.g. 'magical purple unicorn', '8-year-old brave girl')",
-  "user_description": "1–2 sentences a parent might write describing this character",
-  "visual_description": "a richly detailed visual + personality description (100–150 words) for illustrators and storytellers — include hair, eyes, skin, build, distinctive features, signature look, posture, energy, personality"
+  "tagline": "3-6 word identifier",
+  "user_description": "1–2 sentences a parent might write",
+  "visual_description": "100–150 word richly detailed visual + personality description",
+  "safe_fallback_visual_description": "same character described generically (no copyrighted terms). For original characters, this can be very similar."
 }
 
 Make the character memorable, specific, charming. Avoid generic archetypes.`;
@@ -318,11 +317,73 @@ Make the character memorable, specific, charming. Avoid generic archetypes.`;
   };
 
   const result = await callOpenAIChat(requestBody, password, prompt);
-  return {
-    character: result.parsed,
-    cost: result.cost,
-    tokens: result.tokens,
+  return { character: result.parsed, cost: result.cost, tokens: result.tokens };
+}
+
+
+// =====================================================================
+// IMAGE PROMPT ENRICHMENT (two-stage)
+// Cheap call to gpt-4o-mini that turns a basic scene prompt into a
+// detail-rich one matching ChatGPT-style background expansion.
+// =====================================================================
+async function enrichImagePrompt(styleAnchor, basicPrompt, pageText, characters, password) {
+  const charBlock = (characters && characters.length > 0)
+    ? characters.map(c => `- ${c.name}: ${c.visual_description}`).join('\n')
+    : '(none — generic scene)';
+
+  const prompt = `Take this basic illustration brief and turn it into a vivid, detail-rich prompt for an AI image model.
+
+ADD these enrichments:
+- Specific composition / camera angle (close-up, wide shot, over-the-shoulder, top-down, etc)
+- Lighting and mood (warm afternoon sun, dim candlelight, moonlight, etc)
+- Active verbs — show what's happening, not static description
+- Sensory details (textures, colors, atmosphere)
+- Keep the SAME scene, characters, and key visual elements — don't change the content
+- Stay in the specified illustration style
+
+OUTPUT: a single paragraph prompt for the image model. No JSON, no commentary, just the prompt.
+
+Illustration style: ${styleAnchor}
+
+Basic prompt: ${basicPrompt}
+
+Page text being illustrated (image should match this exactly):
+"${pageText}"
+
+Characters that may appear:
+${charBlock}
+
+Output the enriched image prompt now:`;
+
+  const requestBody = {
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
   };
+
+  const result = await callOpenAIChatRaw(requestBody, password);
+  return { enriched: result.text.trim(), cost: result.cost, tokens: result.tokens };
+}
+
+// Variant that returns raw text (not JSON-parsed)
+async function callOpenAIChatRaw(requestBody, password) {
+  const response = await fetch(`${WORKER_URL}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
+    body: JSON.stringify(requestBody),
+  });
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`API call failed (HTTP ${response.status}): ${errText}`);
+  }
+  const data = await response.json();
+  const text = data.choices[0].message.content;
+  const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0 };
+  const isMini = requestBody.model && requestBody.model.includes('mini');
+  const inputRate = isMini ? PRICING.miniInputPer1M : PRICING.inputPer1M;
+  const outputRate = isMini ? PRICING.miniOutputPer1M : PRICING.outputPer1M;
+  const cost = (usage.prompt_tokens * inputRate / 1e6) + (usage.completion_tokens * outputRate / 1e6);
+  return { text, cost, tokens: usage };
 }
 
 
@@ -331,22 +392,17 @@ Make the character memorable, specific, charming. Avoid generic archetypes.`;
 // =====================================================================
 function buildImagePrompt(styleAnchor, scenePrompt, characters) {
   const parts = [];
-
   if (styleAnchor) {
-    parts.push(`Illustration style: ${styleAnchor}. Maintain this exact style across all images in this story.`);
+    parts.push(`Illustration style: ${styleAnchor}. Maintain this exact style consistently across all images in this story.`);
   }
-
   parts.push(`Scene: ${scenePrompt}`);
-
   if (characters && characters.length > 0) {
-    parts.push(`Character references (use these EXACT names and appearances if mentioned in the scene):`);
+    parts.push(`Character references (use these EXACT names and appearances when mentioned in the scene):`);
     characters.forEach(c => {
       parts.push(`- ${c.name}: ${c.visual_description}`);
     });
   }
-
-  parts.push(`Children's storybook illustration. No text or words in the image.`);
-
+  parts.push(`Children's storybook illustration. Do not include the story title or any large text/words as the focus of the image. Incidental text on clothing, signs, or world objects is acceptable if natural to the scene.`);
   return parts.join('\n\n');
 }
 
@@ -367,38 +423,36 @@ async function generateImage(fullPrompt, password, options = {}) {
     try {
       const response = await fetch(`${WORKER_URL}/v1/images/generations`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-App-Password': password,
-        },
+        headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
         body: JSON.stringify(requestBody),
       });
 
-      if (response.status === 401) {
-        throw new Error('Wrong password. Open the debug panel to reset.');
-      }
+      if (response.status === 401) throw new Error('Wrong password. Open Settings to reset.');
       if (response.status >= 500 && attempt === 0) {
         lastError = new Error(`Image API error (HTTP ${response.status}) — retrying`);
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 1000));
         continue;
       }
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Image generation failed (HTTP ${response.status}): ${errText}`);
+        // Detect content policy violations
+        const err = new Error(`Image generation failed (HTTP ${response.status}): ${errText}`);
+        if (response.status === 400 && /content_policy|policy_violation|safety/i.test(errText)) {
+          err.isContentPolicy = true;
+        }
+        throw err;
       }
 
       const data = await response.json();
       const b64 = data.data && data.data[0] && data.data[0].b64_json;
-      if (!b64) {
-        throw new Error('No image data in response');
-      }
+      if (!b64) throw new Error('No image data in response');
 
       const cost = costForImage(quality, size);
       return { b64, cost, rawResponse: data, prompt: fullPrompt };
     } catch (err) {
       lastError = err;
       if (attempt === 0 && /5\d\d/.test(err.message)) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 1000));
         continue;
       }
       throw err;
@@ -423,10 +477,10 @@ function generateFakeStory(formData) {
       style_anchor: 'warm watercolor children\'s book illustration, soft amber and cream tones',
       cover_image_prompt: 'A small amber fox standing on a mossy log under a moonlit forest canopy, glowing acorn in the foreground.',
       pages: [
-        { page_number: 1, text: 'Once upon a time, in a quiet forest where the trees whispered lullabies, lived a small fox named Pip. Pip had soft amber fur and big curious eyes.', image_prompt: 'A small amber fox in a quiet moonlit forest, big curious eyes, soft watercolor.', image_quality: 'medium' },
-        { page_number: 2, text: 'One evening, Pip discovered a glowing acorn beneath the oldest oak tree. It shimmered like a tiny captured star.', image_prompt: 'Close-up of a glowing acorn at the base of an enormous oak, magical light.', image_quality: 'medium' },
-        { page_number: 3, text: 'When Pip picked it up, the forest hummed with magic. All the sleepy creatures opened their eyes just a little, smiling.', image_prompt: 'Forest at night, hint of magical glow, peaceful.', image_quality: 'low' },
-        { page_number: 4, text: 'Pip placed the acorn back where it belonged. The forest let out a contented sigh, and Pip curled up and drifted to sleep.', image_prompt: 'Fox curled up sleeping next to the glowing acorn, peaceful watercolor.', image_quality: 'medium' },
+        { page_number: 1, text: 'Once upon a time, in a quiet forest where the trees whispered lullabies, lived a small fox named Pip. Pip had soft amber fur and big curious eyes.', image_prompt: 'A small amber fox sneaking through ferns in a quiet moonlit forest, curious eyes wide.' },
+        { page_number: 2, text: 'One evening, Pip discovered a glowing acorn beneath the oldest oak tree. It shimmered like a tiny captured star.', image_prompt: 'Close-up of Pip the fox crouched at the base of an enormous oak, paw touching a glowing acorn.' },
+        { page_number: 3, text: 'When Pip picked it up, the forest hummed with magic. All the sleepy creatures opened their eyes just a little, smiling.', image_prompt: 'Wide shot of a forest at night with subtle magical glow, small animals peeking from burrows.' },
+        { page_number: 4, text: 'Pip placed the acorn back where it belonged. The forest let out a contented sigh, and Pip curled up and drifted to sleep.', image_prompt: 'Pip curled up sleeping next to the glowing acorn, peaceful starlit watercolor.' },
       ],
     },
     prompt: '[FAKE STORY — no API call was made]',
@@ -449,14 +503,10 @@ function loadingHintForLength(lengthKey) {
 
 
 function costToCoins(costInDollars) {
-  // For totals under 1¢, return a single partial penny.
-  // Otherwise, round to nearest cent and return whole-coin counts (no partial pennies).
   if (costInDollars < 0.01) {
     if (costInDollars <= 0) return [];
     return [{ type: 'penny', count: 1, partial: costInDollars / 0.01 }];
   }
-
-  // Round to nearest cent
   let remaining = Math.round(costInDollars * 100) / 100;
   const result = [];
   const denominations = [
@@ -466,7 +516,6 @@ function costToCoins(costInDollars) {
     { type: 'penny',   value: 0.01 },
   ];
   for (const d of denominations) {
-    const count = Math.round((remaining + 1e-9) / d.value | 0);  // floor
     const c = Math.floor(remaining / d.value + 1e-9);
     if (c > 0) {
       result.push({ type: d.type, count: c, partial: 1 });
@@ -477,16 +526,9 @@ function costToCoins(costInDollars) {
   return result;
 }
 
-// User-friendly cost formatting (kid-friendly):
-// - >= $1.00 → "$X.XX"
-// - 1¢..99¢ → "Xc" (using cents symbol)
-// - < 1¢ → "<1¢"
 function formatCostFriendly(cost) {
   if (cost <= 0) return '0¢';
   if (cost < 0.01) return '<1¢';
-  if (cost < 1.00) {
-    const cents = Math.round(cost * 100);
-    return `${cents}¢`;
-  }
+  if (cost < 1.00) return `${Math.round(cost * 100)}¢`;
   return `$${cost.toFixed(2)}`;
 }

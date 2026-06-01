@@ -7,7 +7,7 @@ const { createApp } = Vue
 function defaultFormData() {
   return {
     storyDetails: '',
-    age: 5,
+    ageRange: '5-6',
     length: 'regular',
     genre: 'surprise-me',
     ingredients: [],
@@ -19,14 +19,13 @@ function defaultFormData() {
 
 const MAX_INGREDIENTS = 3;
 const MAX_SELECTED_CHARACTERS = 5;
-const ROTATE_HINT_DISMISSED_KEY = 'storytime_rotate_hint_dismissed';
 
 createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.1',
-      buildDate: '2026-05-27',
+      version: 'v0.6.2',
+      buildDate: '2026-05-28',
 
       showSplash: true,
 
@@ -53,14 +52,23 @@ createApp({
       lastRawResponse: null,
       lastTokens: null,
 
-      // Double-tap inspection
-      lastTapTime: 0,
-      lastTapTarget: null,
       inspectingImage: null,
 
       // Orientation
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
-      rotateHintDismissed: localStorage.getItem(ROTATE_HINT_DISMISSED_KEY) === 'true',
+
+      // Settings menu
+      showSettings: false,
+
+      // Picture quality override — resets to 'medium' after each generation
+      nextStoryQuality: 'medium',
+
+      // Show inspect (ⓘ) button on images — parent toggle
+      showInspect: false,
+
+      // Copyright fallback runtime state (per story)
+      useFallbackChars: {},  // { charId: true } — for current story
+      copyrightModal: null,  // { problematicChars, target, retry }
 
       formData: defaultFormData(),
 
@@ -109,8 +117,14 @@ createApp({
         { value: 'long',        label: 'Long',       subtitle: '~8 min' },
         { value: 'extra-long',  label: 'Extra-Long', subtitle: '~12 min' },
       ],
+      ageStages: [
+        { value: '1-2',  label: 'Toddler',       range: '1-2' },
+        { value: '3-4',  label: 'Preschool',     range: '3-4' },
+        { value: '5-6',  label: 'Early Reader',  range: '5-6' },
+        { value: '7-8',  label: 'Mid Reader',    range: '7-8' },
+        { value: '9-10', label: 'Older Kid',     range: '9-10' },
+      ],
 
-      showDebug: false,
       storageSize: 0,
       imageStats: { count: 0, bytes: 0 },
       skipImages: false,
@@ -120,12 +134,8 @@ createApp({
   },
 
   computed: {
-    formattedCost() {
-      return formatCostFriendly(this.currentStoryCost);
-    },
-    coinBreakdown() {
-      return costToCoins(this.currentStoryCost);
-    },
+    formattedCost() { return formatCostFriendly(this.currentStoryCost); },
+    coinBreakdown() { return costToCoins(this.currentStoryCost); },
     ingredientCount() { return this.formData.ingredients.length; },
     ingredientsAtMax() { return this.ingredientCount >= MAX_INGREDIENTS; },
     formattedStorageSize() { return formatStorageSize(this.storageSize); },
@@ -140,7 +150,6 @@ createApp({
     charactersAtMax() { return this.selectedCharCount >= MAX_SELECTED_CHARACTERS; },
 
     sortedCharacters() {
-      // Newly created (no last_used_at) sort to the top, then by last_used_at desc
       return [...this.characters].sort((a, b) => {
         const aNew = !a.last_used_at;
         const bNew = !b.last_used_at;
@@ -158,25 +167,28 @@ createApp({
       return this.charForm.name.trim().length > 0 && !this.enhancing;
     },
 
-    totalReadingPages() {
-      // cover + story pages + story complete page
-      return this.currentStory ? this.currentStory.pages.length + 2 : 0;
-    },
+    totalStoryPages() { return this.currentStory ? this.currentStory.pages.length : 0; },
+    totalReadingPages() { return this.currentStory ? this.totalStoryPages + 2 : 0; },
     isOnCover() { return this.currentPageIndex === 0; },
-    isOnStoryComplete() {
-      return this.currentStory && this.currentPageIndex === this.currentStory.pages.length + 1;
+    isOnStoryToolbox() {
+      return this.currentStory && this.currentPageIndex === this.totalStoryPages + 1;
     },
     currentStoryPage() {
-      if (!this.currentStory || this.isOnCover || this.isOnStoryComplete) return null;
+      if (!this.currentStory || this.isOnCover || this.isOnStoryToolbox) return null;
       return this.currentStory.pages[this.currentPageIndex - 1];
     },
     isOnLastTextPage() {
       if (!this.currentStory) return false;
-      return this.currentPageIndex === this.currentStory.pages.length;
+      return this.currentPageIndex === this.totalStoryPages;
     },
-    currentDisplayPageNumber() {
-      return this.currentPageIndex + 1;
+
+    pageCounterLabel() {
+      if (!this.currentStory) return '';
+      if (this.isOnCover) return 'Cover';
+      if (this.isOnStoryToolbox) return 'End';
+      return `Page ${this.currentPageIndex} of ${this.totalStoryPages}`;
     },
+
     formattedCreatedAt() {
       if (!this.currentStory || !this.currentStory.createdAt) return '';
       const d = new Date(this.currentStory.createdAt);
@@ -184,9 +196,6 @@ createApp({
         month: 'long', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit',
       });
-    },
-    showRotateHint() {
-      return this.isPortrait && !this.rotateHintDismissed;
     },
   },
 
@@ -198,12 +207,12 @@ createApp({
     const stored = getStoredPassword();
     if (stored) this.password = stored;
 
-    this.showDebug = getDebugMode();
+    this.showInspect = getShowInspect();
     this.characters = getStoredCharacters();
 
     const sticky = getStickyPrefs();
     if (sticky) {
-      if (sticky.age) this.formData.age = sticky.age;
+      if (sticky.ageRange) this.formData.ageRange = sticky.ageRange;
       if (sticky.length) this.formData.length = sticky.length;
     }
 
@@ -212,19 +221,18 @@ createApp({
 
     window.matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
       this.isPortrait = e.matches;
+      this.$nextTick(() => window.scrollTo(0, 0));
     });
   },
 
   methods: {
 
-    // ---- Splash ----
     dismissSplash() {
       if (!this.showSplash) return;
       this.showSplash = false;
       if (!this.password) this.showPasswordPrompt = true;
     },
 
-    // ---- Password ----
     submitPassword() {
       if (!this.passwordInput.trim()) { this.error = 'Please enter a password.'; return; }
       this.password = this.passwordInput.trim();
@@ -237,9 +245,9 @@ createApp({
       clearStoredPassword();
       this.password = '';
       this.showPasswordPrompt = true;
+      this.showSettings = false;
     },
 
-    // ---- Form ----
     toggleIngredient(value) {
       const idx = this.formData.ingredients.indexOf(value);
       if (idx !== -1) this.formData.ingredients.splice(idx, 1);
@@ -289,6 +297,9 @@ createApp({
     },
     formatRelative(iso) { return formatRelativeTime(iso); },
     isCharacterNew(char) { return !char.last_used_at; },
+    charIsPossiblyProblematic(char) {
+      return isPossiblyProblematic(char.name) || isPossiblyProblematic(char.user_description);
+    },
     toggleCharProfileExpanded(charId) {
       const idx = this.expandedCharIds.indexOf(charId);
       if (idx === -1) this.expandedCharIds.push(charId);
@@ -308,6 +319,8 @@ createApp({
         tagline: char.tagline || '',
         user_description: char.user_description || '',
         visual_description: char.visual_description || '',
+        safe_fallback_visual_description: char.safe_fallback_visual_description || '',
+        always_use_fallback: !!char.always_use_fallback,
         created_at: char.created_at,
         last_used_at: char.last_used_at,
       };
@@ -332,6 +345,7 @@ createApp({
         );
         this.charForm.tagline = result.tagline;
         this.charForm.visual_description = result.visual_description;
+        this.charForm.safe_fallback_visual_description = result.safe_fallback_visual_description || '';
       } catch (err) {
         console.error('Enhance failed:', err);
         this.error = err.message || 'Could not bring character to life. Try again.';
@@ -351,6 +365,8 @@ createApp({
           tagline: result.character.tagline,
           user_description: result.character.user_description,
           visual_description: result.character.visual_description,
+          safe_fallback_visual_description: result.character.safe_fallback_visual_description || '',
+          always_use_fallback: false,
           created_at: null,
           last_used_at: null,
         };
@@ -373,6 +389,8 @@ createApp({
         tagline: (this.charForm.tagline || '').trim(),
         user_description: this.charForm.user_description.trim(),
         visual_description: this.charForm.visual_description.trim(),
+        safe_fallback_visual_description: (this.charForm.safe_fallback_visual_description || '').trim(),
+        always_use_fallback: !!this.charForm.always_use_fallback,
         created_at: this.charForm.created_at || now,
         last_used_at: this.charForm.last_used_at || null,
       };
@@ -392,8 +410,12 @@ createApp({
       delete this.formData.characterRoles[char.id];
     },
 
+    toggleAlwaysUseFallback() {
+      this.charForm.always_use_fallback = !this.charForm.always_use_fallback;
+    },
+
     // ============================================================
-    // STORY GENERATION (text + images)
+    // STORY GENERATION
     // ============================================================
     async handleGenerate() {
       this.error = '';
@@ -401,6 +423,7 @@ createApp({
       this.loadingMessage = 'Writing your story…';
       this.loadingHint = loadingHintForLength(this.formData.length);
       this.loadingProgress = '';
+      this.useFallbackChars = {};
       setStickyPrefs(this.formData);
 
       const selected = this.selectedCharacters.map(c => ({
@@ -408,8 +431,13 @@ createApp({
         role: this.getCharacterRole(c.id),
       }));
 
+      // Apply persistent always_use_fallback flag from character profiles
+      selected.forEach(c => {
+        if (c.always_use_fallback) this.useFallbackChars[c.id] = true;
+      });
+
       try {
-        const textResult = await generateStory(this.formData, selected, this.password);
+        const textResult = await generateStory(this.formData, this.selectedCharsForPrompt(selected), this.password);
 
         selected.forEach(c => touchCharacterLastUsed(c.id));
         this.characters = getStoredCharacters();
@@ -420,11 +448,11 @@ createApp({
           page_number: p.page_number,
           text: p.text,
           image_prompt: p.image_prompt,
-          image_quality: p.image_quality || 'medium',
           image_id: null,
           image_status: 'pending',
           image_cost: 0,
           full_prompt: '',
+          enriched_prompt: '',
         }));
 
         const storyData = {
@@ -439,12 +467,14 @@ createApp({
             image_status: 'pending',
             image_cost: 0,
             full_prompt: '',
+            enriched_prompt: '',
           },
           pages,
           selected_characters: selected,
           formData: JSON.parse(JSON.stringify(this.formData)),
           character_ids: [...this.formData.selectedCharacterIds],
           character_roles: { ...this.formData.characterRoles },
+          quality_used: this.nextStoryQuality,
           text_cost: textResult.cost,
           images_cost: 0,
           cost: textResult.cost,
@@ -465,13 +495,12 @@ createApp({
         this.currentPageIndex = 0;
         this.loading = false;
         this.view = 'story';
-
-        // Scroll reading view to top
         window.scrollTo(0, 0);
 
-        // Generate images
         await this.generateAllImages(storyData);
 
+        // Reset quality override after generation
+        this.nextStoryQuality = 'medium';
       } catch (err) {
         console.error('Generation failed:', err);
         this.error = err.message || 'Something went wrong. Please try again.';
@@ -479,16 +508,24 @@ createApp({
       }
     },
 
+    // Returns characters with fallback descriptions applied where flagged
+    selectedCharsForPrompt(selected) {
+      return selected.map(c => {
+        if (this.useFallbackChars[c.id] && c.safe_fallback_visual_description) {
+          return { ...c, visual_description: c.safe_fallback_visual_description };
+        }
+        return c;
+      });
+    },
+
     async generateAllImages(storyData) {
       const totalImages = 1 + storyData.pages.length;
       let doneCount = 0;
 
-      // Cover (medium quality)
       this.loadingProgress = `Drawing cover (1 of ${totalImages})…`;
       await this.generateOneImage('cover', storyData);
       doneCount++;
 
-      // Each page (quality per page from GPT-4o)
       for (let i = 0; i < storyData.pages.length; i++) {
         doneCount++;
         this.loadingProgress = `Drawing page ${i + 1} (${doneCount} of ${totalImages})…`;
@@ -505,15 +542,34 @@ createApp({
       const slot = target === 'cover' ? storyData.cover : storyData.pages[target];
       slot.image_status = 'loading';
 
-      const quality = target === 'cover' ? 'medium' : (slot.image_quality || 'medium');
+      const quality = storyData.quality_used || 'medium';
+      const charsForPrompt = this.selectedCharsForPrompt(storyData.selected_characters || []);
+      const pageText = target === 'cover' ? '' : slot.text;
 
-      const fullPrompt = buildImagePrompt(
-        storyData.style_anchor,
-        target === 'cover'
-          ? `Book cover for "${storyData.title}". ${slot.image_prompt}`
-          : slot.image_prompt,
-        storyData.selected_characters,
-      );
+      // Step 1: Enrich the basic image prompt with gpt-4o-mini
+      let enrichedScene = slot.image_prompt;
+      try {
+        if (slot.image_prompt) {
+          const enrich = await enrichImagePrompt(
+            storyData.style_anchor,
+            slot.image_prompt,
+            pageText,
+            charsForPrompt,
+            this.password
+          );
+          enrichedScene = enrich.enriched;
+          slot.enriched_prompt = enrichedScene;
+          // Track tiny enrichment cost
+          this.currentImagesCost += enrich.cost;
+          this.currentStoryCost = this.currentTextCost + this.currentImagesCost;
+          storyData.images_cost = this.currentImagesCost;
+          storyData.cost = this.currentStoryCost;
+        }
+      } catch (err) {
+        console.warn('Enrichment failed; using basic prompt', err);
+      }
+
+      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt);
       slot.full_prompt = fullPrompt;
 
       if (this.skipImages) {
@@ -540,7 +596,67 @@ createApp({
         console.error(`Image generation failed (${target}):`, err);
         slot.image_status = 'failed';
         slot.image_error = err.message;
+
+        // Copyright fallback flow
+        if (err.isContentPolicy) {
+          await this.handleCopyrightFailure(target, storyData);
+        }
       }
+    },
+
+    // Show modal asking user to retry with fallback descriptions
+    async handleCopyrightFailure(target, storyData) {
+      const chars = storyData.selected_characters || [];
+      const problematic = chars.filter(c =>
+        !this.useFallbackChars[c.id] &&
+        c.safe_fallback_visual_description &&
+        (isPossiblyProblematic(c.name) || isPossiblyProblematic(c.user_description))
+      );
+
+      // If we can't identify a specific problematic char but the call failed,
+      // still offer fallback for all selected characters with safe fallbacks available
+      const candidates = problematic.length > 0
+        ? problematic
+        : chars.filter(c => !this.useFallbackChars[c.id] && c.safe_fallback_visual_description);
+
+      if (candidates.length === 0) return; // nothing to fall back to
+
+      this.copyrightModal = {
+        problematicChars: candidates,
+        target,
+      };
+    },
+
+    async confirmCopyrightFallback() {
+      if (!this.copyrightModal) return;
+      const { problematicChars, target } = this.copyrightModal;
+
+      // Mark these characters for fallback in this story
+      problematicChars.forEach(c => {
+        this.useFallbackChars[c.id] = true;
+        // Persist preference on the character so future stories with this char default to fallback
+        setCharacterAlwaysUseFallback(c.id, true);
+      });
+      this.characters = getStoredCharacters();
+
+      // Update the selected_characters in storyData so debug + future regens use fallback
+      this.currentStory.selected_characters = this.currentStory.selected_characters.map(c => {
+        if (this.useFallbackChars[c.id] && c.safe_fallback_visual_description) {
+          return { ...c, always_use_fallback: true };
+        }
+        return c;
+      });
+
+      this.copyrightModal = null;
+
+      // Retry the failed image
+      await this.generateOneImage(target, this.currentStory);
+      saveStoryToStorage(this.currentStory);
+      this.refreshImageStats();
+    },
+
+    cancelCopyrightFallback() {
+      this.copyrightModal = null;
     },
 
     async regenerateOneImage(target) {
@@ -560,11 +676,11 @@ createApp({
         page_number: p.page_number,
         text: p.text,
         image_prompt: p.image_prompt,
-        image_quality: p.image_quality || 'medium',
         image_id: null,
         image_status: 'skipped',
         image_cost: 0,
         full_prompt: p.image_prompt || '',
+        enriched_prompt: '',
       }));
       const storyData = {
         id: storyId,
@@ -578,12 +694,14 @@ createApp({
           image_status: 'skipped',
           image_cost: 0,
           full_prompt: story.cover_image_prompt,
+          enriched_prompt: '',
         },
         pages,
         selected_characters: [],
         formData: JSON.parse(JSON.stringify(this.formData)),
         character_ids: [],
         character_roles: {},
+        quality_used: 'medium',
         text_cost: 0,
         images_cost: 0,
         cost: result.cost,
@@ -621,20 +739,11 @@ createApp({
         window.scrollTo(0, 0);
       }
     },
-    canGoNext() {
-      return this.currentStory && this.currentPageIndex < this.totalReadingPages - 1;
-    },
-    canGoPrev() {
-      return this.currentPageIndex > 0;
-    },
+    canGoNext() { return this.currentStory && this.currentPageIndex < this.totalReadingPages - 1; },
+    canGoPrev() { return this.currentPageIndex > 0; },
     readAgain() {
       this.currentPageIndex = 0;
       window.scrollTo(0, 0);
-    },
-
-    dismissRotateHint() {
-      this.rotateHintDismissed = true;
-      localStorage.setItem(ROTATE_HINT_DISMISSED_KEY, 'true');
     },
 
     handleRegenerate() {
@@ -647,7 +756,7 @@ createApp({
       this.currentPageIndex = 0;
       this.view = 'create';
     },
-    editSettings() { this.view = 'create'; },
+    editSettingsForm() { this.view = 'create'; },
     backToStory() { this.view = 'story'; },
 
     handleContinueStory() {
@@ -655,21 +764,8 @@ createApp({
     },
 
     // ============================================================
-    // IMAGE INSPECTION (double-tap / double-click)
+    // IMAGE INSPECTION (via ⓘ button when Settings toggle is on)
     // ============================================================
-    handleImageTap(target) {
-      const now = Date.now();
-      const DOUBLE_TAP_MS = 350;
-      if (now - this.lastTapTime < DOUBLE_TAP_MS && this.lastTapTarget === target) {
-        // Double tap detected
-        this.openImageInspection(target);
-        this.lastTapTime = 0;
-        this.lastTapTarget = null;
-      } else {
-        this.lastTapTime = now;
-        this.lastTapTarget = target;
-      }
-    },
     openImageInspection(target) {
       if (!this.currentStory) return;
       const slot = target === 'cover' ? this.currentStory.cover : this.currentStory.pages[target];
@@ -677,19 +773,14 @@ createApp({
         target,
         full_prompt: slot.full_prompt || slot.image_prompt || '',
         image_prompt: slot.image_prompt,
+        enriched_prompt: slot.enriched_prompt || '',
         image_id: slot.image_id,
         cost: slot.image_cost,
         status: slot.image_status,
-        quality: slot.image_quality || 'medium',
       };
     },
-    closeImageInspection() {
-      this.inspectingImage = null;
-    },
+    closeImageInspection() { this.inspectingImage = null; },
 
-    // ============================================================
-    // IMAGE DISPLAY
-    // ============================================================
     getImageURL(imageId) {
       if (!imageId) return null;
       if (this._urlCache && this._urlCache[imageId]) return this._urlCache[imageId];
@@ -716,14 +807,21 @@ createApp({
     },
 
     // ============================================================
-    // DEBUG
+    // SETTINGS
     // ============================================================
-    toggleDebug() {
-      this.showDebug = !this.showDebug;
-      setDebugMode(this.showDebug);
+    openSettings() {
+      this.showSettings = true;
       this.refreshStorageSize();
       this.refreshImageStats();
     },
+    closeSettings() { this.showSettings = false; },
+    setNextStoryQuality(q) { this.nextStoryQuality = q; },
+    toggleShowInspect() {
+      this.showInspect = !this.showInspect;
+      setShowInspect(this.showInspect);
+    },
+    toggleSkipImages() { this.skipImages = !this.skipImages; },
+
     refreshStorageSize() { this.storageSize = getStorageSizeBytes(); },
     async refreshImageStats() {
       try { this.imageStats = await getImageDBStats(); }
@@ -739,16 +837,9 @@ createApp({
       await clearAllImages();
       this.refreshImageStats();
     },
-    toggleSkipImages() { this.skipImages = !this.skipImages; },
-
     async copyToClipboard(text) {
       try { await navigator.clipboard.writeText(text); alert('Copied to clipboard'); }
       catch (e) { console.error('Clipboard write failed', e); }
-    },
-
-    // Template helper: format any cost with kid-friendly units (¢ vs $)
-    formatCostFriendly(cost) {
-      return formatCostFriendly(cost);
     },
 
     async handleForceUpdate() {
@@ -767,6 +858,9 @@ createApp({
       }
       window.location.href = window.location.pathname + '?_t=' + Date.now();
     },
+
+    // Cost formatting wrapper for templates
+    formatCostFriendly(cost) { return formatCostFriendly(cost); },
   },
 
 }).mount('#app')
@@ -779,6 +873,8 @@ function emptyCharForm() {
     tagline: '',
     user_description: '',
     visual_description: '',
+    safe_fallback_visual_description: '',
+    always_use_fallback: false,
     created_at: null,
     last_used_at: null,
   };

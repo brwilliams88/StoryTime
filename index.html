@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=0.6.1" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.2" />
 </head>
 <body>
 
@@ -87,8 +87,11 @@
 
           <div class="form-field">
             <label>Story for age</label>
-            <div class="pill-group age-pills">
-              <button v-for="n in 10" :key="n" @click="formData.age = n" :class="['pill pill-num', { active: formData.age === n }]">{{ n }}</button>
+            <div class="pill-group age-stages">
+              <button v-for="stage in ageStages" :key="stage.value" @click="formData.ageRange = stage.value" :class="['pill pill-age', { active: formData.ageRange === stage.value }]">
+                <div class="pill-label">{{ stage.label }}</div>
+                <div class="pill-subtitle">{{ stage.range }}</div>
+              </button>
             </div>
           </div>
 
@@ -139,26 +142,24 @@
         <!-- ============== READING VIEW ============== -->
         <div v-else-if="view === 'story' && currentStory" class="reading-view" :class="{ 'portrait-mode': isPortrait }">
 
-          <!-- Top bar: back + progress -->
-          <div class="reading-top-bar">
-            <button @click="editSettings" class="btn-secondary btn-small">← Back</button>
-            <div v-if="loadingProgress" class="reading-progress">{{ loadingProgress }}</div>
+          <!-- SINGLE header bar: Back | progress / nav | New Story -->
+          <div class="reading-header">
+            <button @click="editSettingsForm" class="btn-secondary btn-small">← Back</button>
+            <div class="reading-nav">
+              <button class="page-arrow" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page">‹</button>
+              <div class="page-counter">{{ loadingProgress || pageCounterLabel }}</div>
+              <button class="page-arrow" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page">›</button>
+            </div>
             <button @click="handleNewStory" class="btn-secondary btn-small">New Story</button>
           </div>
 
-          <!-- Dismissible rotate hint (portrait only) -->
-          <div v-if="showRotateHint" class="rotate-banner">
-            <span>📱↻ Best in landscape</span>
-            <button class="rotate-banner-close" @click="dismissRotateHint" aria-label="Dismiss">✕</button>
-          </div>
-
-          <!-- Page content area -->
           <div class="page-area">
 
             <!-- ===== COVER ===== -->
             <div v-if="isOnCover" class="book-page cover-page" :class="{ portrait: isPortrait }">
               <h1 class="cover-title">{{ currentStory.title }}</h1>
-              <div class="cover-image-wrap" @click="handleImageTap('cover')">
+              <div class="cover-image-wrap">
+                <button v-if="showInspect && currentStory.cover.image_status === 'ready'" class="inspect-btn" @click="openImageInspection('cover')" aria-label="Inspect image">ⓘ</button>
                 <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
                   <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="cover-image" draggable="false" />
                 </template>
@@ -183,10 +184,10 @@
               </div>
             </div>
 
-            <!-- ===== STORY SPREAD (landscape) or stacked (portrait) ===== -->
+            <!-- ===== STORY SPREAD ===== -->
             <div v-else-if="currentStoryPage" class="book-page story-spread" :class="{ portrait: isPortrait }">
-
-              <div class="spread-image" @click="handleImageTap(currentPageIndex - 1)">
+              <div class="spread-image">
+                <button v-if="showInspect && currentStoryPage.image_status === 'ready'" class="inspect-btn" @click="openImageInspection(currentPageIndex - 1)" aria-label="Inspect image">ⓘ</button>
                 <template v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)">
                   <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" draggable="false" />
                 </template>
@@ -209,19 +210,32 @@
                   </div>
                 </template>
               </div>
-
               <div class="spread-text">
                 <p>{{ currentStoryPage.text }}</p>
                 <div v-if="isOnLastTextPage" class="the-end">✨ The End ✨</div>
               </div>
             </div>
 
-            <!-- ===== STORY COMPLETE ===== -->
-            <div v-else-if="isOnStoryComplete" class="book-page complete-page">
-              <h2 class="complete-title">Story Complete</h2>
+            <!-- ===== STORY TOOLBOX ===== -->
+            <div v-else-if="isOnStoryToolbox" class="book-page toolbox-page">
+              <div class="toolbox-header">
+                <div v-if="currentStory.cover.image_id && getImageURL(currentStory.cover.image_id)" class="toolbox-thumb">
+                  <img :src="getImageURL(currentStory.cover.image_id)" alt="Cover" />
+                </div>
+                <div class="toolbox-title-block">
+                  <h2 class="toolbox-title">{{ currentStory.title }}</h2>
+                  <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
+                </div>
+              </div>
 
-              <div class="complete-cost">
-                <div class="complete-cost-amount">This book cost {{ formattedCost }}</div>
+              <div class="toolbox-section">
+                <div class="rating-label">Rate this story</div>
+                <div class="rating-stars">
+                  <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
+                </div>
+              </div>
+
+              <div class="toolbox-section toolbox-cost">
                 <div class="coin-row">
                   <template v-for="(group, idx) in coinBreakdown" :key="idx">
                     <span v-for="n in group.count" :key="group.type + '-' + n" :class="['coin', 'coin-' + group.type]" :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}">
@@ -229,21 +243,10 @@
                     </span>
                   </template>
                 </div>
-                <div class="cost-breakdown">
-                  📝 Text: {{ formatCostFriendly(currentTextCost) }} · 🎨 Illustrations: {{ formatCostFriendly(currentImagesCost) }}
-                </div>
+                <div class="cost-line">{{ formattedCost }} total · 📝 {{ formatCostFriendly(currentTextCost) }} writing · 🎨 {{ formatCostFriendly(currentImagesCost) }} illustrations</div>
               </div>
 
-              <div class="rating-section">
-                <div class="rating-label">Rate this story</div>
-                <div class="rating-stars">
-                  <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
-                </div>
-              </div>
-
-              <div class="complete-meta">Created {{ formattedCreatedAt }}</div>
-
-              <div class="complete-actions">
+              <div class="toolbox-actions">
                 <button @click="readAgain" class="btn-secondary">Read Again</button>
                 <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
                 <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
@@ -256,19 +259,33 @@
           <!-- Invisible edge tap zones -->
           <button class="nav-zone nav-zone-left" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page"></button>
           <button class="nav-zone nav-zone-right" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page"></button>
-
-          <!-- Bottom nav bar -->
-          <div class="reading-bottom-bar">
-            <button class="page-arrow" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page">‹</button>
-            <div class="page-counter">{{ currentDisplayPageNumber }} / {{ totalReadingPages }}</div>
-            <button class="page-arrow" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page">›</button>
-          </div>
-
         </div>
 
       </main>
 
-      <!-- ============== IMAGE INSPECTION MODAL (double-tap) ============== -->
+      <!-- ============== COPYRIGHT FALLBACK MODAL ============== -->
+      <div v-if="copyrightModal" class="modal-overlay">
+        <div class="modal">
+          <div class="modal-header">
+            <h2>⚠️ Couldn't draw this image</h2>
+          </div>
+          <p class="modal-text">
+            The image AI couldn't draw a scene with
+            <strong>{{ copyrightModal.problematicChars.map(c => c.name).join(', ') }}</strong>
+            — likely because of copyright restrictions.
+          </p>
+          <p class="modal-text">
+            We can try again with a more generic description that captures the same feel without using copyrighted terms.
+            This will also apply to all remaining images in this story.
+          </p>
+          <div class="modal-footer">
+            <button @click="cancelCopyrightFallback" class="btn-secondary">Skip This Image</button>
+            <button @click="confirmCopyrightFallback" class="btn-primary">Try with Generic</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============== IMAGE INSPECTION MODAL ============== -->
       <div v-if="inspectingImage" class="modal-overlay" @click.self="closeImageInspection">
         <div class="modal modal-inspect">
           <div class="modal-header">
@@ -276,24 +293,27 @@
             <button @click="closeImageInspection" class="modal-close">✕</button>
           </div>
 
-          <!-- Thumbnail at top -->
           <div v-if="inspectingImage.image_id && getImageURL(inspectingImage.image_id)" class="inspect-thumb">
             <img :src="getImageURL(inspectingImage.image_id)" alt="Preview" />
           </div>
 
           <div class="inspect-stats">
             <div><strong>Status:</strong> {{ inspectingImage.status }}</div>
-            <div><strong>Quality:</strong> {{ inspectingImage.quality }}</div>
             <div><strong>Cost:</strong> ${{ (inspectingImage.cost || 0).toFixed(4) }}</div>
           </div>
 
           <details class="inspect-section">
-            <summary>Image Prompt (from GPT-4o)</summary>
+            <summary>Basic image_prompt (from GPT-4o)</summary>
             <pre class="debug-code">{{ inspectingImage.image_prompt || '(none)' }}</pre>
           </details>
 
+          <details class="inspect-section" v-if="inspectingImage.enriched_prompt">
+            <summary>Enriched prompt (gpt-4o-mini)</summary>
+            <pre class="debug-code">{{ inspectingImage.enriched_prompt }}</pre>
+          </details>
+
           <details class="inspect-section" open>
-            <summary>Full Prompt Sent to gpt-image-1</summary>
+            <summary>Full prompt sent to gpt-image-1</summary>
             <pre class="debug-code">{{ inspectingImage.full_prompt }}</pre>
           </details>
 
@@ -310,10 +330,10 @@
 
           <template v-if="charModalMode === 'list'">
             <div class="modal-header">
-              <h2>Manage Characters <span class="modal-count">({{ characters.length }})</span></h2>
+              <h2>Manage Characters <span class="modal-count">· {{ selectedCharCount }}/5 selected</span></h2>
               <button @click="handleModalX" class="modal-close" aria-label="Close">✕</button>
             </div>
-            <p class="modal-hint">Tap a character to add them to your story (up to 5).</p>
+            <p class="modal-hint">Tap a character to add them to your story.</p>
             <div class="modal-actions">
               <button @click="startCreateCharacter" class="btn-primary btn-small">+ Create New</button>
               <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}</button>
@@ -331,6 +351,8 @@
                     <div class="char-row-name-line">
                       <span class="char-row-name">{{ c.name }}</span>
                       <span v-if="isCharacterNew(c)" class="char-new-badge">NEW</span>
+                      <span v-if="charIsPossiblyProblematic(c)" class="char-warn-badge" title="May trigger copyright filter">⚠️</span>
+                      <span v-if="c.always_use_fallback" class="char-fallback-badge" title="Uses generic descriptions for images">G</span>
                     </div>
                     <div v-if="c.tagline" class="char-row-tagline">{{ c.tagline }}</div>
                     <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}</div>
@@ -356,6 +378,10 @@
                 </div>
               </div>
             </div>
+
+            <div class="modal-footer">
+              <button @click="closeCharactersModal" class="btn-primary">Done</button>
+            </div>
           </template>
 
           <template v-else>
@@ -371,7 +397,7 @@
               </div>
               <div class="form-field">
                 <label>Description</label>
-                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent. e.g. '6-year-old boy with short black hair, brave, loves dinosaurs'" class="textarea-input" rows="4"></textarea>
+                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent." class="textarea-input" rows="4"></textarea>
               </div>
               <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
               <div v-if="charForm.tagline" class="form-field" style="margin-top: 1.2rem;">
@@ -381,6 +407,14 @@
               <div v-if="charForm.visual_description" class="form-field">
                 <label>Character Profile <span class="help-text">— how the storyteller and illustrator will see them</span></label>
                 <textarea v-model="charForm.visual_description" class="textarea-input" rows="6"></textarea>
+              </div>
+              <div v-if="charForm.safe_fallback_visual_description" class="form-field">
+                <label>Generic Backup <span class="help-text">— used if the image AI rejects the original (copyright)</span></label>
+                <textarea v-model="charForm.safe_fallback_visual_description" class="textarea-input" rows="4"></textarea>
+                <label class="toggle-line" style="margin-top: 0.5rem;">
+                  <input type="checkbox" :checked="charForm.always_use_fallback" @change="toggleAlwaysUseFallback" />
+                  <span>Always use generic description for images</span>
+                </label>
               </div>
               <div v-if="error" class="error-text">{{ error }}</div>
               <div class="modal-footer">
@@ -393,86 +427,113 @@
         </div>
       </div>
 
-      <!-- ============== DEBUG ICON & PANEL ============== -->
-      <button class="debug-icon" @click="toggleDebug" title="Debug panel">🐛</button>
+      <!-- ============== SETTINGS MENU ============== -->
+      <button class="gear-icon" @click="openSettings" title="Settings">⚙️</button>
 
-      <aside v-if="showDebug" class="debug-panel">
-        <div class="debug-header">
-          <h3>Debug Panel</h3>
-          <button @click="toggleDebug" class="debug-close">✕</button>
-        </div>
-
-        <div class="debug-section">
-          <h4>App</h4>
-          <div class="debug-stat">Version: <strong>{{ version }}</strong></div>
-          <div class="debug-stat">Build date: <strong>{{ buildDate }}</strong></div>
-        </div>
-
-        <div class="debug-section">
-          <h4>Image Generation Mode</h4>
-          <label class="debug-toggle">
-            <input type="checkbox" :checked="skipImages" @change="toggleSkipImages" />
-            <span>Skip image generation (placeholders only — saves money)</span>
-          </label>
-        </div>
-
-        <div class="debug-section">
-          <h4>Storage</h4>
-          <div class="debug-stat">Stories: <strong>{{ formattedStorageSize }}</strong></div>
-          <div class="debug-stat">Images: <strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
-          <button @click="handleClearStories" class="btn-secondary btn-small">Clear All Stories</button>
-          <button @click="handleClearImages" class="btn-secondary btn-small">Clear All Images</button>
-        </div>
-
-        <div class="debug-section">
-          <h4>Quick actions</h4>
-          <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
-          <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
-          <button @click="handleForceUpdate" class="btn-secondary btn-small">⚠️ Force Update</button>
-        </div>
-
-        <div class="debug-section">
-          <h4>Last generation</h4>
-          <div class="debug-stat">Text cost: <strong>${{ currentTextCost.toFixed(6) }}</strong></div>
-          <div class="debug-stat">Images cost: <strong>${{ currentImagesCost.toFixed(6) }}</strong></div>
-          <div class="debug-stat">Total: <strong>${{ currentStoryCost.toFixed(6) }}</strong></div>
-          <div class="debug-stat" v-if="lastTokens">Tokens: {{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out</div>
-        </div>
-
-        <div class="debug-section" v-if="selectedCharacters.length > 0">
-          <h4>Selected characters (for next story)</h4>
-          <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
-            <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }} {{ c.tagline ? '· ' + c.tagline : '' }}</div>
-            <pre class="debug-code">{{ c.visual_description }}</pre>
+      <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
+        <div class="modal modal-wide settings-modal">
+          <div class="modal-header">
+            <h2>Settings</h2>
+            <button @click="closeSettings" class="modal-close" aria-label="Close">✕</button>
           </div>
-        </div>
 
-        <div class="debug-section" v-if="lastPrompt">
-          <h4>Prompt sent to GPT-4o (text)</h4>
-          <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
-          <pre class="debug-code">{{ lastPrompt }}</pre>
-        </div>
+          <div class="settings-section">
+            <div class="settings-section-title">About</div>
+            <div class="settings-row"><span>Version</span><strong>{{ version }}</strong></div>
+            <div class="settings-row"><span>Build date</span><strong>{{ buildDate }}</strong></div>
+          </div>
 
-        <div class="debug-section" v-if="lastRawResponse">
-          <h4>Raw text response</h4>
-          <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
-          <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
-        </div>
+          <div class="settings-section">
+            <div class="settings-section-title">Picture Quality (next story)</div>
+            <div class="settings-segment">
+              <button :class="{ active: nextStoryQuality === 'low' }" @click="setNextStoryQuality('low')">Low</button>
+              <button :class="{ active: nextStoryQuality === 'medium' }" @click="setNextStoryQuality('medium')">Medium</button>
+              <button :class="{ active: nextStoryQuality === 'high' }" @click="setNextStoryQuality('high')">High</button>
+            </div>
+            <p class="settings-fine-print">Resets to Medium after one story.</p>
+          </div>
 
-        <div class="debug-section" v-if="currentStory && currentStory.style_anchor">
-          <h4>Style anchor</h4>
-          <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
+          <div class="settings-section">
+            <div class="settings-section-title">Inspection</div>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
+              <span>Show ⓘ button on images (for parents)</span>
+            </label>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="skipImages" @change="toggleSkipImages" />
+              <span>Skip image generation</span>
+            </label>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Storage</div>
+            <div class="settings-row"><span>Stories</span><strong>{{ formattedStorageSize }}</strong></div>
+            <div class="settings-row"><span>Images</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
+            <div class="settings-row-actions">
+              <button @click="handleClearStories" class="btn-secondary btn-small">Clear Stories</button>
+              <button @click="handleClearImages" class="btn-secondary btn-small">Clear Images</button>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Account</div>
+            <div class="settings-row-actions">
+              <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
+            </div>
+          </div>
+
+          <details class="settings-section settings-collapsible">
+            <summary>Last Generation</summary>
+            <div class="settings-row"><span>Text cost</span><strong>{{ formatCostFriendly(currentTextCost) }}</strong></div>
+            <div class="settings-row"><span>Images cost</span><strong>{{ formatCostFriendly(currentImagesCost) }}</strong></div>
+            <div class="settings-row"><span>Total</span><strong>{{ formatCostFriendly(currentStoryCost) }}</strong></div>
+            <div v-if="lastTokens" class="settings-row"><span>Tokens</span><strong>{{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out</strong></div>
+          </details>
+
+          <details class="settings-section settings-collapsible" v-if="selectedCharacters.length > 0">
+            <summary>Selected characters (for next story)</summary>
+            <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
+              <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}{{ c.tagline ? ' · ' + c.tagline : '' }}</div>
+              <pre class="debug-code">{{ c.visual_description }}</pre>
+            </div>
+          </details>
+
+          <details class="settings-section settings-collapsible" v-if="lastPrompt">
+            <summary>Prompt sent to GPT-4o (text)</summary>
+            <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
+            <pre class="debug-code">{{ lastPrompt }}</pre>
+          </details>
+
+          <details class="settings-section settings-collapsible" v-if="lastRawResponse">
+            <summary>Raw text response</summary>
+            <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
+            <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
+          </details>
+
+          <details class="settings-section settings-collapsible" v-if="currentStory && currentStory.style_anchor">
+            <summary>Style anchor</summary>
+            <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
+          </details>
+
+          <div class="settings-section">
+            <div class="settings-section-title">Advanced</div>
+            <div class="settings-row-actions">
+              <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
+              <button @click="handleForceUpdate" class="btn-secondary btn-small">⚠️ Force Update</button>
+            </div>
+          </div>
+
         </div>
-      </aside>
+      </div>
 
     </template>
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.6.1"></script>
-  <script src="js/imageStorage.js?v=0.6.1"></script>
-  <script src="js/api.js?v=0.6.1"></script>
-  <script src="js/app.js?v=0.6.1"></script>
+  <script src="js/storage.js?v=0.6.2"></script>
+  <script src="js/imageStorage.js?v=0.6.2"></script>
+  <script src="js/api.js?v=0.6.2"></script>
+  <script src="js/app.js?v=0.6.2"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

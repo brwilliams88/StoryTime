@@ -9,6 +9,38 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.2 — 2026-05-28 — Settings Menu, Copyright Fallback, Image Quality Upgrades
+  • New Settings menu (⚙️ icon top-right) replaces debug bug — organized sections from common to advanced
+  • Picture Quality override (Low/Medium/High) for next story; auto-resets to Medium
+  • "Show ⓘ button on images" toggle for parents — double-tap removed (was conflicting with iOS zoom)
+  • Inspection ⓘ button only shown when toggle is on, lives in corner of image
+  • Last Generation costs displayed in kid-friendly format (¢/$)
+  • Age picker redesigned: 5 stages with labels + ranges (Toddler 1-2, Preschool 3-4, Early Reader 5-6, Mid Reader 7-8, Older Kid 9-10)
+  • Story prompt: age-range guidance + stronger character-name discipline + scene alignment improvements (A: action verbs, B: page text matched exactly, C: composition variety, E: style anchor)
+  • TWO-STAGE image prompt enrichment via gpt-4o-mini (closes the "ChatGPT vs API" quality gap — adds composition, lighting, mood)
+  • Copyright character fallback flow (FULL):
+      - GPT-4o now outputs safe_fallback_visual_description for every character
+      - Heuristic detection of possibly-problematic names at creation (⚠️ badge in list)
+      - On content_policy error during image gen: modal asks "Try with Generic?" — user confirms, image regenerates with fallback descriptions
+      - User confirmation persists per-story for remaining images
+      - Per-character "Always use generic" toggle in character edit screen — set automatically after first fallback acceptance ("G" badge in list)
+  • Cover prompt fix: no more "Book cover for X" prefix; explicit no-title-text-in-image rule; allow incidental text on clothing/signs
+  • Single header bar in reading view (removed bottom bar — more space for the book)
+  • Page counter: "Cover" / "Page X of N" / "End" — only story pages numbered
+  • Arrow buttons gray out at start/end of book
+  • Story Toolbox page (renamed from Story Complete): cover thumbnail + title + creation date in header, rating, less-redundant cost display, action buttons
+  • Cost display less redundant: coins + single breakdown line, no duplicate big number
+  • Rating stars: all consistent amber, outline when empty, filled when active
+  • Coin alignment fixed — all bottom-aligned regardless of size
+  • Images take more page area (less padding)
+  • Manage Characters: header shows "X/5 selected", "Done" button at bottom, calendar-day date logic with time of day for today/yesterday
+  • Character form: shows safe_fallback_visual_description + always-use-fallback toggle
+  • Rotate banner removed entirely (portrait mode works fine)
+  • Cover title positioning: tighter, grouped with image
+  • Landscape scroll alignment: body fixed in reading view to prevent viewport jumping
+  • Touch-action: manipulation on images to suppress zoom while allowing taps
+
+--------------------------
 v0.6.1 — 2026-05-27 — Reading View Polish
   • Portrait reading mode (image top, text bottom) — replaces the "rotate device" overlay entirely
   • Small dismissible "Best in landscape" hint shows once in portrait mode
