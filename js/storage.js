@@ -67,6 +67,14 @@ function setCharacterAlwaysUseFallback(id, value) {
   localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
 }
 
+function setCharacterConfirmedSafe(id, value) {
+  const all = getStoredCharacters();
+  const c = all.find(x => x.id === id);
+  if (!c) return;
+  c.confirmed_safe = value;
+  localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
 // ---- Debug mode (kept for backwards compatibility — Settings menu now controls visibility) ----
 function getDebugMode() { return localStorage.getItem(STORAGE_KEYS.DEBUG_MODE) === 'true'; }
 function setDebugMode(enabled) { localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, enabled ? 'true' : 'false'); }
@@ -130,24 +138,33 @@ function formatRelativeTime(isoString) {
   return 'Used over a year ago';
 }
 
-// ---- Possibly-copyrighted name detection (simple heuristic) ----
+// ---- Possibly-copyrighted name detection (tightened) ----
+// Only flag SPECIFIC character names, not categorical terms like "disney" or "princess".
+// This list is intentionally conservative — better to miss a flag than create false positives.
 const POSSIBLY_PROBLEMATIC_KEYWORDS = [
   // Nintendo
-  'mario','luigi','peach','bowser','yoshi','toad','zelda','link','pikachu','pokemon','pikachu','charmander','squirtle','bulbasaur',
-  // Disney
-  'elsa','anna','olaf','frozen','mickey','minnie','donald','goofy','simba','ariel','rapunzel','moana','aladdin','belle','cinderella',
+  'mario','luigi','bowser','pikachu','charmander','squirtle','bulbasaur',
+  // Disney specific characters
+  'elsa','olaf','mickey mouse','minnie mouse','simba','ariel','rapunzel','moana','aladdin','cinderella',
   // Marvel/DC
-  'spiderman','spider-man','batman','superman','iron man','captain america','thor','hulk','wonder woman','wolverine','deadpool','black panther',
+  'spider-man','spiderman','batman','superman','iron man','captain america','wolverine','deadpool',
   // Kids shows
-  'bluey','bingo','peppa','dora','paw patrol','spongebob','dora','minions','despicable',
+  'bluey','peppa pig','spongebob','minions',
   // Other
-  'harry potter','hermione','sonic','kirby','star wars','yoda','darth vader','baby yoda',
-  'totoro','frozen','little mermaid',
-  // NOTE: Among Us and Geometry Dash work fine — don't flag them.
+  'harry potter','hermione','sonic','kirby','darth vader','baby yoda',
+  // NOTE: Generic terms like "disney", "princess", "marvel", "pokemon" are NOT flagged
+  // because they often appear as descriptors of original characters.
 ];
 
 function isPossiblyProblematic(text) {
   if (!text) return false;
   const lower = text.toLowerCase();
   return POSSIBLY_PROBLEMATIC_KEYWORDS.some(ip => lower.includes(ip));
+}
+
+// Find which specific keyword(s) triggered the flag — for showing the user
+function getProblematicMatches(text) {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  return POSSIBLY_PROBLEMATIC_KEYWORDS.filter(ip => lower.includes(ip));
 }

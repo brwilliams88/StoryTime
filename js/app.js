@@ -7,9 +7,10 @@ const { createApp } = Vue
 function defaultFormData() {
   return {
     storyDetails: '',
-    ageRange: '5-6',
+    ageRange: '6-7',
     length: 'regular',
     genre: 'surprise-me',
+    artStyle: 'surprise-me',
     ingredients: [],
     theme: '',
     selectedCharacterIds: [],
@@ -24,8 +25,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.2',
-      buildDate: '2026-05-28',
+      version: 'v0.6.3',
+      buildDate: '2026-05-29',
 
       showSplash: true,
 
@@ -54,21 +55,19 @@ createApp({
 
       inspectingImage: null,
 
-      // Orientation
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
 
-      // Settings menu
       showSettings: false,
-
-      // Picture quality override — resets to 'medium' after each generation
       nextStoryQuality: 'medium',
-
-      // Show inspect (ⓘ) button on images — parent toggle
       showInspect: false,
 
-      // Copyright fallback runtime state (per story)
-      useFallbackChars: {},  // { charId: true } — for current story
-      copyrightModal: null,  // { problematicChars, target, retry }
+      useFallbackChars: {},
+      copyrightModal: null,
+      warningModal: null,  // Shows why a character is flagged
+
+      // Swipe state
+      touchStartX: null,
+      touchStartY: null,
 
       formData: defaultFormData(),
 
@@ -80,6 +79,7 @@ createApp({
       generatingRandom: false,
       isRandomNew: false,
       expandedCharIds: [],
+      showCharFallbackFields: false,  // hide fallback fields by default in form
 
       genres: [
         { value: 'surprise-me', emoji: '🎲', label: 'Surprise me' },
@@ -93,36 +93,37 @@ createApp({
         { value: 'spooky',      emoji: '👻', label: 'Spooky' },
         { value: 'animal-tales', emoji: '🦊', label: 'Animal Tales' },
       ],
+      artStyles: [
+        { value: 'surprise-me',  emoji: '✨', label: 'Surprise me' },
+        { value: 'watercolor',   emoji: '🎨', label: 'Watercolor' },
+        { value: 'pencil',       emoji: '✏️', label: 'Pencil Sketch' },
+        { value: 'crayon',       emoji: '🖍️', label: 'Crayon' },
+        { value: 'comic-book',   emoji: '📚', label: 'Comic Book' },
+        { value: 'anime',        emoji: '🌸', label: 'Anime / Manga' },
+        { value: 'pixel-art',    emoji: '👾', label: 'Pixel Art' },
+        { value: '3d-animation', emoji: '🎬', label: '3D Animation' },
+        { value: 'claymation',   emoji: '🏺', label: 'Claymation' },
+      ],
       ingredients: [
         { value: 'funny',          emoji: '😄', label: 'Funny moments' },
         { value: 'surprise',       emoji: '🎁', label: 'Surprise twist' },
-        { value: 'heartwarming',   emoji: '💝', label: 'Heartwarming' },
+        { value: 'heartfelt',      emoji: '💝', label: 'Heartfelt' },
         { value: 'action-packed',  emoji: '⚡', label: 'Action-packed' },
         { value: 'bedtime',        emoji: '🌙', label: 'Bedtime' },
-        { value: 'love-story',     emoji: '💌', label: 'Love story' },
         { value: 'puzzle',         emoji: '🧩', label: 'A clever puzzle' },
         { value: 'magical-object', emoji: '🪄', label: 'A magical object' },
-        { value: 'sidekick',       emoji: '🐾', label: 'A funny sidekick' },
-        { value: 'song',           emoji: '🎵', label: 'A song or rhyme' },
-        { value: 'challenge',      emoji: '🏔️', label: 'A challenge' },
-        { value: 'cliffhanger',    emoji: '📖', label: 'Cliffhanger' },
-      ],
-      themes: [
-        'Family', 'Sharing', 'Bravery', 'Friendship', 'Kindness',
-        'Honesty', 'Keep trying', 'Being curious', 'Helping others', 'Being yourself',
+        { value: 'wonder',         emoji: '🌟', label: 'Wonder' },
       ],
       lengths: [
-        { value: 'short',       label: 'Short',      subtitle: '~2 min' },
-        { value: 'regular',     label: 'Regular',    subtitle: '~5 min' },
-        { value: 'long',        label: 'Long',       subtitle: '~8 min' },
-        { value: 'extra-long',  label: 'Extra-Long', subtitle: '~12 min' },
+        { value: 'short',    label: 'Short',   subtitle: '~2 min' },
+        { value: 'regular',  label: 'Regular', subtitle: '~4 min' },
+        { value: 'long',     label: 'Long',    subtitle: '~7 min' },
       ],
       ageStages: [
-        { value: '1-2',  label: 'Toddler',       range: '1-2' },
-        { value: '3-4',  label: 'Preschool',     range: '3-4' },
-        { value: '5-6',  label: 'Early Reader',  range: '5-6' },
-        { value: '7-8',  label: 'Mid Reader',    range: '7-8' },
-        { value: '9-10', label: 'Older Kid',     range: '9-10' },
+        { value: '1-3',  label: 'Toddler',      emoji: '👶', range: '1-3' },
+        { value: '4-5',  label: 'Preschool',    emoji: '🧒', range: '4-5' },
+        { value: '6-7',  label: 'Early Reader', emoji: '📚', range: '6-7' },
+        { value: '8-10', label: 'Older Kid',    emoji: '🎒', range: '8-10' },
       ],
 
       storageSize: 0,
@@ -201,7 +202,6 @@ createApp({
 
   mounted() {
     console.log(`${this.appName} ${this.version} loaded ✓`);
-
     setTimeout(() => this.dismissSplash(), 1500);
 
     const stored = getStoredPassword();
@@ -255,7 +255,6 @@ createApp({
     },
     isIngredientActive(v) { return this.formData.ingredients.includes(v); },
     isIngredientDisabled(v) { return this.ingredientsAtMax && !this.isIngredientActive(v); },
-    selectThemePreset(t) { this.formData.theme = this.formData.theme === t ? '' : t; },
     handleResetForm() { this.formData = defaultFormData(); },
 
     // ---- Characters modal ----
@@ -264,6 +263,7 @@ createApp({
       this.charForm = emptyCharForm();
       this.isRandomNew = false;
       this.expandedCharIds = [];
+      this.showCharFallbackFields = false;
       this.showCharactersModal = true;
     },
     closeCharactersModal() {
@@ -298,8 +298,29 @@ createApp({
     formatRelative(iso) { return formatRelativeTime(iso); },
     isCharacterNew(char) { return !char.last_used_at; },
     charIsPossiblyProblematic(char) {
+      // Don't flag confirmed-safe characters
+      if (char.confirmed_safe) return false;
       return isPossiblyProblematic(char.name) || isPossiblyProblematic(char.user_description);
     },
+    showCharacterWarning(char) {
+      const matches = [
+        ...getProblematicMatches(char.name),
+        ...getProblematicMatches(char.user_description),
+      ];
+      const unique = [...new Set(matches)];
+      this.warningModal = {
+        char,
+        matches: unique,
+      };
+    },
+    closeWarningModal() { this.warningModal = null; },
+    markCharacterSafe() {
+      if (!this.warningModal) return;
+      setCharacterConfirmedSafe(this.warningModal.char.id, true);
+      this.characters = getStoredCharacters();
+      this.warningModal = null;
+    },
+
     toggleCharProfileExpanded(charId) {
       const idx = this.expandedCharIds.indexOf(charId);
       if (idx === -1) this.expandedCharIds.push(charId);
@@ -310,6 +331,7 @@ createApp({
     startCreateCharacter() {
       this.charForm = emptyCharForm();
       this.isRandomNew = false;
+      this.showCharFallbackFields = false;
       this.charModalMode = 'create';
     },
     startEditCharacter(char) {
@@ -319,12 +341,15 @@ createApp({
         tagline: char.tagline || '',
         user_description: char.user_description || '',
         visual_description: char.visual_description || '',
+        safe_fallback_name: char.safe_fallback_name || '',
         safe_fallback_visual_description: char.safe_fallback_visual_description || '',
         always_use_fallback: !!char.always_use_fallback,
+        confirmed_safe: !!char.confirmed_safe,
         created_at: char.created_at,
         last_used_at: char.last_used_at,
       };
       this.isRandomNew = false;
+      this.showCharFallbackFields = false;
       this.charModalMode = 'edit';
     },
     cancelCharForm() {
@@ -345,6 +370,7 @@ createApp({
         );
         this.charForm.tagline = result.tagline;
         this.charForm.visual_description = result.visual_description;
+        this.charForm.safe_fallback_name = result.safe_fallback_name || '';
         this.charForm.safe_fallback_visual_description = result.safe_fallback_visual_description || '';
       } catch (err) {
         console.error('Enhance failed:', err);
@@ -365,12 +391,15 @@ createApp({
           tagline: result.character.tagline,
           user_description: result.character.user_description,
           visual_description: result.character.visual_description,
+          safe_fallback_name: result.character.safe_fallback_name || '',
           safe_fallback_visual_description: result.character.safe_fallback_visual_description || '',
           always_use_fallback: false,
+          confirmed_safe: false,
           created_at: null,
           last_used_at: null,
         };
         this.isRandomNew = true;
+        this.showCharFallbackFields = false;
         this.charModalMode = 'create';
       } catch (err) {
         console.error('Random character failed:', err);
@@ -389,8 +418,10 @@ createApp({
         tagline: (this.charForm.tagline || '').trim(),
         user_description: this.charForm.user_description.trim(),
         visual_description: this.charForm.visual_description.trim(),
+        safe_fallback_name: (this.charForm.safe_fallback_name || '').trim(),
         safe_fallback_visual_description: (this.charForm.safe_fallback_visual_description || '').trim(),
         always_use_fallback: !!this.charForm.always_use_fallback,
+        confirmed_safe: !!this.charForm.confirmed_safe,
         created_at: this.charForm.created_at || now,
         last_used_at: this.charForm.last_used_at || null,
       };
@@ -413,6 +444,9 @@ createApp({
     toggleAlwaysUseFallback() {
       this.charForm.always_use_fallback = !this.charForm.always_use_fallback;
     },
+    toggleShowCharFallback() {
+      this.showCharFallbackFields = !this.showCharFallbackFields;
+    },
 
     // ============================================================
     // STORY GENERATION
@@ -431,13 +465,13 @@ createApp({
         role: this.getCharacterRole(c.id),
       }));
 
-      // Apply persistent always_use_fallback flag from character profiles
       selected.forEach(c => {
         if (c.always_use_fallback) this.useFallbackChars[c.id] = true;
       });
 
       try {
-        const textResult = await generateStory(this.formData, this.selectedCharsForPrompt(selected), this.password);
+        // Story text always uses REAL character names
+        const textResult = await generateStory(this.formData, selected, this.password);
 
         selected.forEach(c => touchCharacterLastUsed(c.id));
         this.characters = getStoredCharacters();
@@ -499,7 +533,18 @@ createApp({
 
         await this.generateAllImages(storyData);
 
-        // Reset quality override after generation
+        // After all images: mark characters confirmed_safe if no fallback was triggered
+        if (Object.keys(this.useFallbackChars).length === 0) {
+          storyData.selected_characters.forEach(c => {
+            if (!c.confirmed_safe && !c.always_use_fallback) {
+              c.confirmed_safe = true;
+              setCharacterConfirmedSafe(c.id, true);
+            }
+          });
+          this.characters = getStoredCharacters();
+        }
+
+        // Reset quality override
         this.nextStoryQuality = 'medium';
       } catch (err) {
         console.error('Generation failed:', err);
@@ -508,14 +553,34 @@ createApp({
       }
     },
 
-    // Returns characters with fallback descriptions applied where flagged
+    // Returns characters with fallback name + description applied where flagged
     selectedCharsForPrompt(selected) {
       return selected.map(c => {
         if (this.useFallbackChars[c.id] && c.safe_fallback_visual_description) {
-          return { ...c, visual_description: c.safe_fallback_visual_description };
+          return {
+            ...c,
+            name: c.safe_fallback_name || c.name,
+            original_name: c.name,
+            visual_description: c.safe_fallback_visual_description,
+            use_fallback: true,
+          };
         }
         return c;
       });
+    },
+
+    // Replace original character names in a prompt string with fallback names
+    applyNameFallback(prompt, chars) {
+      if (!prompt) return prompt;
+      let result = prompt;
+      chars.forEach(c => {
+        if (c.use_fallback && c.original_name && c.name && c.original_name !== c.name) {
+          const escaped = c.original_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const re = new RegExp(escaped, 'gi');
+          result = result.replace(re, c.name);
+        }
+      });
+      return result;
     },
 
     async generateAllImages(storyData) {
@@ -546,20 +611,23 @@ createApp({
       const charsForPrompt = this.selectedCharsForPrompt(storyData.selected_characters || []);
       const pageText = target === 'cover' ? '' : slot.text;
 
-      // Step 1: Enrich the basic image prompt with gpt-4o-mini
-      let enrichedScene = slot.image_prompt;
+      // Apply name fallback to the BASIC scene prompt before enrichment
+      let basicScene = this.applyNameFallback(slot.image_prompt, charsForPrompt);
+      let enrichedScene = basicScene;
+
       try {
-        if (slot.image_prompt) {
+        if (basicScene) {
+          // For page text used in enrichment context, also apply name fallback
+          const safePageText = this.applyNameFallback(pageText, charsForPrompt);
           const enrich = await enrichImagePrompt(
             storyData.style_anchor,
-            slot.image_prompt,
-            pageText,
+            basicScene,
+            safePageText,
             charsForPrompt,
             this.password
           );
           enrichedScene = enrich.enriched;
           slot.enriched_prompt = enrichedScene;
-          // Track tiny enrichment cost
           this.currentImagesCost += enrich.cost;
           this.currentStoryCost = this.currentTextCost + this.currentImagesCost;
           storyData.images_cost = this.currentImagesCost;
@@ -596,15 +664,12 @@ createApp({
         console.error(`Image generation failed (${target}):`, err);
         slot.image_status = 'failed';
         slot.image_error = err.message;
-
-        // Copyright fallback flow
         if (err.isContentPolicy) {
           await this.handleCopyrightFailure(target, storyData);
         }
       }
     },
 
-    // Show modal asking user to retry with fallback descriptions
     async handleCopyrightFailure(target, storyData) {
       const chars = storyData.selected_characters || [];
       const problematic = chars.filter(c =>
@@ -612,14 +677,11 @@ createApp({
         c.safe_fallback_visual_description &&
         (isPossiblyProblematic(c.name) || isPossiblyProblematic(c.user_description))
       );
-
-      // If we can't identify a specific problematic char but the call failed,
-      // still offer fallback for all selected characters with safe fallbacks available
       const candidates = problematic.length > 0
         ? problematic
         : chars.filter(c => !this.useFallbackChars[c.id] && c.safe_fallback_visual_description);
 
-      if (candidates.length === 0) return; // nothing to fall back to
+      if (candidates.length === 0) return;
 
       this.copyrightModal = {
         problematicChars: candidates,
@@ -630,34 +692,18 @@ createApp({
     async confirmCopyrightFallback() {
       if (!this.copyrightModal) return;
       const { problematicChars, target } = this.copyrightModal;
-
-      // Mark these characters for fallback in this story
       problematicChars.forEach(c => {
         this.useFallbackChars[c.id] = true;
-        // Persist preference on the character so future stories with this char default to fallback
         setCharacterAlwaysUseFallback(c.id, true);
       });
       this.characters = getStoredCharacters();
-
-      // Update the selected_characters in storyData so debug + future regens use fallback
-      this.currentStory.selected_characters = this.currentStory.selected_characters.map(c => {
-        if (this.useFallbackChars[c.id] && c.safe_fallback_visual_description) {
-          return { ...c, always_use_fallback: true };
-        }
-        return c;
-      });
-
       this.copyrightModal = null;
-
-      // Retry the failed image
       await this.generateOneImage(target, this.currentStory);
       saveStoryToStorage(this.currentStory);
       this.refreshImageStats();
     },
 
-    cancelCopyrightFallback() {
-      this.copyrightModal = null;
-    },
+    cancelCopyrightFallback() { this.copyrightModal = null; },
 
     async regenerateOneImage(target) {
       if (!this.currentStory) return;
@@ -688,14 +734,7 @@ createApp({
         story_series_id: null,
         title: story.title,
         style_anchor: story.style_anchor,
-        cover: {
-          image_prompt: story.cover_image_prompt,
-          image_id: null,
-          image_status: 'skipped',
-          image_cost: 0,
-          full_prompt: story.cover_image_prompt,
-          enriched_prompt: '',
-        },
+        cover: { image_prompt: story.cover_image_prompt, image_id: null, image_status: 'skipped', image_cost: 0, full_prompt: story.cover_image_prompt, enriched_prompt: '' },
         pages,
         selected_characters: [],
         formData: JSON.parse(JSON.stringify(this.formData)),
@@ -746,6 +785,27 @@ createApp({
       window.scrollTo(0, 0);
     },
 
+    // Swipe gestures for page navigation
+    handleTouchStart(e) {
+      if (e.touches && e.touches.length === 1) {
+        this.touchStartX = e.touches[0].clientX;
+        this.touchStartY = e.touches[0].clientY;
+      }
+    },
+    handleTouchEnd(e) {
+      if (this.touchStartX === null) return;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - this.touchStartX;
+      const dy = touch.clientY - this.touchStartY;
+      // Horizontal swipe: threshold 60px, vertical movement under 50px
+      if (Math.abs(dx) > 60 && Math.abs(dy) < 50) {
+        if (dx > 0) this.prevPage();
+        else this.nextPage();
+      }
+      this.touchStartX = null;
+      this.touchStartY = null;
+    },
+
     handleRegenerate() {
       if (this.lastFormData) this.formData = JSON.parse(JSON.stringify(this.lastFormData));
       this.handleGenerate();
@@ -763,9 +823,6 @@ createApp({
       alert('Continue Story is coming soon! This will let you make a Part 2 using the same characters and setting.');
     },
 
-    // ============================================================
-    // IMAGE INSPECTION (via ⓘ button when Settings toggle is on)
-    // ============================================================
     openImageInspection(target) {
       if (!this.currentStory) return;
       const slot = target === 'cover' ? this.currentStory.cover : this.currentStory.pages[target];
@@ -794,9 +851,6 @@ createApp({
       return null;
     },
 
-    // ============================================================
-    // RATING
-    // ============================================================
     setRating(stars) {
       if (!this.currentStory) return;
       this.currentStory.rating = stars;
@@ -859,7 +913,6 @@ createApp({
       window.location.href = window.location.pathname + '?_t=' + Date.now();
     },
 
-    // Cost formatting wrapper for templates
     formatCostFriendly(cost) { return formatCostFriendly(cost); },
   },
 
@@ -873,8 +926,10 @@ function emptyCharForm() {
     tagline: '',
     user_description: '',
     visual_description: '',
+    safe_fallback_name: '',
     safe_fallback_visual_description: '',
     always_use_fallback: false,
+    confirmed_safe: false,
     created_at: null,
     last_used_at: null,
   };

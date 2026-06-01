@@ -121,11 +121,22 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.2rem;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .modal-header h2 {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+@media (max-width: 480px) {
+  .modal-header h2 { font-size: 1.05rem; }
 }
 
 .modal-close {
@@ -836,17 +847,17 @@ button:disabled {
   vertical-align: bottom;
 }
 
-/* Real-world relative sizes — dime smallest, quarter biggest */
-.coin-dime    { width: 38px; }
-.coin-penny   { width: 42px; }
-.coin-nickel  { width: 48px; }
-.coin-quarter { width: 56px; }
+/* Coin sizes - real-world ordering but less exaggerated */
+.coin-dime    { width: 46px; }
+.coin-penny   { width: 48px; }
+.coin-nickel  { width: 50px; }
+.coin-quarter { width: 54px; }
 
 @media (max-width: 480px) {
-  .coin-dime    { width: 30px; }
-  .coin-penny   { width: 33px; }
-  .coin-nickel  { width: 38px; }
-  .coin-quarter { width: 45px; }
+  .coin-dime    { width: 38px; }
+  .coin-penny   { width: 40px; }
+  .coin-nickel  { width: 42px; }
+  .coin-quarter { width: 46px; }
 }
 
 .story-actions {
@@ -869,24 +880,12 @@ button:disabled {
 /* =============================================
    DEBUG ICON + PANEL
    ============================================= */
-.debug-icon, .gear-icon {
-  position: fixed;
-  top: 0.6rem;
-  right: 0.6rem;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: var(--bg-card);
-  color: var(--text-main);
+/* Gear button in headers (not floating anymore) */
+.gear-btn {
   font-size: 1rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  z-index: 500;
-  opacity: 0.5;
-  font-family: inherit;
+  padding: 0.35rem 0.55rem;
+  line-height: 1;
 }
-.debug-icon:hover, .gear-icon:hover { opacity: 1; }
 
 .debug-icon:hover {
   background: var(--bg-input);
@@ -1104,19 +1103,37 @@ body:has(.app-main-reading) {
   min-height: 0;
 }
 
-.cover-image {
+/* Image frame — square wrapper that fits within available space,
+   matches the actual image bounds. Used to position the ⓘ button. */
+.image-frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
   max-width: 100%;
   max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-image {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   -webkit-user-drag: none;
   -webkit-touch-callout: none;
 }
 
 /* Portrait cover — same compact layout */
+.cover-page.portrait {
+  justify-content: flex-start;
+  padding-top: 0.5rem;
+}
 .cover-page.portrait .cover-title {
   font-size: 1.4rem;
+  margin-bottom: 0.3rem;
 }
 
 /* ---- Story spread (landscape: image left, text right) ---- */
@@ -1131,7 +1148,7 @@ body:has(.app-main-reading) {
   align-items: center;
   justify-content: center;
   background: var(--bg-card);
-  padding: 0.15rem;
+  padding: 0.1rem;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -1140,26 +1157,16 @@ body:has(.app-main-reading) {
   min-height: 0;
 }
 
-.page-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 4px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-  -webkit-user-drag: none;
-  -webkit-touch-callout: none;
-}
-
-/* Inspect (ⓘ) button - small, top-right corner of image */
+/* Inspect (ⓘ) button - sits in corner of the IMAGE itself, not container */
 .inspect-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   width: 28px;
   height: 28px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.55);
   color: white;
   font-size: 0.95rem;
   cursor: pointer;
@@ -1170,7 +1177,37 @@ body:has(.app-main-reading) {
   justify-content: center;
   line-height: 0;
 }
-.inspect-btn:hover { background: rgba(0, 0, 0, 0.75); }
+.inspect-btn:hover { background: rgba(0, 0, 0, 0.8); }
+
+/* ---- Side arrows for page navigation (subtle, on the book) ---- */
+.side-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+  z-index: 6;
+  font-family: inherit;
+  line-height: 0;
+  padding-bottom: 4px;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+.side-arrow:hover { opacity: 1; }
+
+.side-arrow-left {
+  left: 0;
+  border-radius: 0 8px 8px 0;
+}
+.side-arrow-right {
+  right: 0;
+  border-radius: 8px 0 0 8px;
+}
 
 .spread-text {
   flex: 1;
@@ -1284,13 +1321,15 @@ body:has(.app-main-reading) {
   align-items: center;
   gap: 0.8rem;
   max-width: 100%;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.4rem;
+  width: 100%;
+  justify-content: center;
 }
 
 .toolbox-thumb {
   flex-shrink: 0;
-  width: 70px;
-  height: 70px;
+  width: 64px;
+  height: 64px;
   border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -1302,24 +1341,23 @@ body:has(.app-main-reading) {
   object-fit: cover;
 }
 
-.toolbox-title-block {
-  text-align: left;
-  flex: 1;
-  min-width: 0;
-}
-
 .toolbox-title {
   font-size: 1.15rem;
   color: var(--text-main);
   font-weight: 700;
   line-height: 1.2;
   margin: 0;
+  text-align: left;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .toolbox-meta {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--text-dim);
-  margin-top: 0.2rem;
+  text-align: center;
+  width: 100%;
+  margin-bottom: 0.4rem;
 }
 
 .toolbox-section {
@@ -1354,31 +1392,20 @@ body:has(.app-main-reading) {
 
 .rating-star {
   background: none;
-  border: 1.5px solid var(--accent);
-  border-radius: 50%;
-  font-size: 1.4rem;
-  color: transparent;
-  width: 36px;
-  height: 36px;
-  cursor: pointer;
-  padding: 0;
-  line-height: 0;
-  font-family: inherit;
-  transition: background 0.15s ease;
-}
-
-.rating-star::before {
-  content: '★';
+  border: none;
+  font-size: 2rem;
   color: var(--accent);
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  line-height: 1;
+  font-family: inherit;
   opacity: 0.3;
-  font-size: 1.1rem;
+  transition: opacity 0.15s ease;
 }
 
-.rating-star.filled::before {
-  opacity: 1;
-}
-
-.rating-star:hover::before { opacity: 1; }
+.rating-star.filled { opacity: 1; }
+.rating-star:hover { opacity: 0.8; }
+.rating-star.filled:hover { opacity: 1; }
 
 .toolbox-actions {
   display: flex;
@@ -1480,45 +1507,61 @@ body:has(.app-main-reading) {
 
 .inspect-section summary:hover { color: var(--text-main); }
 
-/* ---- Age stage pills (Toddler / Preschool / etc) ---- */
-.age-stages {
+/* ---- Age stage pills - 4 columns, bigger ---- */
+.age-stages-4 {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
-.pill-age {
-  padding: 0.5rem 0.3rem;
+.pill-age-big {
+  padding: 0.7rem 0.3rem;
   text-align: center;
   font-family: inherit;
+}
+
+.pill-age-big .pill-emoji-big {
+  font-size: 1.6rem;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.pill-age-big .pill-label {
   font-size: 0.85rem;
-}
-
-.pill-age .pill-label {
-  font-size: 0.8rem;
   line-height: 1.1;
+  font-weight: 700;
 }
 
-.pill-age .pill-subtitle {
-  font-size: 0.7rem;
+.pill-age-big .pill-subtitle {
+  font-size: 0.72rem;
   margin-top: 0.15rem;
 }
 
 @media (max-width: 480px) {
-  .age-stages {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.3rem;
-  }
-  .pill-age .pill-label { font-size: 0.72rem; }
-  .pill-age .pill-subtitle { font-size: 0.65rem; }
-  .pill-age { padding: 0.4rem 0.15rem; }
+  .pill-age-big { padding: 0.6rem 0.15rem; }
+  .pill-age-big .pill-emoji-big { font-size: 1.35rem; }
+  .pill-age-big .pill-label { font-size: 0.78rem; }
+  .pill-age-big .pill-subtitle { font-size: 0.66rem; }
+}
+
+/* ---- Length pills (3-up) ---- */
+.length-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 /* ---- Char warning + fallback badges ---- */
-.char-warn-badge {
-  font-size: 0.85rem;
-  cursor: help;
+.char-warn-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+  font-family: inherit;
 }
+.char-warn-btn:hover { opacity: 0.7; }
 
 .char-fallback-badge {
   background: var(--bg-input);
@@ -1529,6 +1572,14 @@ body:has(.app-main-reading) {
   border-radius: 999px;
   letter-spacing: 0.05em;
   cursor: help;
+}
+
+/* Inline modal count (e.g. "Manage Characters · 2/5 selected") */
+.modal-count-inline {
+  color: var(--text-dim);
+  font-weight: 400;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 /* ---- Toggle line (used in settings + char form) ---- */

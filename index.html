@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=0.6.2" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.3" />
 </head>
 <body>
 
@@ -64,6 +64,7 @@
             <div class="form-top-actions">
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
+              <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
             </div>
           </div>
 
@@ -86,9 +87,10 @@
           </div>
 
           <div class="form-field">
-            <label>Story for age</label>
-            <div class="pill-group age-stages">
-              <button v-for="stage in ageStages" :key="stage.value" @click="formData.ageRange = stage.value" :class="['pill pill-age', { active: formData.ageRange === stage.value }]">
+            <label>Story for Age</label>
+            <div class="pill-group age-stages-4">
+              <button v-for="stage in ageStages" :key="stage.value" @click="formData.ageRange = stage.value" :class="['pill pill-age-big', { active: formData.ageRange === stage.value }]">
+                <div class="pill-emoji-big">{{ stage.emoji }}</div>
                 <div class="pill-label">{{ stage.label }}</div>
                 <div class="pill-subtitle">{{ stage.range }}</div>
               </button>
@@ -97,7 +99,7 @@
 
           <div class="form-field">
             <label>Story Length</label>
-            <div class="pill-group">
+            <div class="pill-group length-3">
               <button v-for="option in lengths" :key="option.value" @click="formData.length = option.value" :class="['pill', { active: formData.length === option.value }]">
                 <div class="pill-label">{{ option.label }}</div>
                 <div class="pill-subtitle">{{ option.subtitle }}</div>
@@ -116,6 +118,13 @@
           </div>
 
           <div class="form-field">
+            <label>Artwork Style <span class="help-text">— how the pictures will look</span></label>
+            <select v-model="formData.artStyle" class="select-input">
+              <option v-for="s in artStyles" :key="s.value" :value="s.value">{{ s.emoji }} {{ s.label }}</option>
+            </select>
+          </div>
+
+          <div class="form-field">
             <label>Story Ingredients <span class="help-text">— how it should feel</span> <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span></label>
             <div class="pill-group wrap">
               <button v-for="ing in ingredients" :key="ing.value" @click="toggleIngredient(ing.value)" :disabled="isIngredientDisabled(ing.value)" :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]">
@@ -127,10 +136,7 @@
 
           <div class="form-field">
             <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
-            <div class="pill-group wrap theme-presets">
-              <button v-for="t in themes" :key="t" @click="selectThemePreset(t)" :class="['pill pill-small', { active: formData.theme === t }]">{{ t }}</button>
-            </div>
-            <input type="text" v-model="formData.theme" placeholder="Or type your own — e.g. 'the moral of the story is to keep trying'" class="text-input theme-input" />
+            <input type="text" v-model="formData.theme" placeholder="e.g. 'the moral of the story is to keep trying', family, sharing, being brave..." class="text-input" />
           </div>
 
           <button @click="handleGenerate" class="btn-primary btn-large">Generate Story</button>
@@ -142,73 +148,73 @@
         <!-- ============== READING VIEW ============== -->
         <div v-else-if="view === 'story' && currentStory" class="reading-view" :class="{ 'portrait-mode': isPortrait }">
 
-          <!-- SINGLE header bar: Back | progress / nav | New Story -->
+          <!-- Compact single header: Back · Page label · Settings -->
           <div class="reading-header">
             <button @click="editSettingsForm" class="btn-secondary btn-small">← Back</button>
-            <div class="reading-nav">
-              <button class="page-arrow" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page">‹</button>
-              <div class="page-counter">{{ loadingProgress || pageCounterLabel }}</div>
-              <button class="page-arrow" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page">›</button>
-            </div>
-            <button @click="handleNewStory" class="btn-secondary btn-small">New Story</button>
+            <div class="page-counter">{{ loadingProgress || pageCounterLabel }}</div>
+            <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
 
-          <div class="page-area">
+          <div class="page-area" @touchstart.passive="handleTouchStart" @touchend="handleTouchEnd">
 
             <!-- ===== COVER ===== -->
             <div v-if="isOnCover" class="book-page cover-page" :class="{ portrait: isPortrait }">
               <h1 class="cover-title">{{ currentStory.title }}</h1>
               <div class="cover-image-wrap">
-                <button v-if="showInspect && currentStory.cover.image_status === 'ready'" class="inspect-btn" @click="openImageInspection('cover')" aria-label="Inspect image">ⓘ</button>
-                <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
-                  <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="cover-image" draggable="false" />
-                </template>
-                <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
-                  <div class="image-placeholder">
-                    <div class="loading-spinner small"></div>
-                    <div class="placeholder-label">Drawing the cover…</div>
-                  </div>
-                </template>
-                <template v-else-if="currentStory.cover.image_status === 'skipped'">
-                  <div class="image-placeholder skipped">
-                    <div class="placeholder-label">[Skipped]</div>
-                    <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
-                  </div>
-                </template>
-                <template v-else-if="currentStory.cover.image_status === 'failed'">
-                  <div class="image-placeholder failed">
-                    <div class="placeholder-label">Image failed</div>
-                    <button @click.stop="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
-                  </div>
-                </template>
+                <div class="image-frame">
+                  <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
+                    <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="page-image" draggable="false" />
+                  </template>
+                  <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
+                    <div class="image-placeholder">
+                      <div class="loading-spinner small"></div>
+                      <div class="placeholder-label">Drawing the cover…</div>
+                    </div>
+                  </template>
+                  <template v-else-if="currentStory.cover.image_status === 'skipped'">
+                    <div class="image-placeholder skipped">
+                      <div class="placeholder-label">[Skipped]</div>
+                      <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
+                    </div>
+                  </template>
+                  <template v-else-if="currentStory.cover.image_status === 'failed'">
+                    <div class="image-placeholder failed">
+                      <div class="placeholder-label">Image failed</div>
+                      <button @click.stop="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
+                    </div>
+                  </template>
+                  <button v-if="showInspect && currentStory.cover.image_status === 'ready'" class="inspect-btn" @click="openImageInspection('cover')" aria-label="Inspect image">ⓘ</button>
+                </div>
               </div>
             </div>
 
             <!-- ===== STORY SPREAD ===== -->
             <div v-else-if="currentStoryPage" class="book-page story-spread" :class="{ portrait: isPortrait }">
               <div class="spread-image">
-                <button v-if="showInspect && currentStoryPage.image_status === 'ready'" class="inspect-btn" @click="openImageInspection(currentPageIndex - 1)" aria-label="Inspect image">ⓘ</button>
-                <template v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)">
-                  <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" draggable="false" />
-                </template>
-                <template v-else-if="currentStoryPage.image_status === 'loading' || currentStoryPage.image_status === 'pending'">
-                  <div class="image-placeholder">
-                    <div class="loading-spinner small"></div>
-                    <div class="placeholder-label">Drawing this page…</div>
-                  </div>
-                </template>
-                <template v-else-if="currentStoryPage.image_status === 'skipped'">
-                  <div class="image-placeholder skipped">
-                    <div class="placeholder-label">[Image skipped]</div>
-                    <pre class="placeholder-prompt">{{ currentStoryPage.image_prompt }}</pre>
-                  </div>
-                </template>
-                <template v-else-if="currentStoryPage.image_status === 'failed'">
-                  <div class="image-placeholder failed">
-                    <div class="placeholder-label">Image failed</div>
-                    <button @click.stop="regenerateOneImage(currentPageIndex - 1)" class="btn-secondary btn-tiny">Try Again</button>
-                  </div>
-                </template>
+                <div class="image-frame">
+                  <template v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)">
+                    <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" draggable="false" />
+                  </template>
+                  <template v-else-if="currentStoryPage.image_status === 'loading' || currentStoryPage.image_status === 'pending'">
+                    <div class="image-placeholder">
+                      <div class="loading-spinner small"></div>
+                      <div class="placeholder-label">Drawing this page…</div>
+                    </div>
+                  </template>
+                  <template v-else-if="currentStoryPage.image_status === 'skipped'">
+                    <div class="image-placeholder skipped">
+                      <div class="placeholder-label">[Image skipped]</div>
+                      <pre class="placeholder-prompt">{{ currentStoryPage.image_prompt }}</pre>
+                    </div>
+                  </template>
+                  <template v-else-if="currentStoryPage.image_status === 'failed'">
+                    <div class="image-placeholder failed">
+                      <div class="placeholder-label">Image failed</div>
+                      <button @click.stop="regenerateOneImage(currentPageIndex - 1)" class="btn-secondary btn-tiny">Try Again</button>
+                    </div>
+                  </template>
+                  <button v-if="showInspect && currentStoryPage.image_status === 'ready'" class="inspect-btn" @click="openImageInspection(currentPageIndex - 1)" aria-label="Inspect image">ⓘ</button>
+                </div>
               </div>
               <div class="spread-text">
                 <p>{{ currentStoryPage.text }}</p>
@@ -222,11 +228,9 @@
                 <div v-if="currentStory.cover.image_id && getImageURL(currentStory.cover.image_id)" class="toolbox-thumb">
                   <img :src="getImageURL(currentStory.cover.image_id)" alt="Cover" />
                 </div>
-                <div class="toolbox-title-block">
-                  <h2 class="toolbox-title">{{ currentStory.title }}</h2>
-                  <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
-                </div>
+                <h2 class="toolbox-title">{{ currentStory.title }}</h2>
               </div>
+              <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
 
               <div class="toolbox-section">
                 <div class="rating-label">Rate this story</div>
@@ -243,7 +247,7 @@
                     </span>
                   </template>
                 </div>
-                <div class="cost-line">{{ formattedCost }} total · 📝 {{ formatCostFriendly(currentTextCost) }} writing · 🎨 {{ formatCostFriendly(currentImagesCost) }} illustrations</div>
+                <div class="cost-line">This book cost {{ formattedCost }} · 📝 {{ formatCostFriendly(currentTextCost) }} writing · 🎨 {{ formatCostFriendly(currentImagesCost) }} illustrations</div>
               </div>
 
               <div class="toolbox-actions">
@@ -254,11 +258,11 @@
               </div>
             </div>
 
-          </div>
+            <!-- Visible side arrows for nav (subtle, on the book page only) -->
+            <button v-if="canGoPrev()" class="side-arrow side-arrow-left" @click="prevPage" aria-label="Previous page">‹</button>
+            <button v-if="canGoNext()" class="side-arrow side-arrow-right" @click="nextPage" aria-label="Next page">›</button>
 
-          <!-- Invisible edge tap zones -->
-          <button class="nav-zone nav-zone-left" @click="prevPage" :disabled="!canGoPrev()" aria-label="Previous page"></button>
-          <button class="nav-zone nav-zone-right" @click="nextPage" :disabled="!canGoNext()" aria-label="Next page"></button>
+          </div>
         </div>
 
       </main>
@@ -272,15 +276,37 @@
           <p class="modal-text">
             The image AI couldn't draw a scene with
             <strong>{{ copyrightModal.problematicChars.map(c => c.name).join(', ') }}</strong>
-            — likely because of copyright restrictions.
+            — likely due to copyright restrictions.
           </p>
           <p class="modal-text">
-            We can try again with a more generic description that captures the same feel without using copyrighted terms.
-            This will also apply to all remaining images in this story.
+            We can try again using generic alternate names and descriptions. The story text will still use the real names.
           </p>
           <div class="modal-footer">
             <button @click="cancelCopyrightFallback" class="btn-secondary">Skip This Image</button>
             <button @click="confirmCopyrightFallback" class="btn-primary">Try with Generic</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============== CHARACTER WARNING MODAL ============== -->
+      <div v-if="warningModal" class="modal-overlay" @click.self="closeWarningModal">
+        <div class="modal">
+          <div class="modal-header">
+            <h2>About this flag</h2>
+            <button @click="closeWarningModal" class="modal-close">✕</button>
+          </div>
+          <p class="modal-text">
+            "<strong>{{ warningModal.char.name }}</strong>" matches a known copyrighted character keyword
+            <span v-if="warningModal.matches.length > 0">(<em>{{ warningModal.matches.join(', ') }}</em>)</span>
+            that often gets blocked by the image generator.
+          </p>
+          <p class="modal-text">
+            If image generation works fine for this character, this flag will disappear automatically.
+            You can also mark them safe now to hide it.
+          </p>
+          <div class="modal-footer">
+            <button @click="closeWarningModal" class="btn-secondary">Keep Flag</button>
+            <button @click="markCharacterSafe" class="btn-primary">Mark Safe</button>
           </div>
         </div>
       </div>
@@ -330,7 +356,7 @@
 
           <template v-if="charModalMode === 'list'">
             <div class="modal-header">
-              <h2>Manage Characters <span class="modal-count">· {{ selectedCharCount }}/5 selected</span></h2>
+              <h2>Manage Characters <span class="modal-count-inline">·&nbsp;{{ selectedCharCount }}/5 selected</span></h2>
               <button @click="handleModalX" class="modal-close" aria-label="Close">✕</button>
             </div>
             <p class="modal-hint">Tap a character to add them to your story.</p>
@@ -351,7 +377,7 @@
                     <div class="char-row-name-line">
                       <span class="char-row-name">{{ c.name }}</span>
                       <span v-if="isCharacterNew(c)" class="char-new-badge">NEW</span>
-                      <span v-if="charIsPossiblyProblematic(c)" class="char-warn-badge" title="May trigger copyright filter">⚠️</span>
+                      <button v-if="charIsPossiblyProblematic(c)" @click.stop="showCharacterWarning(c)" class="char-warn-btn" title="Why is this flagged?">⚠️</button>
                       <span v-if="c.always_use_fallback" class="char-fallback-badge" title="Uses generic descriptions for images">G</span>
                     </div>
                     <div v-if="c.tagline" class="char-row-tagline">{{ c.tagline }}</div>
@@ -408,14 +434,28 @@
                 <label>Character Profile <span class="help-text">— how the storyteller and illustrator will see them</span></label>
                 <textarea v-model="charForm.visual_description" class="textarea-input" rows="6"></textarea>
               </div>
-              <div v-if="charForm.safe_fallback_visual_description" class="form-field">
-                <label>Generic Backup <span class="help-text">— used if the image AI rejects the original (copyright)</span></label>
-                <textarea v-model="charForm.safe_fallback_visual_description" class="textarea-input" rows="4"></textarea>
-                <label class="toggle-line" style="margin-top: 0.5rem;">
-                  <input type="checkbox" :checked="charForm.always_use_fallback" @change="toggleAlwaysUseFallback" />
-                  <span>Always use generic description for images</span>
-                </label>
+
+              <!-- Generic backup fields: hidden by default, expandable -->
+              <div v-if="charForm.visual_description" class="form-field">
+                <button class="text-link" @click="toggleShowCharFallback" type="button">
+                  {{ showCharFallbackFields ? '▾' : '▸' }} Generic Backup (used if image AI rejects original)
+                </button>
               </div>
+              <template v-if="showCharFallbackFields && charForm.visual_description">
+                <div class="form-field">
+                  <label>Generic Name <span class="help-text">— used for image gen if name is blocked</span></label>
+                  <input type="text" v-model="charForm.safe_fallback_name" class="text-input" />
+                </div>
+                <div class="form-field">
+                  <label>Generic Description <span class="help-text">— used for image gen if description is blocked</span></label>
+                  <textarea v-model="charForm.safe_fallback_visual_description" class="textarea-input" rows="4"></textarea>
+                </div>
+                <label class="toggle-line">
+                  <input type="checkbox" :checked="charForm.always_use_fallback" @change="toggleAlwaysUseFallback" />
+                  <span>Always use generic for images</span>
+                </label>
+              </template>
+
               <div v-if="error" class="error-text">{{ error }}</div>
               <div class="modal-footer">
                 <button v-if="charForm.visual_description" @click="handleEnhance" :disabled="enhancing" class="btn-secondary">🔁 Try Again</button>
@@ -428,8 +468,6 @@
       </div>
 
       <!-- ============== SETTINGS MENU ============== -->
-      <button class="gear-icon" @click="openSettings" title="Settings">⚙️</button>
-
       <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
         <div class="modal modal-wide settings-modal">
           <div class="modal-header">
@@ -491,7 +529,7 @@
           </details>
 
           <details class="settings-section settings-collapsible" v-if="selectedCharacters.length > 0">
-            <summary>Selected characters (for next story)</summary>
+            <summary>Selected Characters (for next story)</summary>
             <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
               <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}{{ c.tagline ? ' · ' + c.tagline : '' }}</div>
               <pre class="debug-code">{{ c.visual_description }}</pre>
@@ -499,19 +537,19 @@
           </details>
 
           <details class="settings-section settings-collapsible" v-if="lastPrompt">
-            <summary>Prompt sent to GPT-4o (text)</summary>
+            <summary>Prompt Sent to GPT-4o (text)</summary>
             <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
             <pre class="debug-code">{{ lastPrompt }}</pre>
           </details>
 
           <details class="settings-section settings-collapsible" v-if="lastRawResponse">
-            <summary>Raw text response</summary>
+            <summary>Raw Text Response</summary>
             <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
             <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
           </details>
 
           <details class="settings-section settings-collapsible" v-if="currentStory && currentStory.style_anchor">
-            <summary>Style anchor</summary>
+            <summary>Style Anchor</summary>
             <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
           </details>
 
@@ -530,10 +568,10 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.6.2"></script>
-  <script src="js/imageStorage.js?v=0.6.2"></script>
-  <script src="js/api.js?v=0.6.2"></script>
-  <script src="js/app.js?v=0.6.2"></script>
+  <script src="js/storage.js?v=0.6.3"></script>
+  <script src="js/imageStorage.js?v=0.6.3"></script>
+  <script src="js/api.js?v=0.6.3"></script>
+  <script src="js/app.js?v=0.6.3"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

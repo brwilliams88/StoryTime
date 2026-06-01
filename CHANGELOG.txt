@@ -9,6 +9,32 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.3 — 2026-05-29 — Form Refinement, Better Reading View, Copyright Fix
+  • Artwork Style dropdown added — 9 options (Surprise me / Watercolor / Pencil / Crayon / Comic Book / Anime / Pixel Art / 3D Animation / Claymation). "Surprise me" lets AI pick based on story.
+  • Theme: single text input (pills removed)
+  • Story Ingredients reduced to 8: Funny, Surprise twist, Heartfelt (combined Heartwarming + Love story), Action-packed, Bedtime, Puzzle, Magical object, Wonder
+  • Removed Extra-Long story length (3 options now: Short ~2min / Regular ~4min / Long ~7min)
+  • Tightened per-page word counts (Short 65 / Regular 75 / Long 95 words) — prompt now HARD CAPS to ensure no scroll
+  • Age picker: 4 stages with emoji (Toddler/Preschool/Early Reader/Older Kid), bigger buttons
+  • Capitalized form labels (Title Case throughout)
+  • Settings button (⚙️) now lives in the top header bar of BOTH form view and reading view — consistent UI; floating icon removed
+  • Removed "New Story" button from reading view (access via Back → form)
+  • Reading view top bar simplified: [← Back] [Page X of N] [⚙️]
+  • Side arrows for navigation (subtle, on the book pages — not covering text)
+  • SWIPE gestures for page navigation (touch horizontal)
+  • ⓘ icon now positioned correctly on the IMAGE itself (using aspect-ratio frame), not its wrapper
+  • Cover title position fix in portrait — tight grouping with image
+  • Story Toolbox: date centered below header, no circles around stars (plain amber), coin sizes less exaggerated (46/48/50/54px vs 38-56)
+  • Coin bottom-edge alignment verified
+  • Character form: Generic backup name + description fields hidden by default, expandable via "Generic Backup" toggle (cleaner UX)
+  • COPYRIGHT FALLBACK NOW HANDLES NAMES TOO: GPT-4o outputs safe_fallback_name; when fallback active, image prompts use both fake name AND fake description. Story text always uses real name.
+  • ⚠️ keyword list tightened (specific character names only, no broad terms like "disney" or "princess")
+  • Per-character "confirmed_safe" flag set automatically after successful image gen — ⚠️ disappears for proven-safe characters
+  • Tap ⚠️ icon: opens warning modal showing what triggered the flag + option to mark safe manually
+  • Manage Characters header: "X/5 selected" inline (single line, no overflow)
+  • Image inspection still works via ⓘ when Settings toggle is on
+
+--------------------------
 v0.6.2 — 2026-05-28 — Settings Menu, Copyright Fallback, Image Quality Upgrades
   • New Settings menu (⚙️ icon top-right) replaces debug bug — organized sections from common to advanced
   • Picture Quality override (Low/Medium/High) for next story; auto-resets to Medium

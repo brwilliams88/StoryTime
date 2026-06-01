@@ -6,11 +6,11 @@ const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
 // ----- Length presets -----
 // Each page gets a unique illustration (no sharing across pages).
+// Tighter per-page words so text always fits a phone screen without scrolling.
 const LENGTH_PRESETS = {
-  short:        { total_pages: 3,  words_per_page: 85,  total_words: 255,  minutes: 2 },
-  regular:      { total_pages: 6,  words_per_page: 100, total_words: 600,  minutes: 5 },
-  long:         { total_pages: 8,  words_per_page: 125, total_words: 1000, minutes: 8 },
-  'extra-long': { total_pages: 12, words_per_page: 125, total_words: 1500, minutes: 12 },
+  short:        { total_pages: 3, words_per_page: 65, total_words: 195, minutes: 2 },
+  regular:      { total_pages: 6, words_per_page: 75, total_words: 450, minutes: 4 },
+  long:         { total_pages: 8, words_per_page: 95, total_words: 760, minutes: 7 },
 };
 
 const PRICING = {
@@ -41,16 +41,25 @@ const GENRE_GUIDANCE = {
 const INGREDIENT_GUIDANCE = {
   'funny':         'sprinkle in light humor and silly moments',
   'surprise':      'include a small unexpected twist that delights',
-  'heartwarming':  'aim for moments of warmth and connection',
+  'heartfelt':     'emotional warmth and meaningful connection — could be friendship, family love, romantic affection, parental love, or other meaningful bonds',
   'action-packed': 'keep momentum brisk with vivid scenes and motion',
   'bedtime':       'soft, calming, sleepy — pace slows toward the end like a lullaby. End with the characters falling asleep or in a peaceful resolution.',
-  'love-story':    'a sweet age-appropriate love or affection thread between characters',
   'puzzle':        'work in a clever puzzle or riddle that gets solved',
   'magical-object':'feature a magical object that matters to the plot',
-  'sidekick':      'include a funny sidekick who adds humor and heart',
-  'song':          'include a short song, rhyme, or repeated catchphrase',
-  'challenge':     'include a real challenge the characters must overcome',
-  'cliffhanger':   'end on a satisfying-but-open note that invites a sequel (do not fully resolve the biggest question)',
+  'wonder':        'a sense of magical wonder, awe, or discovery — moments that make the reader gasp with delight',
+};
+
+// ----- Artwork style guidance -----
+const ARTWORK_STYLE_GUIDANCE = {
+  'surprise-me':  null,  // null = let GPT-4o choose based on story context
+  'watercolor':   'warm watercolor children\'s book illustration, soft painterly brushstrokes, gentle textures',
+  'pencil':       'detailed pencil sketch illustration, fine line work, soft graphite shading',
+  'crayon':       'hand-drawn crayon illustration, childlike texture, vivid waxy colors',
+  'comic-book':   'comic book illustration, bold inked outlines, dynamic panels, vibrant colors',
+  'anime':        'anime / manga style illustration, expressive eyes, clean cel-shading, soft gradients',
+  'pixel-art':    'retro pixel art illustration, 16-bit aesthetic, limited palette, blocky charm',
+  '3d-animation': '3D Pixar-style CGI animation, expressive characters, soft volumetric lighting',
+  'claymation':   'claymation stop-motion style, modeling clay textures, slightly imperfect handmade feel',
 };
 
 
@@ -111,21 +120,31 @@ function buildStoryPrompt(formData, selectedCharacters) {
   lines.push(
     `PAGE STRUCTURE:`,
     `- The book has exactly ${lengthInfo.total_pages} pages.`,
-    `- Each page's text should be approximately ${lengthInfo.words_per_page} words (range: ${Math.round(lengthInfo.words_per_page * 0.7)}–${Math.round(lengthInfo.words_per_page * 1.2)}). Keep close to the target — pages must fit on a phone screen without scrolling.`,
+    `- Each page's text MUST be at most ${Math.round(lengthInfo.words_per_page * 1.1)} words (target: ~${lengthInfo.words_per_page}). HARD CONSTRAINT — pages MUST fit on a phone screen without scrolling. Brevity is better than overrun. NEVER exceed the cap.`,
     ``
   );
+
+  // Style anchor — either user-selected or AI-chosen
+  const styleAnchorOverride = ARTWORK_STYLE_GUIDANCE[formData.artStyle];
 
   lines.push(
     `ILLUSTRATION REQUIREMENTS:`,
     `- Each page gets its OWN unique illustration.`,
-    `- Choose ONE consistent illustration style for the whole story (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output as "style_anchor".`,
+  );
+
+  if (styleAnchorOverride) {
+    lines.push(`- Use this EXACT illustration style for "style_anchor": "${styleAnchorOverride}". Do not deviate or rephrase — output it verbatim.`);
+  } else {
+    lines.push(`- Choose ONE consistent illustration style for the whole story that fits the genre and mood (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output as "style_anchor".`);
+  }
+
+  lines.push(
     `- Plus a separate "cover_image_prompt" for the book cover — describe the SCENE only. Do NOT mention "book cover" or include the story title in the image_prompt. The title is shown separately above the image.`,
     `- Each image_prompt MUST include a specific ACTION VERB — show what characters are DOING, not just standing. Specify the moment.`,
     `- Vary CAMERA ANGLE / COMPOSITION across the story: close-ups, wide shots, over-the-shoulder, top-down, etc. Don't repeat the same framing.`,
     `- Mention named characters BY EXACT NAME (if "Kai", call them "Kai" — do not modify like "RedKai").`,
     `- VARIETY in who appears: not every image needs all characters. Some scenes show one character. Some show several. Some show only scenery or an important object (when that's the visual heart of the page). Match what the page text is really about.`,
     `- Images should depict EXACTLY what the page text describes — no inventing scenes not in the text.`,
-    `- For each page, set image_quality to "medium" by default. The app may override this globally.`,
     `- The app will enrich your image prompts further before sending to the image model — your job is to nail the SCENE accurately.`,
     ``
   );
@@ -256,13 +275,15 @@ async function callOpenAIChat(requestBody, password, promptForReturn) {
 async function enhanceCharacterDescription(name, userDescription, password) {
   const prompt = `You are helping create a stable character profile for use across multiple children's book stories and illustrations.
 
-Given the rough input below, return JSON with THREE things:
+Given the rough input below, return JSON with FOUR things:
 
 1. "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf").
 
 2. "visual_description" — a richly detailed ~100–150 word visual + personality description an illustrator could use to draw this character consistently and a storyteller could use to write them in character. Be specific and concrete. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully.
 
-3. "safe_fallback_visual_description" — a paraphrased GENERIC version of the same character. Same vibe and visual hooks, but with all copyrighted franchise terms replaced with descriptive generic equivalents. For example, "Pikachu" becomes "a small yellow electric mouse-like creature with red cheek circles and a lightning-bolt tail." This version is used if an image model refuses the original due to copyright. If the character is original (no copyrighted franchise references), this can be very similar to the visual_description.
+3. "safe_fallback_name" — a generic alternate name for image generation if the original name is copyright-blocked. For copyrighted characters this MUST be clearly different but capture the essence (e.g. "Darth Vader" → "Lord Vorath", "Pikachu" → "Sparkpaw", "Elsa" → "Frosthild"). For original characters, this can be the same as the original name or a similar alternative.
+
+4. "safe_fallback_visual_description" — a paraphrased GENERIC version of the same character description. Same vibe and visual hooks, but with all copyrighted franchise terms replaced with generic equivalents. Example: "Pikachu" becomes "a small yellow electric mouse-like creature with red cheek circles and a lightning-bolt tail." For original characters this can be similar to the visual_description.
 
 Character name: ${name}
 User-provided description: ${userDescription || '(none — invent a delightful original from the name)'}
@@ -271,6 +292,7 @@ Return ONLY valid JSON (no other text):
 {
   "tagline": "...",
   "visual_description": "...",
+  "safe_fallback_name": "...",
   "safe_fallback_visual_description": "..."
 }`;
 
@@ -285,6 +307,7 @@ Return ONLY valid JSON (no other text):
   return {
     tagline: result.parsed.tagline,
     visual_description: result.parsed.visual_description,
+    safe_fallback_name: result.parsed.safe_fallback_name,
     safe_fallback_visual_description: result.parsed.safe_fallback_visual_description,
     cost: result.cost,
     tokens: result.tokens,
@@ -304,7 +327,8 @@ Return ONLY valid JSON:
   "tagline": "3-6 word identifier",
   "user_description": "1–2 sentences a parent might write",
   "visual_description": "100–150 word richly detailed visual + personality description",
-  "safe_fallback_visual_description": "same character described generically (no copyrighted terms). For original characters, this can be very similar."
+  "safe_fallback_name": "alternate name for fallback (for original characters, can be the same or similar)",
+  "safe_fallback_visual_description": "same character described generically (no copyrighted terms)"
 }
 
 Make the character memorable, specific, charming. Avoid generic archetypes.`;
