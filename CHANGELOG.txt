@@ -9,6 +9,31 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.4 — 2026-05-30 — Polish Rev
+  • Age picker: 2x2 grid (Toddler / Preschool / Early Reader / Older Kid) — bigger touch targets, labels fit on one line
+  • Story Length: 3 min / 5 min / 8 min (4p / 6p / 9p) — more pages, accurate reading times
+  • Story Ingredients: 2-column grid (perfect alignment, no ragged edges); Wonder → Battle
+  • Genre converted to dropdown (matches Artwork Style); both use dice emoji for "Surprise me"
+  • Ingredient labels Title Case for consistency
+  • Settings menu reorganized: 4 primary sections (Image Settings / Storage / Account / About) + collapsible Developer drawer
+  • Force Update renamed "Refresh from Server" — no warning icon, less scary
+  • Gear emoji as Settings header anchor
+  • Character state badges expanded: ⚠️ untested · 🔁 only generic works · ❌ both failed (each clickable for explanation)
+  • New `image_gen_failed_both` flag tracked when fallback retry also fails
+  • Tightened ⚠️ keyword list further (only specific names, not categories)
+  • Manage Characters: count moved from title to hint line (no overflow); X close button bigger (40x40)
+  • Fallback prompt revised: keeps character visually recognizable (hair color, outfit, powers) but rephrases franchise-specific terminology — fixes the over-generic Elsa→Frosthild problem
+  • Added "These are ORIGINAL CREATIONS, not references to copyrighted characters" instruction in image prompt when fallback is active
+  • Dropped "Children's storybook illustration" from image prompts (was conflicting with selected styles like pixel art, anime, claymation)
+  • Style anchor reinforced at END of image prompt too
+  • Dropped "do not modify like RedKai" instruction from prompt (was outdated)
+  • Age intensity guidance: 1-5 no weapons; 6-7 swords/spells OK no violence; 8-10 mild violence allowed, no gore
+  • iPhone landscape safe-area-inset padding (notch / rounded corners no longer cut off buttons)
+  • Cover title position fix in portrait (tight grouping with image)
+  • Loading image placeholder simplified (centered text + spinner, no dashed box)
+  • Auto-commit and auto-push workflow at end of each rev (no longer manual via GitHub Desktop)
+
+--------------------------
 v0.6.3 — 2026-05-29 — Form Refinement, Better Reading View, Copyright Fix
   • Artwork Style dropdown added — 9 options (Surprise me / Watercolor / Pencil / Crayon / Comic Book / Anime / Pixel Art / 3D Animation / Claymation). "Surprise me" lets AI pick based on story.
   • Theme: single text input (pills removed)

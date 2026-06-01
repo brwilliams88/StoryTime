@@ -25,8 +25,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.3',
-      buildDate: '2026-05-29',
+      version: 'v0.6.4',
+      buildDate: '2026-05-30',
 
       showSplash: true,
 
@@ -94,7 +94,7 @@ createApp({
         { value: 'animal-tales', emoji: '🦊', label: 'Animal Tales' },
       ],
       artStyles: [
-        { value: 'surprise-me',  emoji: '✨', label: 'Surprise me' },
+        { value: 'surprise-me',  emoji: '🎲', label: 'Surprise me' },
         { value: 'watercolor',   emoji: '🎨', label: 'Watercolor' },
         { value: 'pencil',       emoji: '✏️', label: 'Pencil Sketch' },
         { value: 'crayon',       emoji: '🖍️', label: 'Crayon' },
@@ -105,19 +105,19 @@ createApp({
         { value: 'claymation',   emoji: '🏺', label: 'Claymation' },
       ],
       ingredients: [
-        { value: 'funny',          emoji: '😄', label: 'Funny moments' },
-        { value: 'surprise',       emoji: '🎁', label: 'Surprise twist' },
+        { value: 'funny',          emoji: '😄', label: 'Funny Moments' },
+        { value: 'surprise',       emoji: '🎁', label: 'Surprise Twist' },
         { value: 'heartfelt',      emoji: '💝', label: 'Heartfelt' },
-        { value: 'action-packed',  emoji: '⚡', label: 'Action-packed' },
+        { value: 'action-packed',  emoji: '⚡', label: 'Action-Packed' },
         { value: 'bedtime',        emoji: '🌙', label: 'Bedtime' },
-        { value: 'puzzle',         emoji: '🧩', label: 'A clever puzzle' },
-        { value: 'magical-object', emoji: '🪄', label: 'A magical object' },
-        { value: 'wonder',         emoji: '🌟', label: 'Wonder' },
+        { value: 'puzzle',         emoji: '🧩', label: 'Clever Puzzle' },
+        { value: 'magical-object', emoji: '🪄', label: 'Magical Object' },
+        { value: 'battle',         emoji: '⚔️', label: 'Battle' },
       ],
       lengths: [
-        { value: 'short',    label: 'Short',   subtitle: '~2 min' },
-        { value: 'regular',  label: 'Regular', subtitle: '~4 min' },
-        { value: 'long',     label: 'Long',    subtitle: '~7 min' },
+        { value: 'short',    label: 'Short',   subtitle: '~3 min' },
+        { value: 'regular',  label: 'Regular', subtitle: '~5 min' },
+        { value: 'long',     label: 'Long',    subtitle: '~8 min' },
       ],
       ageStages: [
         { value: '1-3',  label: 'Toddler',      emoji: '👶', range: '1-3' },
@@ -298,9 +298,34 @@ createApp({
     formatRelative(iso) { return formatRelativeTime(iso); },
     isCharacterNew(char) { return !char.last_used_at; },
     charIsPossiblyProblematic(char) {
-      // Don't flag confirmed-safe characters
-      if (char.confirmed_safe) return false;
+      // Don't flag confirmed-safe or always-fallback or both-failed characters
+      // (those have their own badges)
+      if (char.confirmed_safe || char.always_use_fallback || char.image_gen_failed_both) return false;
       return isPossiblyProblematic(char.name) || isPossiblyProblematic(char.user_description);
+    },
+    // Get the symbol & meaning for this character's image-gen state
+    charStateBadge(char) {
+      if (char.image_gen_failed_both) {
+        return { symbol: '❌', label: 'Failed', kind: 'failed', title: 'Images failed even with generic backup — needs manual fix' };
+      }
+      if (char.always_use_fallback) {
+        return { symbol: '🔁', label: 'Generic', kind: 'generic', title: 'Original image generation was blocked; uses generic backup for images' };
+      }
+      if (this.charIsPossiblyProblematic(char)) {
+        return { symbol: '⚠️', label: 'Untested', kind: 'warn', title: 'Name matches a known copyrighted character — may need backup if images fail' };
+      }
+      return null;
+    },
+    showCharBadgeExplanation(char) {
+      const badge = this.charStateBadge(char);
+      if (!badge) return;
+      if (badge.kind === 'warn') {
+        this.showCharacterWarning(char);
+      } else if (badge.kind === 'generic') {
+        alert(`"${char.name}" had its original description blocked by the image AI. We now use the generic backup description ("${char.safe_fallback_name}") for images. You can change this in the Edit screen.`);
+      } else if (badge.kind === 'failed') {
+        alert(`"${char.name}" could not be generated even with the generic backup. You may need to edit the Generic Description (in Edit) to be more visually distinct, or pick a different character. Tap Edit to adjust.`);
+      }
     },
     showCharacterWarning(char) {
       const matches = [
@@ -637,7 +662,9 @@ createApp({
         console.warn('Enrichment failed; using basic prompt', err);
       }
 
-      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt);
+      // Detect if any character in this image is using fallback
+      const anyFallback = charsForPrompt.some(c => c.use_fallback);
+      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt, anyFallback);
       slot.full_prompt = fullPrompt;
 
       if (this.skipImages) {
@@ -665,7 +692,20 @@ createApp({
         slot.image_status = 'failed';
         slot.image_error = err.message;
         if (err.isContentPolicy) {
-          await this.handleCopyrightFailure(target, storyData);
+          // If we were ALREADY using fallback and still failed, mark characters as "both failed"
+          if (anyFallback) {
+            charsForPrompt.forEach(c => {
+              if (c.use_fallback) {
+                const orig = storyData.selected_characters.find(x => x.id === c.id);
+                if (orig) orig.image_gen_failed_both = true;
+                setCharacterBothFailed(c.id, true);
+              }
+            });
+            this.characters = getStoredCharacters();
+          } else {
+            // First failure — offer fallback
+            await this.handleCopyrightFailure(target, storyData);
+          }
         }
       }
     },

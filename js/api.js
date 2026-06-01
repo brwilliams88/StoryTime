@@ -5,12 +5,12 @@
 const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
 // ----- Length presets -----
-// Each page gets a unique illustration (no sharing across pages).
-// Tighter per-page words so text always fits a phone screen without scrolling.
+// More pages (not more words per page) to hit accurate reading times
+// while keeping each page short enough to fit a phone screen.
 const LENGTH_PRESETS = {
-  short:        { total_pages: 3, words_per_page: 65, total_words: 195, minutes: 2 },
-  regular:      { total_pages: 6, words_per_page: 75, total_words: 450, minutes: 4 },
-  long:         { total_pages: 8, words_per_page: 95, total_words: 760, minutes: 7 },
+  short:   { total_pages: 4, words_per_page: 75, total_words: 300, minutes: 3 },
+  regular: { total_pages: 6, words_per_page: 95, total_words: 570, minutes: 5 },
+  long:    { total_pages: 9, words_per_page: 95, total_words: 855, minutes: 8 },
 };
 
 const PRICING = {
@@ -46,7 +46,7 @@ const INGREDIENT_GUIDANCE = {
   'bedtime':       'soft, calming, sleepy — pace slows toward the end like a lullaby. End with the characters falling asleep or in a peaceful resolution.',
   'puzzle':        'work in a clever puzzle or riddle that gets solved',
   'magical-object':'feature a magical object that matters to the plot',
-  'wonder':        'a sense of magical wonder, awe, or discovery — moments that make the reader gasp with delight',
+  'battle':        'include a meaningful battle, duel, or competition. Intensity and weapon use should match the reader age (see age guidance).',
 };
 
 // ----- Artwork style guidance -----
@@ -74,19 +74,17 @@ function buildStoryPrompt(formData, selectedCharacters) {
   const isBedtime = (formData.ingredients || []).includes('bedtime');
   const hasStoryDetails = formData.storyDetails && formData.storyDetails.trim();
 
-  // Age-scaled intensity guidance — formData.ageRange is "1-2", "3-4", ...
-  const ageRange = formData.ageRange || '5-6';
+  // Age-scaled intensity + violence guidance
+  const ageRange = formData.ageRange || '6-7';
   const [ageMin, ageMax] = ageRange.split('-').map(n => parseInt(n, 10));
   const midAge = Math.round((ageMin + ageMax) / 2);
   let intensityNote;
-  if (ageMax <= 4) {
-    intensityNote = `For young readers (ages ${ageRange}), keep stakes gentle. Conflict can exist but resolution should be quick and reassuring. No real fear or peril. Simple vocabulary.`;
-  } else if (ageMax <= 6) {
-    intensityNote = `For these readers (ages ${ageRange}), moderate stakes are appropriate. Tension is welcome but always rooted in eventual safety. Some character growth.`;
-  } else if (ageMax <= 8) {
-    intensityNote = `For these readers (ages ${ageRange}), stakes can feel real. Characters may face fear or conflict. Resolution should feel earned. More complex emotional arcs welcome.`;
+  if (ageMax <= 5) {
+    intensityNote = `For young readers (ages ${ageRange}), keep stakes gentle. Conflict is symbolic — chases, gentle disagreements, helping each other. NO weapons or fighting violence. Resolution quick and reassuring. Simple vocabulary.`;
+  } else if (ageMax <= 7) {
+    intensityNote = `For these readers (ages ${ageRange}), stakes can feel real. Mild action is welcome: swords, magic spells, chases, captures, escapes. NO real violence or graphic detail. Battles end with resolution, not harm. Some character growth.`;
   } else {
-    intensityNote = `For these older readers (ages ${ageRange}), don't water down challenges. Genuine fear, conflict, even moments of loss are appropriate. Make the emotional truth land. Avoid graphic content, but don't soften the story.`;
+    intensityNote = `For these older readers (ages ${ageRange}), don't water down challenges. Real action allowed: weapons, tactical battles, genuine peril, even mild violence is appropriate (a hero dodges a strike, lands a clean hit, etc). NO gore, NO graphic harm to good characters. Make stakes feel earned. Avoid soft endings unless the genre calls for it.`;
   }
 
   const lines = [];
@@ -142,7 +140,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `- Plus a separate "cover_image_prompt" for the book cover — describe the SCENE only. Do NOT mention "book cover" or include the story title in the image_prompt. The title is shown separately above the image.`,
     `- Each image_prompt MUST include a specific ACTION VERB — show what characters are DOING, not just standing. Specify the moment.`,
     `- Vary CAMERA ANGLE / COMPOSITION across the story: close-ups, wide shots, over-the-shoulder, top-down, etc. Don't repeat the same framing.`,
-    `- Mention named characters BY EXACT NAME (if "Kai", call them "Kai" — do not modify like "RedKai").`,
+    `- Use exact character names as provided.`,
     `- VARIETY in who appears: not every image needs all characters. Some scenes show one character. Some show several. Some show only scenery or an important object (when that's the visual heart of the page). Match what the page text is really about.`,
     `- Images should depict EXACTLY what the page text describes — no inventing scenes not in the text.`,
     `- The app will enrich your image prompts further before sending to the image model — your job is to nail the SCENE accurately.`,
@@ -279,11 +277,20 @@ Given the rough input below, return JSON with FOUR things:
 
 1. "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf").
 
-2. "visual_description" — a richly detailed ~100–150 word visual + personality description an illustrator could use to draw this character consistently and a storyteller could use to write them in character. Be specific and concrete. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully.
+2. "visual_description" — a richly detailed ~100–150 word visual + personality description. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully.
 
-3. "safe_fallback_name" — a generic alternate name for image generation if the original name is copyright-blocked. For copyrighted characters this MUST be clearly different but capture the essence (e.g. "Darth Vader" → "Lord Vorath", "Pikachu" → "Sparkpaw", "Elsa" → "Frosthild"). For original characters, this can be the same as the original name or a similar alternative.
+3. "safe_fallback_name" — a generic alternate name for image generation if the original name is copyright-blocked. For copyrighted characters this MUST be clearly different (e.g. "Darth Vader" → "Lord Vorath", "Pikachu" → "Sparkpaw", "Elsa" → "Frosthild"). For original characters, this can be the same as the original name.
 
-4. "safe_fallback_visual_description" — a paraphrased GENERIC version of the same character description. Same vibe and visual hooks, but with all copyrighted franchise terms replaced with generic equivalents. Example: "Pikachu" becomes "a small yellow electric mouse-like creature with red cheek circles and a lightning-bolt tail." For original characters this can be similar to the visual_description.
+4. "safe_fallback_visual_description" — the SAME character, visually recognizable (preserve hair color, signature outfit colors, powers, archetype), but rephrased to avoid triggering image-AI copyright filters. KEY TECHNIQUES:
+   - Replace franchise-specific phrases with descriptive equivalents:
+     "ice powers" → "frost magic that crystallizes the air"
+     "her tiara from coronation" → "a delicate silver crown"
+     "iconic angular helmet" → "a sleek angular black helmet"
+     "lightsaber" → "a glowing energy sword"
+   - Avoid named items from the source franchise.
+   - Avoid the franchise name (don't say "her Frozen-style dress" — say "a flowing pale blue gown with crystalline details").
+   - Use natural, descriptive English instead of franchise terminology.
+   - PRESERVE: hair color, outfit colors, build, signature powers, archetype, accessories. Don't change the character into someone different.
 
 Character name: ${name}
 User-provided description: ${userDescription || '(none — invent a delightful original from the name)'}
@@ -414,19 +421,25 @@ async function callOpenAIChatRaw(requestBody, password) {
 // =====================================================================
 // IMAGE GENERATION (gpt-image-1)
 // =====================================================================
-function buildImagePrompt(styleAnchor, scenePrompt, characters) {
+function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback) {
   const parts = [];
   if (styleAnchor) {
     parts.push(`Illustration style: ${styleAnchor}. Maintain this exact style consistently across all images in this story.`);
   }
   parts.push(`Scene: ${scenePrompt}`);
   if (characters && characters.length > 0) {
-    parts.push(`Character references (use these EXACT names and appearances when mentioned in the scene):`);
+    parts.push(`Character references (use these exact names and appearances when mentioned in the scene):`);
     characters.forEach(c => {
       parts.push(`- ${c.name}: ${c.visual_description}`);
     });
   }
-  parts.push(`Children's storybook illustration. Do not include the story title or any large text/words as the focus of the image. Incidental text on clothing, signs, or world objects is acceptable if natural to the scene.`);
+  if (useFallback) {
+    parts.push(`The characters in this image are ORIGINAL CREATIONS for this story. Do not interpret them as references to any existing copyrighted or trademarked characters from films, games, or shows. Render them based solely on the descriptions provided.`);
+  }
+  parts.push(`Do not include the story title or any large text/words as the focus of the image. Incidental text on clothing, signs, or world objects is acceptable if natural to the scene.`);
+  if (styleAnchor) {
+    parts.push(`Reminder: render in this exact style: ${styleAnchor}.`);
+  }
   return parts.join('\n\n');
 }
 

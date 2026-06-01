@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=0.6.3" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.4" />
 </head>
 <body>
 
@@ -88,7 +88,7 @@
 
           <div class="form-field">
             <label>Story for Age</label>
-            <div class="pill-group age-stages-4">
+            <div class="pill-group age-stages-grid">
               <button v-for="stage in ageStages" :key="stage.value" @click="formData.ageRange = stage.value" :class="['pill pill-age-big', { active: formData.ageRange === stage.value }]">
                 <div class="pill-emoji-big">{{ stage.emoji }}</div>
                 <div class="pill-label">{{ stage.label }}</div>
@@ -109,12 +109,9 @@
 
           <div class="form-field">
             <label>Genre <span class="help-text">— the type of story</span></label>
-            <div class="pill-group wrap">
-              <button v-for="g in genres" :key="g.value" @click="formData.genre = g.value" :class="['pill pill-compact', { active: formData.genre === g.value }]">
-                <span class="pill-emoji">{{ g.emoji }}</span>
-                <span class="pill-text">{{ g.label }}</span>
-              </button>
-            </div>
+            <select v-model="formData.genre" class="select-input">
+              <option v-for="g in genres" :key="g.value" :value="g.value">{{ g.emoji }} {{ g.label }}</option>
+            </select>
           </div>
 
           <div class="form-field">
@@ -126,7 +123,7 @@
 
           <div class="form-field">
             <label>Story Ingredients <span class="help-text">— how it should feel</span> <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span></label>
-            <div class="pill-group wrap">
+            <div class="ingredients-grid">
               <button v-for="ing in ingredients" :key="ing.value" @click="toggleIngredient(ing.value)" :disabled="isIngredientDisabled(ing.value)" :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]">
                 <span class="pill-emoji">{{ ing.emoji }}</span>
                 <span class="pill-text">{{ ing.label }}</span>
@@ -356,10 +353,10 @@
 
           <template v-if="charModalMode === 'list'">
             <div class="modal-header">
-              <h2>Manage Characters <span class="modal-count-inline">·&nbsp;{{ selectedCharCount }}/5 selected</span></h2>
-              <button @click="handleModalX" class="modal-close" aria-label="Close">✕</button>
+              <h2>Manage Characters</h2>
+              <button @click="handleModalX" class="modal-close modal-close-big" aria-label="Close">✕</button>
             </div>
-            <p class="modal-hint">Tap a character to add them to your story.</p>
+            <p class="modal-hint">Tap a character to add to your story · {{ selectedCharCount }}/5 selected</p>
             <div class="modal-actions">
               <button @click="startCreateCharacter" class="btn-primary btn-small">+ Create New</button>
               <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}</button>
@@ -377,8 +374,12 @@
                     <div class="char-row-name-line">
                       <span class="char-row-name">{{ c.name }}</span>
                       <span v-if="isCharacterNew(c)" class="char-new-badge">NEW</span>
-                      <button v-if="charIsPossiblyProblematic(c)" @click.stop="showCharacterWarning(c)" class="char-warn-btn" title="Why is this flagged?">⚠️</button>
-                      <span v-if="c.always_use_fallback" class="char-fallback-badge" title="Uses generic descriptions for images">G</span>
+                      <button
+                        v-if="charStateBadge(c)"
+                        @click.stop="showCharBadgeExplanation(c)"
+                        :class="['char-state-btn', 'char-state-' + charStateBadge(c).kind]"
+                        :title="charStateBadge(c).title"
+                      >{{ charStateBadge(c).symbol }}</button>
                     </div>
                     <div v-if="c.tagline" class="char-row-tagline">{{ c.tagline }}</div>
                     <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}</div>
@@ -471,40 +472,31 @@
       <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
         <div class="modal modal-wide settings-modal">
           <div class="modal-header">
-            <h2>Settings</h2>
-            <button @click="closeSettings" class="modal-close" aria-label="Close">✕</button>
+            <h2>⚙️ Settings</h2>
+            <button @click="closeSettings" class="modal-close modal-close-big" aria-label="Close">✕</button>
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">About</div>
-            <div class="settings-row"><span>Version</span><strong>{{ version }}</strong></div>
-            <div class="settings-row"><span>Build date</span><strong>{{ buildDate }}</strong></div>
-          </div>
-
-          <div class="settings-section">
-            <div class="settings-section-title">Picture Quality (next story)</div>
+            <div class="settings-section-title">🎨 Image Settings</div>
+            <div class="settings-sub">Picture quality (next story)</div>
             <div class="settings-segment">
               <button :class="{ active: nextStoryQuality === 'low' }" @click="setNextStoryQuality('low')">Low</button>
               <button :class="{ active: nextStoryQuality === 'medium' }" @click="setNextStoryQuality('medium')">Medium</button>
               <button :class="{ active: nextStoryQuality === 'high' }" @click="setNextStoryQuality('high')">High</button>
             </div>
             <p class="settings-fine-print">Resets to Medium after one story.</p>
-          </div>
-
-          <div class="settings-section">
-            <div class="settings-section-title">Inspection</div>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="skipImages" @change="toggleSkipImages" />
+              <span>Skip image generation (placeholders only)</span>
+            </label>
             <label class="toggle-line">
               <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
               <span>Show ⓘ button on images (for parents)</span>
             </label>
-            <label class="toggle-line">
-              <input type="checkbox" :checked="skipImages" @change="toggleSkipImages" />
-              <span>Skip image generation</span>
-            </label>
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">Storage</div>
+            <div class="settings-section-title">💾 Storage</div>
             <div class="settings-row"><span>Stories</span><strong>{{ formattedStorageSize }}</strong></div>
             <div class="settings-row"><span>Images</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
             <div class="settings-row-actions">
@@ -514,52 +506,57 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">Account</div>
+            <div class="settings-section-title">🔐 Account</div>
             <div class="settings-row-actions">
               <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
             </div>
           </div>
 
+          <div class="settings-section">
+            <div class="settings-section-title">ℹ️ About</div>
+            <div class="settings-row"><span>Version</span><strong>{{ version }}</strong></div>
+            <div class="settings-row"><span>Built</span><strong>{{ buildDate }}</strong></div>
+          </div>
+
           <details class="settings-section settings-collapsible">
-            <summary>Last Generation</summary>
+            <summary>🛠️ Developer</summary>
+
+            <div class="settings-sub">Last generation</div>
             <div class="settings-row"><span>Text cost</span><strong>{{ formatCostFriendly(currentTextCost) }}</strong></div>
             <div class="settings-row"><span>Images cost</span><strong>{{ formatCostFriendly(currentImagesCost) }}</strong></div>
             <div class="settings-row"><span>Total</span><strong>{{ formatCostFriendly(currentStoryCost) }}</strong></div>
             <div v-if="lastTokens" class="settings-row"><span>Tokens</span><strong>{{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out</strong></div>
-          </details>
 
-          <details class="settings-section settings-collapsible" v-if="selectedCharacters.length > 0">
-            <summary>Selected Characters (for next story)</summary>
-            <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
-              <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}{{ c.tagline ? ' · ' + c.tagline : '' }}</div>
-              <pre class="debug-code">{{ c.visual_description }}</pre>
-            </div>
-          </details>
-
-          <details class="settings-section settings-collapsible" v-if="lastPrompt">
-            <summary>Prompt Sent to GPT-4o (text)</summary>
-            <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
-            <pre class="debug-code">{{ lastPrompt }}</pre>
-          </details>
-
-          <details class="settings-section settings-collapsible" v-if="lastRawResponse">
-            <summary>Raw Text Response</summary>
-            <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
-            <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
-          </details>
-
-          <details class="settings-section settings-collapsible" v-if="currentStory && currentStory.style_anchor">
-            <summary>Style Anchor</summary>
-            <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
-          </details>
-
-          <div class="settings-section">
-            <div class="settings-section-title">Advanced</div>
-            <div class="settings-row-actions">
+            <div class="settings-row-actions" style="margin-top: 0.8rem;">
               <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
-              <button @click="handleForceUpdate" class="btn-secondary btn-small">⚠️ Force Update</button>
+              <button @click="handleForceUpdate" class="btn-secondary btn-small">Refresh from Server</button>
             </div>
-          </div>
+
+            <details v-if="selectedCharacters.length > 0" class="settings-sub-collapse">
+              <summary>Selected characters (for next story)</summary>
+              <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
+                <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}{{ c.tagline ? ' · ' + c.tagline : '' }}</div>
+                <pre class="debug-code">{{ c.visual_description }}</pre>
+              </div>
+            </details>
+
+            <details v-if="lastPrompt" class="settings-sub-collapse">
+              <summary>Prompt sent to GPT-4o</summary>
+              <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
+              <pre class="debug-code">{{ lastPrompt }}</pre>
+            </details>
+
+            <details v-if="lastRawResponse" class="settings-sub-collapse">
+              <summary>Raw text response</summary>
+              <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
+              <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
+            </details>
+
+            <details v-if="currentStory && currentStory.style_anchor" class="settings-sub-collapse">
+              <summary>Style anchor</summary>
+              <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
+            </details>
+          </details>
 
         </div>
       </div>
@@ -568,10 +565,10 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.6.3"></script>
-  <script src="js/imageStorage.js?v=0.6.3"></script>
-  <script src="js/api.js?v=0.6.3"></script>
-  <script src="js/app.js?v=0.6.3"></script>
+  <script src="js/storage.js?v=0.6.4"></script>
+  <script src="js/imageStorage.js?v=0.6.4"></script>
+  <script src="js/api.js?v=0.6.4"></script>
+  <script src="js/app.js?v=0.6.4"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

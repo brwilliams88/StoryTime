@@ -75,6 +75,14 @@ function setCharacterConfirmedSafe(id, value) {
   localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
 }
 
+function setCharacterBothFailed(id, value) {
+  const all = getStoredCharacters();
+  const c = all.find(x => x.id === id);
+  if (!c) return;
+  c.image_gen_failed_both = value;
+  localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
 // ---- Debug mode (kept for backwards compatibility — Settings menu now controls visibility) ----
 function getDebugMode() { return localStorage.getItem(STORAGE_KEYS.DEBUG_MODE) === 'true'; }
 function setDebugMode(enabled) { localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, enabled ? 'true' : 'false'); }
