@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=0.6.4" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.5" />
 </head>
 <body>
 
@@ -83,7 +83,7 @@
 
           <div class="form-field">
             <label>Story Details <span class="help-text">— make it your own with cool details</span> <span class="optional">(optional)</span></label>
-            <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input" rows="3"></textarea>
+            <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input textarea-large" rows="6"></textarea>
           </div>
 
           <div class="form-field">
@@ -136,6 +136,7 @@
             <input type="text" v-model="formData.theme" placeholder="e.g. 'the moral of the story is to keep trying', family, sharing, being brave..." class="text-input" />
           </div>
 
+          <div class="cost-estimate">Estimated cost: <strong>~{{ estimatedStoryCostFormatted }}</strong></div>
           <button @click="handleGenerate" class="btn-primary btn-large">Generate Story</button>
 
           <p v-if="error" class="error-text">{{ error }}</p>
@@ -148,7 +149,7 @@
           <!-- Compact single header: Back · Page label · Settings -->
           <div class="reading-header">
             <button @click="editSettingsForm" class="btn-secondary btn-small">← Back</button>
-            <div class="page-counter">{{ loadingProgress || pageCounterLabel }}</div>
+            <div class="page-counter">{{ pageCounterLabel }}</div>
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
 
@@ -227,6 +228,7 @@
                 </div>
                 <h2 class="toolbox-title">{{ currentStory.title }}</h2>
               </div>
+              <div v-if="currentStory.summary" class="toolbox-summary">"{{ currentStory.summary }}"</div>
               <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
 
               <div class="toolbox-section">
@@ -249,17 +251,31 @@
 
               <div class="toolbox-actions">
                 <button @click="readAgain" class="btn-secondary">Read Again</button>
+                <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">🧠 Quiz Me</button>
                 <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
                 <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
                 <button @click="handleNewStory" class="btn-primary">New Story</button>
               </div>
             </div>
 
-            <!-- Visible side arrows for nav (subtle, on the book page only) -->
+            <!-- Side arrows in bottom corners -->
             <button v-if="canGoPrev()" class="side-arrow side-arrow-left" @click="prevPage" aria-label="Previous page">‹</button>
             <button v-if="canGoNext()" class="side-arrow side-arrow-right" @click="nextPage" aria-label="Next page">›</button>
 
           </div>
+
+          <!-- Bottom progress toast (during generation) -->
+          <div v-if="loadingProgress && !toastDismissed" class="loading-toast">
+            <svg class="progress-ring" viewBox="0 0 40 40">
+              <circle class="progress-ring-bg" cx="20" cy="20" r="16" fill="none" stroke-width="3.5" />
+              <circle class="progress-ring-fill" cx="20" cy="20" r="16" fill="none" stroke-width="3.5"
+                :style="{ strokeDasharray: '100.53', strokeDashoffset: (100.53 * (1 - loadingProgressPercentage())) }"
+                transform="rotate(-90 20 20)" />
+            </svg>
+            <span class="loading-toast-text">{{ loadingProgress }}</span>
+            <button @click="dismissToast" class="loading-toast-close" aria-label="Hide">✕</button>
+          </div>
+
         </div>
 
       </main>
@@ -347,6 +363,56 @@
         </div>
       </div>
 
+      <!-- ============== QUIZ MODAL ============== -->
+      <div v-if="showQuiz && currentStory && currentStory.quiz" class="modal-overlay" @click.self="closeQuiz">
+        <div class="modal modal-wide quiz-modal">
+          <div class="modal-header">
+            <h2>🧠 Quiz Time!</h2>
+            <button @click="closeQuiz" class="modal-close modal-close-big">✕</button>
+          </div>
+
+          <div class="quiz-section">
+            <div class="quiz-section-title">What do you remember?</div>
+            <div v-for="(q, qIdx) in currentStory.quiz.comprehension" :key="'c'+qIdx" class="quiz-question">
+              <div class="quiz-q-text">{{ qIdx + 1 }}. {{ q.question }}</div>
+              <div class="quiz-options">
+                <button
+                  v-for="(opt, optIdx) in q.options"
+                  :key="optIdx"
+                  @click="setQuizAnswer(qIdx, optIdx)"
+                  :class="[
+                    'quiz-option',
+                    { selected: quizAnswers[qIdx] === optIdx },
+                    { correct: quizRevealed && q.correct === optIdx },
+                    { incorrect: quizRevealed && quizAnswers[qIdx] === optIdx && q.correct !== optIdx }
+                  ]"
+                  :disabled="quizRevealed"
+                >{{ opt }}</button>
+              </div>
+            </div>
+            <button
+              v-if="!quizRevealed && quizAllAnswered()"
+              @click="revealQuizAnswers"
+              class="btn-primary"
+            >Reveal Answers</button>
+            <div v-if="quizRevealed" class="quiz-score">
+              You got <strong>{{ quizScore().correct }} / {{ quizScore().total }}</strong> right!
+            </div>
+          </div>
+
+          <div v-if="currentStory.quiz.reflection && currentStory.quiz.reflection.length" class="quiz-section">
+            <div class="quiz-section-title">Think about it</div>
+            <div v-for="(r, rIdx) in currentStory.quiz.reflection" :key="'r'+rIdx" class="quiz-reflection">
+              {{ rIdx + 1 }}. {{ r }}
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button @click="closeQuiz" class="btn-primary">Done</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ============== CHARACTERS MODAL ============== -->
       <div v-if="showCharactersModal" class="modal-overlay" @click.self="closeCharactersModal">
         <div class="modal modal-wide">
@@ -361,6 +427,7 @@
               <button @click="startCreateCharacter" class="btn-primary btn-small">+ Create New</button>
               <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}</button>
             </div>
+            <input v-if="characters.length > 3" type="text" v-model="charSearch" placeholder="🔍 Search characters…" class="text-input char-search" />
             <div v-if="error" class="error-text" style="margin: 0.5rem 0;">{{ error }}</div>
             <div class="char-list">
               <div v-if="characters.length === 0" class="char-list-empty">
@@ -368,8 +435,11 @@
                 <div class="empty-title">No characters yet</div>
                 <div class="empty-text">Tap <strong>+ Create New</strong> to make one, or <strong>🎲 Generate Random</strong> to let the AI invent one.</div>
               </div>
-              <div v-for="c in sortedCharacters" :key="c.id" :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]">
+              <div v-for="c in filteredCharacters" :key="c.id" :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]">
                 <div class="char-row-top">
+                  <div v-if="c.photo_id && getImageURL(c.photo_id)" class="char-row-photo">
+                    <img :src="getImageURL(c.photo_id)" :alt="c.name" />
+                  </div>
                   <div class="char-row-info">
                     <div class="char-row-name-line">
                       <span class="char-row-name">{{ c.name }}</span>
@@ -426,6 +496,26 @@
                 <label>Description</label>
                 <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent." class="textarea-input" rows="4"></textarea>
               </div>
+
+              <!-- Photo capture -->
+              <div class="form-field">
+                <label>Reference Photo <span class="optional">(optional)</span></label>
+                <p class="form-hint">Upload or take a photo of a person, drawing, or toy. The AI will analyze it and merge into the description (~2¢ per photo).</p>
+                <input ref="photoInput" type="file" accept="image/*" capture="environment" @change="handlePhotoSelect" style="display: none;" />
+                <div class="photo-row">
+                  <button v-if="!charForm.photo_id" @click="triggerPhotoInput" :disabled="analyzingPhoto" class="btn-secondary btn-small">
+                    📸 {{ analyzingPhoto ? 'Analyzing…' : 'Add Photo' }}
+                  </button>
+                  <div v-if="charForm.photo_id && getImageURL(charForm.photo_id)" class="photo-preview">
+                    <img :src="getImageURL(charForm.photo_id)" alt="Reference" />
+                    <div class="photo-actions">
+                      <button @click="triggerPhotoInput" :disabled="analyzingPhoto" class="btn-secondary btn-tiny">Replace</button>
+                      <button @click="handleRemovePhoto" :disabled="analyzingPhoto" class="btn-secondary btn-tiny btn-danger">Remove</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
               <div v-if="charForm.tagline" class="form-field" style="margin-top: 1.2rem;">
                 <label>Tagline <span class="help-text">— short identifier shown in the list</span></label>
@@ -565,10 +655,10 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.6.4"></script>
-  <script src="js/imageStorage.js?v=0.6.4"></script>
-  <script src="js/api.js?v=0.6.4"></script>
-  <script src="js/app.js?v=0.6.4"></script>
+  <script src="js/storage.js?v=0.6.5"></script>
+  <script src="js/imageStorage.js?v=0.6.5"></script>
+  <script src="js/api.js?v=0.6.5"></script>
+  <script src="js/app.js?v=0.6.5"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

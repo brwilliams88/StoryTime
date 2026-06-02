@@ -25,8 +25,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.4',
-      buildDate: '2026-05-30',
+      version: 'v0.6.5',
+      buildDate: '2026-06-01',
 
       showSplash: true,
 
@@ -79,30 +79,52 @@ createApp({
       generatingRandom: false,
       isRandomNew: false,
       expandedCharIds: [],
-      showCharFallbackFields: false,  // hide fallback fields by default in form
+      showCharFallbackFields: false,
+      charSearch: '',
+      analyzingPhoto: false,
+
+      // Quiz
+      showQuiz: false,
+      quizAnswers: {},
+      quizRevealed: false,
+
+      // Loading toast dismissal
+      toastDismissed: false,
+
+      // Per-story fallback tracking (counts per char)
+      fallbackStats: {},  // { charId: { success: 0, fail: 0 } }
 
       genres: [
-        { value: 'surprise-me', emoji: '🎲', label: 'Surprise me' },
-        { value: 'adventure',   emoji: '🗺️', label: 'Adventure' },
-        { value: 'fairy-tale',  emoji: '🧚', label: 'Fairy Tale' },
-        { value: 'fantasy',     emoji: '✨', label: 'Fantasy' },
-        { value: 'sci-fi',      emoji: '🚀', label: 'Sci-Fi' },
-        { value: 'pirates',     emoji: '🏴‍☠️', label: 'Pirates' },
-        { value: 'superhero',   emoji: '🦸', label: 'Superhero' },
-        { value: 'mystery',     emoji: '🔍', label: 'Mystery' },
-        { value: 'spooky',      emoji: '👻', label: 'Spooky' },
-        { value: 'animal-tales', emoji: '🦊', label: 'Animal Tales' },
+        { value: 'surprise-me',   emoji: '🎲', label: 'Surprise me' },
+        { value: 'adventure',     emoji: '🗺️', label: 'Adventure' },
+        { value: 'fairy-tale',    emoji: '🧚', label: 'Fairy Tale' },
+        { value: 'fantasy',       emoji: '✨', label: 'Fantasy' },
+        { value: 'sci-fi',        emoji: '🚀', label: 'Sci-Fi' },
+        { value: 'pirates',       emoji: '🏴‍☠️', label: 'Pirates' },
+        { value: 'superhero',     emoji: '🦸', label: 'Superhero' },
+        { value: 'mystery',       emoji: '🔍', label: 'Mystery' },
+        { value: 'spooky',        emoji: '👻', label: 'Spooky' },
+        { value: 'animal-tales',  emoji: '🦊', label: 'Animal Tales' },
+        { value: 'dinosaurs',     emoji: '🦖', label: 'Dinosaurs' },
+        { value: 'slice-of-life', emoji: '🍰', label: 'Slice of Life' },
+        { value: 'underwater',    emoji: '🌊', label: 'Underwater' },
+        { value: 'western',       emoji: '🤠', label: 'Western' },
       ],
       artStyles: [
-        { value: 'surprise-me',  emoji: '🎲', label: 'Surprise me' },
-        { value: 'watercolor',   emoji: '🎨', label: 'Watercolor' },
-        { value: 'pencil',       emoji: '✏️', label: 'Pencil Sketch' },
-        { value: 'crayon',       emoji: '🖍️', label: 'Crayon' },
-        { value: 'comic-book',   emoji: '📚', label: 'Comic Book' },
-        { value: 'anime',        emoji: '🌸', label: 'Anime / Manga' },
-        { value: 'pixel-art',    emoji: '👾', label: 'Pixel Art' },
-        { value: '3d-animation', emoji: '🎬', label: '3D Animation' },
-        { value: 'claymation',   emoji: '🏺', label: 'Claymation' },
+        { value: 'surprise-me',      emoji: '🎲', label: 'Surprise me' },
+        { value: 'watercolor',       emoji: '🎨', label: 'Watercolor' },
+        { value: 'pencil',           emoji: '✏️', label: 'Pencil Sketch (B&W)' },
+        { value: 'colored-pencil',   emoji: '🌈', label: 'Colored Pencil' },
+        { value: 'crayon',           emoji: '🖍️', label: 'Crayon' },
+        { value: 'comic-book',       emoji: '📚', label: 'Comic Book' },
+        { value: 'anime',            emoji: '🌸', label: 'Anime / Manga' },
+        { value: 'pixel-art',        emoji: '👾', label: 'Pixel / Video Game' },
+        { value: '3d-animation',     emoji: '🎬', label: '3D Animation' },
+        { value: 'claymation',       emoji: '🏺', label: 'Claymation' },
+        { value: 'building-blocks',  emoji: '🧱', label: 'Lego' },
+        { value: 'stuffies',         emoji: '🐻', label: 'Stuffies' },
+        { value: 'paper-cutouts',    emoji: '✂️', label: 'Paper Cutouts' },
+        { value: 'storybook-ink',    emoji: '📜', label: 'Storybook Ink' },
       ],
       ingredients: [
         { value: 'funny',          emoji: '😄', label: 'Funny Moments' },
@@ -159,6 +181,21 @@ createApp({
         if (aNew && bNew) return (b.created_at || '').localeCompare(a.created_at || '');
         return b.last_used_at.localeCompare(a.last_used_at);
       });
+    },
+    filteredCharacters() {
+      const q = (this.charSearch || '').toLowerCase().trim();
+      if (!q) return this.sortedCharacters;
+      return this.sortedCharacters.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.tagline || '').toLowerCase().includes(q) ||
+        (c.user_description || '').toLowerCase().includes(q)
+      );
+    },
+    estimatedStoryCostNumber() {
+      return estimateStoryCost(this.formData, this.nextStoryQuality);
+    },
+    estimatedStoryCostFormatted() {
+      return formatCostFriendly(this.estimatedStoryCostNumber);
     },
     charFormCanSave() {
       return this.charForm.name.trim().length > 0
@@ -303,13 +340,16 @@ createApp({
       if (char.confirmed_safe || char.always_use_fallback || char.image_gen_failed_both) return false;
       return isPossiblyProblematic(char.name) || isPossiblyProblematic(char.user_description);
     },
-    // Get the symbol & meaning for this character's image-gen state
+    // Smart badge logic using success/fail counts
     charStateBadge(char) {
-      if (char.image_gen_failed_both) {
-        return { symbol: '❌', label: 'Failed', kind: 'failed', title: 'Images failed even with generic backup — needs manual fix' };
+      const successCount = char.fallback_success_count || 0;
+      const failCount = char.fallback_fail_count || 0;
+      // Only show X if always-fallback AND has failed AND never succeeded
+      if (char.always_use_fallback && failCount > 0 && successCount === 0) {
+        return { symbol: '❌', label: 'Failed', kind: 'failed', title: 'Images consistently fail even with generic backup — needs manual fix' };
       }
       if (char.always_use_fallback) {
-        return { symbol: '🔁', label: 'Generic', kind: 'generic', title: 'Original image generation was blocked; uses generic backup for images' };
+        return { symbol: '🔁', label: 'Generic', kind: 'generic', title: 'Original was blocked; uses generic backup for images' };
       }
       if (this.charIsPossiblyProblematic(char)) {
         return { symbol: '⚠️', label: 'Untested', kind: 'warn', title: 'Name matches a known copyrighted character — may need backup if images fail' };
@@ -322,9 +362,11 @@ createApp({
       if (badge.kind === 'warn') {
         this.showCharacterWarning(char);
       } else if (badge.kind === 'generic') {
-        alert(`"${char.name}" had its original description blocked by the image AI. We now use the generic backup description ("${char.safe_fallback_name}") for images. You can change this in the Edit screen.`);
+        const success = char.fallback_success_count || 0;
+        const fail = char.fallback_fail_count || 0;
+        alert(`"${char.name}" had its original description blocked by the image AI. We now use the generic backup description ("${char.safe_fallback_name}") for images.\n\nSuccess rate so far: ${success} succeeded / ${fail} failed.\n\nYou can adjust the generic description in the Edit screen.`);
       } else if (badge.kind === 'failed') {
-        alert(`"${char.name}" could not be generated even with the generic backup. You may need to edit the Generic Description (in Edit) to be more visually distinct, or pick a different character. Tap Edit to adjust.`);
+        alert(`"${char.name}" could not be generated even with the generic backup. ${char.fallback_fail_count || 0} attempts failed, 0 succeeded.\n\nYou may need to edit the Generic Description (in Edit) to be more visually distinct from the copyrighted character, or pick a different character.`);
       }
     },
     showCharacterWarning(char) {
@@ -370,6 +412,9 @@ createApp({
         safe_fallback_visual_description: char.safe_fallback_visual_description || '',
         always_use_fallback: !!char.always_use_fallback,
         confirmed_safe: !!char.confirmed_safe,
+        photo_id: char.photo_id || null,
+        fallback_success_count: char.fallback_success_count || 0,
+        fallback_fail_count: char.fallback_fail_count || 0,
         created_at: char.created_at,
         last_used_at: char.last_used_at,
       };
@@ -447,6 +492,9 @@ createApp({
         safe_fallback_visual_description: (this.charForm.safe_fallback_visual_description || '').trim(),
         always_use_fallback: !!this.charForm.always_use_fallback,
         confirmed_safe: !!this.charForm.confirmed_safe,
+        photo_id: this.charForm.photo_id || null,
+        fallback_success_count: this.charForm.fallback_success_count || 0,
+        fallback_fail_count: this.charForm.fallback_fail_count || 0,
         created_at: this.charForm.created_at || now,
         last_used_at: this.charForm.last_used_at || null,
       };
@@ -457,13 +505,19 @@ createApp({
       this.charModalMode = 'list';
     },
 
-    handleDeleteCharacter(char) {
+    async handleDeleteCharacter(char) {
       if (!confirm(`Delete "${char.name}"? This cannot be undone.`)) return;
+      // Clean up photo blob
+      if (char.photo_id) {
+        try { await deleteImageBlob(char.photo_id); } catch (e) {}
+        if (this._urlCache) delete this._urlCache[char.photo_id];
+      }
       deleteCharacter(char.id);
       this.characters = getStoredCharacters();
       const idx = this.formData.selectedCharacterIds.indexOf(char.id);
       if (idx !== -1) this.formData.selectedCharacterIds.splice(idx, 1);
       delete this.formData.characterRoles[char.id];
+      this.refreshImageStats();
     },
 
     toggleAlwaysUseFallback() {
@@ -483,6 +537,7 @@ createApp({
       this.loadingHint = loadingHintForLength(this.formData.length);
       this.loadingProgress = '';
       this.useFallbackChars = {};
+      this.toastDismissed = false;
       setStickyPrefs(this.formData);
 
       const selected = this.selectedCharacters.map(c => ({
@@ -519,6 +574,8 @@ createApp({
           parent_story_id: null,
           story_series_id: null,
           title: story.title,
+          summary: story.summary || '',
+          quiz: story.quiz || null,
           style_anchor: story.style_anchor || 'consistent children\'s storybook illustration style',
           cover: {
             image_prompt: story.cover_image_prompt,
@@ -687,18 +744,19 @@ createApp({
         this.currentStoryCost = this.currentTextCost + this.currentImagesCost;
         storyData.images_cost = this.currentImagesCost;
         storyData.cost = this.currentStoryCost;
+
+        // If any character was using fallback, this is a success for them
+        if (anyFallback) this.trackFallbackSuccess(charsForPrompt);
       } catch (err) {
         console.error(`Image generation failed (${target}):`, err);
         slot.image_status = 'failed';
         slot.image_error = err.message;
         if (err.isContentPolicy) {
-          // If we were ALREADY using fallback and still failed, mark characters as "both failed"
+          // If we were already using fallback and still failed, track stats per char
           if (anyFallback) {
             charsForPrompt.forEach(c => {
               if (c.use_fallback) {
-                const orig = storyData.selected_characters.find(x => x.id === c.id);
-                if (orig) orig.image_gen_failed_both = true;
-                setCharacterBothFailed(c.id, true);
+                incrementCharacterFallbackCount(c.id, false);
               }
             });
             this.characters = getStoredCharacters();
@@ -708,6 +766,16 @@ createApp({
           }
         }
       }
+    },
+
+    // Track fallback success when an image with a fallback char generates successfully
+    trackFallbackSuccess(charsForPrompt) {
+      charsForPrompt.forEach(c => {
+        if (c.use_fallback) {
+          incrementCharacterFallbackCount(c.id, true);
+        }
+      });
+      this.characters = getStoredCharacters();
     },
 
     async handleCopyrightFailure(target, storyData) {
@@ -954,6 +1022,136 @@ createApp({
     },
 
     formatCostFriendly(cost) { return formatCostFriendly(cost); },
+
+    // ============================================================
+    // PHOTO CAPTURE for character creation
+    // ============================================================
+    triggerPhotoInput() {
+      const el = this.$refs.photoInput;
+      if (el) el.click();
+    },
+    async handlePhotoSelect(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      e.target.value = ''; // reset so same file can be re-picked
+
+      this.analyzingPhoto = true;
+      this.error = '';
+
+      try {
+        // Read as data URL
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = () => reject(new Error('Could not read file'));
+          reader.readAsDataURL(file);
+        });
+
+        // Save photo blob to IndexedDB
+        const photoId = `photo_${this.charForm.id || 'new'}_${Date.now()}`;
+        // Delete previous photo if any
+        if (this.charForm.photo_id) {
+          try { await deleteImageBlob(this.charForm.photo_id); } catch (e) {}
+          if (this._urlCache) delete this._urlCache[this.charForm.photo_id];
+        }
+        // Save as blob
+        const blob = await (await fetch(dataUrl)).blob();
+        await saveImageBlob(photoId, blob);
+        this.charForm.photo_id = photoId;
+
+        // Call vision API to analyze
+        const result = await analyzeCharacterPhoto(dataUrl, this.password);
+        const photoDesc = result.description;
+
+        // Merge with existing user_description
+        if (this.charForm.user_description && this.charForm.user_description.trim()) {
+          this.charForm.user_description += '\n\nFrom photo: ' + photoDesc;
+        } else {
+          this.charForm.user_description = photoDesc;
+        }
+
+        this.refreshImageStats();
+      } catch (err) {
+        console.error('Photo analysis failed:', err);
+        this.error = err.message || 'Could not analyze photo. Try again.';
+      } finally {
+        this.analyzingPhoto = false;
+      }
+    },
+    async handleRemovePhoto() {
+      if (!this.charForm.photo_id) return;
+      if (!confirm('Remove this photo?')) return;
+      try { await deleteImageBlob(this.charForm.photo_id); } catch (e) {}
+      if (this._urlCache) delete this._urlCache[this.charForm.photo_id];
+      this.charForm.photo_id = null;
+      this.refreshImageStats();
+    },
+
+    // ============================================================
+    // QUIZ
+    // ============================================================
+    openQuiz() {
+      if (!this.currentStory || !this.currentStory.quiz) return;
+      this.showQuiz = true;
+      this.quizAnswers = {};
+      this.quizRevealed = false;
+    },
+    closeQuiz() {
+      this.showQuiz = false;
+    },
+    setQuizAnswer(qIdx, optIdx) {
+      if (this.quizRevealed) return;
+      this.quizAnswers = { ...this.quizAnswers, [qIdx]: optIdx };
+    },
+    revealQuizAnswers() {
+      this.quizRevealed = true;
+    },
+    quizScore() {
+      if (!this.currentStory || !this.currentStory.quiz) return { correct: 0, total: 0 };
+      const qs = this.currentStory.quiz.comprehension || [];
+      let correct = 0;
+      qs.forEach((q, i) => { if (this.quizAnswers[i] === q.correct) correct++; });
+      return { correct, total: qs.length };
+    },
+    quizAllAnswered() {
+      if (!this.currentStory || !this.currentStory.quiz) return false;
+      const qs = this.currentStory.quiz.comprehension || [];
+      return qs.every((_, i) => this.quizAnswers[i] !== undefined);
+    },
+
+    // ============================================================
+    // BODY SCROLL LOCK when any modal is open
+    // ============================================================
+    updateBodyScroll() {
+      const anyOpen = this.showSettings || this.showCharactersModal ||
+        this.copyrightModal || this.warningModal || this.inspectingImage ||
+        this.showQuiz;
+      document.body.style.overflow = anyOpen ? 'hidden' : '';
+    },
+
+    // ============================================================
+    // LOADING TOAST
+    // ============================================================
+    loadingProgressPercentage() {
+      // Parse "Drawing page X of N" or "Drawing cover (1 of N)…"
+      const m = (this.loadingProgress || '').match(/(\d+)\s*(?:of|\/)\s*(\d+)/);
+      if (m) {
+        const done = parseInt(m[1], 10);
+        const total = parseInt(m[2], 10);
+        if (total > 0) return done / total;
+      }
+      return 0;
+    },
+    dismissToast() { this.toastDismissed = true; },
+  },
+
+  watch: {
+    showSettings() { this.updateBodyScroll(); },
+    showCharactersModal() { this.updateBodyScroll(); },
+    copyrightModal() { this.updateBodyScroll(); },
+    warningModal() { this.updateBodyScroll(); },
+    inspectingImage() { this.updateBodyScroll(); },
+    showQuiz() { this.updateBodyScroll(); },
   },
 
 }).mount('#app')
@@ -970,6 +1168,9 @@ function emptyCharForm() {
     safe_fallback_visual_description: '',
     always_use_fallback: false,
     confirmed_safe: false,
+    photo_id: null,
+    fallback_success_count: 0,
+    fallback_fail_count: 0,
     created_at: null,
     last_used_at: null,
   };

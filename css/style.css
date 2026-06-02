@@ -561,6 +561,160 @@ body {
   min-height: 60px;
 }
 
+.textarea-large {
+  min-height: 140px;
+}
+
+/* Cost estimate above Generate button */
+.cost-estimate {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin: 1rem 0 0.5rem;
+}
+.cost-estimate strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Character search input */
+.char-search {
+  margin-bottom: 0.6rem;
+  font-size: 0.9rem;
+}
+
+/* Character row photo thumbnail */
+.char-row-photo {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.char-row-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Photo capture in character form */
+.photo-row {
+  margin-top: 0.4rem;
+}
+.photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem;
+  background: var(--bg-input);
+  border-radius: 8px;
+}
+.photo-preview img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+.photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Story summary on Toolbox */
+.toolbox-summary {
+  font-size: 0.92rem;
+  font-style: italic;
+  color: var(--text-main);
+  text-align: center;
+  margin: 0.3rem 0 0.4rem;
+  max-width: 480px;
+  line-height: 1.4;
+}
+
+/* Quiz modal */
+.quiz-modal {
+  max-width: 600px;
+}
+
+.quiz-section {
+  margin-bottom: 1.5rem;
+}
+
+.quiz-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.quiz-question {
+  margin-bottom: 1.2rem;
+}
+
+.quiz-q-text {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-main);
+}
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.quiz-option {
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.quiz-option:hover { border-color: var(--accent); }
+.quiz-option.selected {
+  background: rgba(244, 162, 97, 0.15);
+  border-color: var(--accent);
+}
+.quiz-option.correct {
+  background: rgba(120, 200, 120, 0.2);
+  border-color: rgb(120, 200, 120);
+}
+.quiz-option.incorrect {
+  background: rgba(255, 139, 139, 0.15);
+  border-color: var(--error);
+}
+.quiz-option:disabled { cursor: default; }
+
+.quiz-score {
+  margin-top: 0.8rem;
+  text-align: center;
+  font-size: 1rem;
+  color: var(--text-main);
+}
+
+.quiz-reflection {
+  background: var(--bg-input);
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
 /* Age number pills */
 .age-pills {
   display: flex;
@@ -1108,10 +1262,7 @@ body:has(.app-main-reading) {
   display: flex;
   align-items: center;
   justify-content: center;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: manipulation;
+  touch-action: pinch-zoom;
   min-height: 0;
 }
 
@@ -1134,20 +1285,25 @@ body:has(.app-main-reading) {
   object-fit: contain;
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  -webkit-user-drag: none;
-  -webkit-touch-callout: none;
 }
 
-/* Portrait cover — title close to image */
+/* Portrait cover — proper CSS grid layout, tight title-image grouping */
 .cover-page.portrait {
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.6rem;
+  display: grid;
+  grid-template-rows: min-content minmax(0, 1fr);
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  justify-items: center;
+  align-content: center;
 }
 .cover-page.portrait .cover-title {
   font-size: 1.45rem;
   margin: 0;
-  flex-shrink: 0;
+  align-self: end;
+}
+.cover-page.portrait .cover-image-wrap {
+  align-self: start;
+  width: 100%;
 }
 
 /* ---- Story spread (landscape: image left, text right) ---- */
@@ -1163,10 +1319,7 @@ body:has(.app-main-reading) {
   justify-content: center;
   background: var(--bg-card);
   padding: 0.1rem;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: manipulation;
+  touch-action: pinch-zoom;
   min-width: 0;
   min-height: 0;
 }
@@ -1193,35 +1346,88 @@ body:has(.app-main-reading) {
 }
 .inspect-btn:hover { background: rgba(0, 0, 0, 0.8); }
 
-/* ---- Side arrows for page navigation (subtle, on the book) ---- */
+/* ---- Side arrows for page navigation (bottom corners) ---- */
 .side-arrow {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 38px;
-  height: 60px;
-  background: rgba(0, 0, 0, 0.3);
+  bottom: 12px;
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.45);
   border: none;
   color: white;
-  font-size: 2rem;
+  font-size: 1.8rem;
   cursor: pointer;
   z-index: 6;
   font-family: inherit;
   line-height: 0;
   padding-bottom: 4px;
-  opacity: 0.4;
+  opacity: 0.65;
   transition: opacity 0.2s ease;
+  border-radius: 999px;
 }
 .side-arrow:hover { opacity: 1; }
 
 .side-arrow-left {
-  left: 0;
-  border-radius: 0 8px 8px 0;
+  left: 12px;
+  padding-left: max(0px, env(safe-area-inset-left));
 }
 .side-arrow-right {
-  right: 0;
-  border-radius: 8px 0 0 8px;
+  right: 12px;
+  padding-right: max(0px, env(safe-area-inset-right));
 }
+
+/* ---- Bottom progress toast ---- */
+.loading-toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0.5rem 0.6rem 0.5rem 0.4rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  max-width: 90vw;
+}
+
+.progress-ring {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.progress-ring-bg {
+  stroke: rgba(255, 255, 255, 0.15);
+}
+
+.progress-ring-fill {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.loading-toast-text {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading-toast-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 50%;
+}
+.loading-toast-close:hover { color: var(--text-main); background: var(--bg-input); }
 
 .spread-text {
   flex: 1;

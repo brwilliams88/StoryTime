@@ -83,6 +83,26 @@ function setCharacterBothFailed(id, value) {
   localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
 }
 
+function incrementCharacterFallbackCount(id, success) {
+  const all = getStoredCharacters();
+  const c = all.find(x => x.id === id);
+  if (!c) return;
+  if (success) {
+    c.fallback_success_count = (c.fallback_success_count || 0) + 1;
+  } else {
+    c.fallback_fail_count = (c.fallback_fail_count || 0) + 1;
+  }
+  localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
+function setCharacterPhotoId(id, photoId) {
+  const all = getStoredCharacters();
+  const c = all.find(x => x.id === id);
+  if (!c) return;
+  c.photo_id = photoId;
+  localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
 // ---- Debug mode (kept for backwards compatibility — Settings menu now controls visibility) ----
 function getDebugMode() { return localStorage.getItem(STORAGE_KEYS.DEBUG_MODE) === 'true'; }
 function setDebugMode(enabled) { localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, enabled ? 'true' : 'false'); }

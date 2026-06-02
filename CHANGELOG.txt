@@ -9,6 +9,31 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.5 — 2026-06-01 — Photo Capture, Quiz, Search, Cost Transparency, Style Expansion
+  • Photo capture for character creation/edit — Add Photo button uses camera (mobile) or file picker (desktop); GPT-4o Vision analyzes and merges into description; ~2¢ per photo
+  • Photo preview shown in character form with Replace/Remove
+  • Photo thumbnail shown in character list (replaces placeholder)
+  • Photo blob stored in IndexedDB; deleted when character deleted or photo removed
+  • Quiz/reflection generation — output in same story call (no extra cost): 3 comprehension multiple-choice + 2 reflection questions
+  • Quiz Me button on Story Toolbox opens quiz modal with reveal-answer flow
+  • One-sentence story summary generated with story; displayed under title on Story Toolbox
+  • Character search input at top of list (shows when >3 characters); filters by name, tagline, description
+  • Estimated cost display under Generate button (live updates as form changes)
+  • Story Details box larger (6 rows, min-height bumped)
+  • Side arrows moved to BOTTOM CORNERS of book page (no longer overlap text/image)
+  • Loading progress as bottom popup toast with SVG progress ring (no text % — visual only); dismissible with X
+  • Cover title position in portrait FIXED via CSS grid (real fix this time)
+  • Modal scroll lock — opening any modal locks body scroll; closing restores
+  • touch-action: pinch-zoom on images — allows LONG-PRESS to save image, blocks double-tap zoom
+  • Removed -webkit-touch-callout: none from images (was preventing save dialog)
+  • Smart badge logic: ❌ Failed only set if always_use_fallback AND failed AND never succeeded; ✓ counts both success and fail attempts; explains success rate when tapped
+  • Genres added: Dinosaurs, Slice of Life, Underwater, Western (14 total)
+  • Art styles added: Colored Pencil, Lego (building blocks), Stuffies (plush), Paper Cutouts, Storybook Ink (14 total)
+  • Art styles enhanced: Pencil Sketch explicitly B&W; Crayon chunkier; Comic Book classic American; Anime more exaggerated eyes; Pixel renamed "Pixel / Video Game" 16-bit; Claymation more textured/lumpy
+  • Lego style: "Lego" in UI but uses "interlocking plastic toy bricks" in prompt to avoid trademark
+  • Build date updated to actual today (June 1)
+
+--------------------------
 v0.6.4 — 2026-05-30 — Polish Rev
   • Age picker: 2x2 grid (Toddler / Preschool / Early Reader / Older Kid) — bigger touch targets, labels fit on one line
   • Story Length: 3 min / 5 min / 8 min (4p / 6p / 9p) — more pages, accurate reading times

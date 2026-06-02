@@ -26,16 +26,20 @@ const PRICING = {
 };
 
 const GENRE_GUIDANCE = {
-  'surprise-me':  'pick the genre that best fits the reader\'s other inputs',
-  'adventure':    'an exciting journey with thrills and wonder',
-  'fairy-tale':   'classic fairy-tale feel — magic, archetypes, satisfying resolution',
-  'fantasy':      'a rich imaginative world with magical elements',
-  'sci-fi':       'imaginative science-fiction — space, robots, gadgets, future worlds',
-  'pirates':      'high seas adventure — ships, treasure, salty crews',
-  'superhero':    'heroes with special abilities solving problems with bravery and heart',
-  'mystery':      'a gentle puzzle to discover and solve',
-  'spooky':       'playfully spooky — friendly ghosts, harmless surprises, no real fear',
-  'animal-tales': 'animals are the main focus — their world, their feelings, their adventures',
+  'surprise-me':    'pick the genre that best fits the reader\'s other inputs',
+  'adventure':      'an exciting journey with thrills and wonder',
+  'fairy-tale':     'classic fairy-tale feel — magic, archetypes, satisfying resolution',
+  'fantasy':        'a rich imaginative world with magical elements',
+  'sci-fi':         'imaginative science-fiction — space, robots, gadgets, future worlds',
+  'pirates':        'high seas adventure — ships, treasure, salty crews',
+  'superhero':      'heroes with special abilities solving problems with bravery and heart',
+  'mystery':        'a gentle puzzle to discover and solve',
+  'spooky':         'playfully spooky — friendly ghosts, harmless surprises, no real fear',
+  'animal-tales':   'animals are the main focus — their world, their feelings, their adventures',
+  'dinosaurs':      'set in a world of dinosaurs — prehistoric jungles, roars, big footprints',
+  'slice-of-life':  'cozy everyday adventure — small relatable moments, comforting tone',
+  'underwater':     'underwater adventure — deep sea, sea creatures, coral reefs, sunken treasures',
+  'western':        'old west adventure — cowboys, frontier towns, dusty trails, horseback rides',
 };
 
 const INGREDIENT_GUIDANCE = {
@@ -49,17 +53,22 @@ const INGREDIENT_GUIDANCE = {
   'battle':        'include a meaningful battle, duel, or competition. Intensity and weapon use should match the reader age (see age guidance).',
 };
 
-// ----- Artwork style guidance -----
+// ----- Artwork style guidance (enhanced for v0.6.5) -----
 const ARTWORK_STYLE_GUIDANCE = {
-  'surprise-me':  null,  // null = let GPT-4o choose based on story context
-  'watercolor':   'warm watercolor children\'s book illustration, soft painterly brushstrokes, gentle textures',
-  'pencil':       'detailed pencil sketch illustration, fine line work, soft graphite shading',
-  'crayon':       'hand-drawn crayon illustration, childlike texture, vivid waxy colors',
-  'comic-book':   'comic book illustration, bold inked outlines, dynamic panels, vibrant colors',
-  'anime':        'anime / manga style illustration, expressive eyes, clean cel-shading, soft gradients',
-  'pixel-art':    'retro pixel art illustration, 16-bit aesthetic, limited palette, blocky charm',
-  '3d-animation': '3D Pixar-style CGI animation, expressive characters, soft volumetric lighting',
-  'claymation':   'claymation stop-motion style, modeling clay textures, slightly imperfect handmade feel',
+  'surprise-me':    null,  // null = let GPT-4o choose based on story context
+  'watercolor':     'warm watercolor children\'s book illustration, soft painterly brushstrokes, gentle textures, hand-painted feel',
+  'pencil':         'BLACK-AND-WHITE detailed pencil sketch, fine cross-hatching, soft graphite shading, paper grain visible, monochrome only',
+  'colored-pencil': 'colored pencil illustration, layered hand-drawn strokes, soft pencil texture across a full muted color palette, paper grain visible',
+  'crayon':         'CHUNKY childlike crayon drawing, visible waxy strokes, paper texture peeking through, slightly imperfect coloring like a real kid drew it',
+  'comic-book':     'classic American comic book illustration, bold black ink outlines, halftone dot shading, vibrant pop-art primary color palette, dynamic action poses',
+  'anime':          'vibrant anime style with EXAGGERATED large expressive eyes, dynamic dramatic facial expressions, action-packed compositions, clean cel-shading',
+  'pixel-art':      '16-bit retro video game pixel art aesthetic, blocky pixelated rendering, limited color palette, classic SNES-era look',
+  '3d-animation':   '3D Pixar-style CGI animation, expressive characters, soft volumetric lighting, glossy materials',
+  'claymation':     'DEEPLY TEXTURED claymation stop-motion style, visible fingerprint marks and lumpy clay surfaces, slightly imperfect handmade modeling clay feel',
+  'building-blocks':'scene built entirely from interlocking plastic toy bricks, blocky stud-topped pieces, primary colors, glossy plastic finish, toy-construction aesthetic',
+  'stuffies':       'characters look like soft plush stuffed animals made of fabric, button eyes, visible stitching, cozy bedroom toy aesthetic',
+  'paper-cutouts':  'layered cut construction paper collage, visible scissor edges, dimensional paper layers, art-project handmade look',
+  'storybook-ink':  'classic pen-and-ink storybook illustration with hand-drawn line work and a soft watercolor wash, vintage children\'s book feel',
 };
 
 
@@ -188,13 +197,30 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `Exact structure:`,
     `{`,
     `  "title": "short evocative story title",`,
+    `  "summary": "one-sentence summary of the story (no spoilers)",`,
     `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
     `  "cover_image_prompt": "vivid scene for the cover — describe characters and setting only, no mention of 'book cover' or text",`,
     `  "pages": [`,
     `    { "page_number": 1, "text": "...", "image_prompt": "scene description with action verb and composition" },`,
     `    { "page_number": 2, "text": "...", "image_prompt": "..." }`,
-    `  ]`,
-    `}`
+    `  ],`,
+    `  "quiz": {`,
+    `    "comprehension": [`,
+    `      { "question": "...", "options": ["A","B","C","D"], "correct": 0 },`,
+    `      { "question": "...", "options": ["A","B","C","D"], "correct": 2 },`,
+    `      { "question": "...", "options": ["A","B","C","D"], "correct": 1 }`,
+    `    ],`,
+    `    "reflection": [`,
+    `      "open-ended reflection question 1",`,
+    `      "open-ended reflection question 2"`,
+    `    ]`,
+    `  }`,
+    `}`,
+    ``,
+    `Quiz rules:`,
+    `- 3 comprehension multiple-choice questions about specific story details. Options must all be plausible. "correct" is the index (0-3) of the right answer.`,
+    `- 2 reflection questions that connect the story to the reader's own life — age-appropriate.`,
+    `- Quiz language matches the age range of the reader.`
   );
 
   return lines.join('\n');
@@ -568,4 +594,52 @@ function formatCostFriendly(cost) {
   if (cost < 0.01) return '<1¢';
   if (cost < 1.00) return `${Math.round(cost * 100)}¢`;
   return `$${cost.toFixed(2)}`;
+}
+
+
+// =====================================================================
+// COST ESTIMATE (before generation)
+// =====================================================================
+function estimateStoryCost(formData, quality) {
+  const lengthInfo = LENGTH_PRESETS[formData.length] || LENGTH_PRESETS.regular;
+  const numImages = 1 + lengthInfo.total_pages;
+  const q = quality || 'medium';
+  const perImage = (PRICING.image['1024x1024'][q] || PRICING.image['1024x1024'].medium);
+  const imageCost = numImages * perImage;
+  const textCost = 0.030;             // ~estimate for GPT-4o story generation
+  const enrichmentCost = numImages * 0.0003;
+  return textCost + imageCost + enrichmentCost;
+}
+
+
+// =====================================================================
+// VISION: analyze a character photo, return rich description
+// =====================================================================
+async function analyzeCharacterPhoto(base64DataUrl, password) {
+  const prompt = `Look at this photo and write a detailed visual description of the person, character, animal, drawing, or toy shown. Focus on what an illustrator would need to draw this character consistently:
+- Face (shape, expression, distinctive features, freckles, dimples, etc)
+- Hair (color, length, style, texture)
+- Eyes (color, shape, expression)
+- Skin tone and complexion
+- Build (size, posture, energy)
+- Clothing or outfit (specific colors, style, fit, accessories)
+- Anything visually distinctive (jewelry, glasses, scars, tattoos, etc)
+- For drawings/toys: art style, colors, materials
+
+Write a single descriptive paragraph (~100–150 words). Be specific and concrete. Do not add commentary — just the description.`;
+
+  const requestBody = {
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: base64DataUrl } }
+      ]
+    }],
+    temperature: 0.7,
+  };
+
+  const result = await callOpenAIChatRaw(requestBody, password);
+  return { description: result.text.trim(), cost: result.cost, tokens: result.tokens };
 }
