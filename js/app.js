@@ -6,6 +6,7 @@ const { createApp } = Vue
 
 function defaultFormData() {
   return {
+    createdBy: '',
     storyDetails: '',
     ageRange: '6-7',
     length: 'regular',
@@ -25,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.5',
-      buildDate: '2026-06-01',
+      version: 'v0.6.6',
+      buildDate: '2026-06-02',
 
       showSplash: true,
 
@@ -59,15 +60,28 @@ createApp({
 
       showSettings: false,
       nextStoryQuality: 'medium',
+      imageGenMode: 'all',  // 'all' | 'first-two' | 'skip'
       showInspect: false,
 
       useFallbackChars: {},
       copyrightModal: null,
-      warningModal: null,  // Shows why a character is flagged
+      warningModal: null,
 
       // Swipe state
       touchStartX: null,
       touchStartY: null,
+
+      // Created By suggestions
+      createdBySuggestions: [],
+      showCreatedBySuggestions: false,
+
+      // Cropper state
+      showCropper: false,
+      cropperInstance: null,
+      cropperSrc: null,
+
+      // Thumbnail generation state
+      generatingThumbnail: false,
 
       formData: defaultFormData(),
 
@@ -94,7 +108,7 @@ createApp({
       // Per-story fallback tracking (counts per char)
       fallbackStats: {},  // { charId: { success: 0, fail: 0 } }
 
-      genres: [
+      genresRaw: [
         { value: 'surprise-me',   emoji: '🎲', label: 'Surprise me' },
         { value: 'adventure',     emoji: '🗺️', label: 'Adventure' },
         { value: 'fairy-tale',    emoji: '🧚', label: 'Fairy Tale' },
@@ -106,27 +120,25 @@ createApp({
         { value: 'spooky',        emoji: '👻', label: 'Spooky' },
         { value: 'animal-tales',  emoji: '🦊', label: 'Animal Tales' },
         { value: 'dinosaurs',     emoji: '🦖', label: 'Dinosaurs' },
-        { value: 'slice-of-life', emoji: '🍰', label: 'Slice of Life' },
         { value: 'underwater',    emoji: '🌊', label: 'Underwater' },
         { value: 'western',       emoji: '🤠', label: 'Western' },
       ],
-      artStyles: [
+      artStylesRaw: [
         { value: 'surprise-me',      emoji: '🎲', label: 'Surprise me' },
         { value: 'watercolor',       emoji: '🎨', label: 'Watercolor' },
         { value: 'pencil',           emoji: '✏️', label: 'Pencil Sketch (B&W)' },
-        { value: 'colored-pencil',   emoji: '🌈', label: 'Colored Pencil' },
         { value: 'crayon',           emoji: '🖍️', label: 'Crayon' },
         { value: 'comic-book',       emoji: '📚', label: 'Comic Book' },
         { value: 'anime',            emoji: '🌸', label: 'Anime / Manga' },
-        { value: 'pixel-art',        emoji: '👾', label: 'Pixel / Video Game' },
+        { value: 'pixel-art',        emoji: '👾', label: 'Retro Video Game' },
         { value: '3d-animation',     emoji: '🎬', label: '3D Animation' },
         { value: 'claymation',       emoji: '🏺', label: 'Claymation' },
         { value: 'building-blocks',  emoji: '🧱', label: 'Lego' },
         { value: 'stuffies',         emoji: '🐻', label: 'Stuffies' },
         { value: 'paper-cutouts',    emoji: '✂️', label: 'Paper Cutouts' },
-        { value: 'storybook-ink',    emoji: '📜', label: 'Storybook Ink' },
+        { value: 'chalkboard',       emoji: '📋', label: 'Chalkboard' },
       ],
-      ingredients: [
+      ingredientsRaw: [
         { value: 'funny',          emoji: '😄', label: 'Funny Moments' },
         { value: 'surprise',       emoji: '🎁', label: 'Surprise Twist' },
         { value: 'heartfelt',      emoji: '💝', label: 'Heartfelt' },
@@ -135,6 +147,8 @@ createApp({
         { value: 'puzzle',         emoji: '🧩', label: 'Clever Puzzle' },
         { value: 'magical-object', emoji: '🪄', label: 'Magical Object' },
         { value: 'battle',         emoji: '⚔️', label: 'Battle' },
+        { value: 'race',           emoji: '🏎️', label: 'Race' },
+        { value: 'save-the-day',   emoji: '🌟', label: 'Save the Day' },
       ],
       lengths: [
         { value: 'short',    label: 'Short',   subtitle: '~3 min' },
@@ -192,10 +206,39 @@ createApp({
       );
     },
     estimatedStoryCostNumber() {
-      return estimateStoryCost(this.formData, this.nextStoryQuality);
+      // Reflect image gen mode in estimate
+      const fd = this.formData;
+      const lengthInfo = LENGTH_PRESETS[fd.length] || LENGTH_PRESETS.regular;
+      let imageCount = 1 + lengthInfo.total_pages;
+      if (this.imageGenMode === 'first-two') imageCount = 2;
+      else if (this.imageGenMode === 'skip') imageCount = 0;
+      const q = this.nextStoryQuality || 'medium';
+      const perImage = (PRICING.image['1024x1024'][q] || PRICING.image['1024x1024'].medium);
+      const imageCost = imageCount * perImage;
+      const textCost = 0.030;
+      const enrichmentCost = imageCount * 0.0003;
+      return textCost + imageCost + enrichmentCost;
     },
     estimatedStoryCostFormatted() {
       return formatCostFriendly(this.estimatedStoryCostNumber);
+    },
+    // MRU-sorted lists
+    genres() {
+      return sortByMRU(this.genresRaw, STORAGE_KEYS.GENRE_MRU, 'surprise-me');
+    },
+    artStyles() {
+      return sortByMRU(this.artStylesRaw, STORAGE_KEYS.ARTSTYLE_MRU, 'surprise-me');
+    },
+    ingredients() {
+      return sortByMRU(this.ingredientsRaw, STORAGE_KEYS.INGREDIENT_MRU, null);
+    },
+    // Filtered By suggestions
+    filteredCreatedBySuggestions() {
+      const q = (this.formData.createdBy || '').toLowerCase().trim();
+      if (!q) return this.createdBySuggestions;
+      return this.createdBySuggestions.filter(s =>
+        s.toLowerCase().includes(q) && s.toLowerCase() !== q
+      );
     },
     charFormCanSave() {
       return this.charForm.name.trim().length > 0
@@ -255,6 +298,7 @@ createApp({
 
     this.refreshStorageSize();
     this.refreshImageStats();
+    this.createdBySuggestions = getCreatedBySuggestions();
 
     window.matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
       this.isPortrait = e.matches;
@@ -407,12 +451,14 @@ createApp({
         name: char.name,
         tagline: char.tagline || '',
         user_description: char.user_description || '',
+        photo_description: char.photo_description || '',
         visual_description: char.visual_description || '',
         safe_fallback_name: char.safe_fallback_name || '',
         safe_fallback_visual_description: char.safe_fallback_visual_description || '',
         always_use_fallback: !!char.always_use_fallback,
         confirmed_safe: !!char.confirmed_safe,
         photo_id: char.photo_id || null,
+        thumbnail_id: char.thumbnail_id || null,
         fallback_success_count: char.fallback_success_count || 0,
         fallback_fail_count: char.fallback_fail_count || 0,
         created_at: char.created_at,
@@ -433,9 +479,17 @@ createApp({
       this.enhancing = true;
       this.error = '';
       try {
+        // Combine main description + photo description for input to enhance
+        let combined = (this.charForm.user_description || '').trim();
+        if (this.charForm.photo_description && this.charForm.photo_description.trim()) {
+          combined = combined
+            ? combined + '\n\nFrom photo: ' + this.charForm.photo_description.trim()
+            : this.charForm.photo_description.trim();
+        }
+
         const result = await enhanceCharacterDescription(
           this.charForm.name.trim(),
-          this.charForm.user_description.trim(),
+          combined,
           this.password,
         );
         this.charForm.tagline = result.tagline;
@@ -479,20 +533,31 @@ createApp({
       }
     },
 
-    handleSaveCharacter() {
+    async handleSaveCharacter() {
       if (!this.charFormCanSave) return;
       const now = new Date().toISOString();
+      const isNewChar = !this.charForm.id;
+
+      // Auto-generate thumbnail if new character and no thumbnail yet
+      if (isNewChar && !this.charForm.thumbnail_id) {
+        // Set ID first so the thumb gets keyed correctly
+        this.charForm.id = 'char_' + Date.now();
+        await this.generateThumbnailFor(this.charForm);
+      }
+
       const record = {
-        id: this.charForm.id || ('char_' + Date.now()),
+        id: this.charForm.id,
         name: this.charForm.name.trim(),
         tagline: (this.charForm.tagline || '').trim(),
         user_description: this.charForm.user_description.trim(),
+        photo_description: (this.charForm.photo_description || '').trim(),
         visual_description: this.charForm.visual_description.trim(),
         safe_fallback_name: (this.charForm.safe_fallback_name || '').trim(),
         safe_fallback_visual_description: (this.charForm.safe_fallback_visual_description || '').trim(),
         always_use_fallback: !!this.charForm.always_use_fallback,
         confirmed_safe: !!this.charForm.confirmed_safe,
         photo_id: this.charForm.photo_id || null,
+        thumbnail_id: this.charForm.thumbnail_id || null,
         fallback_success_count: this.charForm.fallback_success_count || 0,
         fallback_fail_count: this.charForm.fallback_fail_count || 0,
         created_at: this.charForm.created_at || now,
@@ -507,10 +572,14 @@ createApp({
 
     async handleDeleteCharacter(char) {
       if (!confirm(`Delete "${char.name}"? This cannot be undone.`)) return;
-      // Clean up photo blob
+      // Clean up photo + thumbnail blobs
       if (char.photo_id) {
         try { await deleteImageBlob(char.photo_id); } catch (e) {}
         if (this._urlCache) delete this._urlCache[char.photo_id];
+      }
+      if (char.thumbnail_id) {
+        try { await deleteImageBlob(char.thumbnail_id); } catch (e) {}
+        if (this._urlCache) delete this._urlCache[char.thumbnail_id];
       }
       deleteCharacter(char.id);
       this.characters = getStoredCharacters();
@@ -539,6 +608,15 @@ createApp({
       this.useFallbackChars = {};
       this.toastDismissed = false;
       setStickyPrefs(this.formData);
+
+      // Track MRU + Created By
+      touchMRU(STORAGE_KEYS.GENRE_MRU, this.formData.genre);
+      touchMRU(STORAGE_KEYS.ARTSTYLE_MRU, this.formData.artStyle);
+      (this.formData.ingredients || []).forEach(i => touchMRU(STORAGE_KEYS.INGREDIENT_MRU, i));
+      if (this.formData.createdBy && this.formData.createdBy.trim()) {
+        addCreatedBySuggestion(this.formData.createdBy.trim());
+        this.createdBySuggestions = getCreatedBySuggestions();
+      }
 
       const selected = this.selectedCharacters.map(c => ({
         ...c,
@@ -575,6 +653,7 @@ createApp({
           story_series_id: null,
           title: story.title,
           summary: story.summary || '',
+          created_by: (this.formData.createdBy || '').trim(),
           quiz: story.quiz || null,
           style_anchor: story.style_anchor || 'consistent children\'s storybook illustration style',
           cover: {
@@ -611,6 +690,7 @@ createApp({
         this.currentPageIndex = 0;
         this.loading = false;
         this.view = 'story';
+        this.applyStoryFontSize(storyData);
         window.scrollTo(0, 0);
 
         await this.generateAllImages(storyData);
@@ -626,8 +706,9 @@ createApp({
           this.characters = getStoredCharacters();
         }
 
-        // Reset quality override
+        // Reset quality + image gen overrides
         this.nextStoryQuality = 'medium';
+        this.imageGenMode = 'all';
       } catch (err) {
         console.error('Generation failed:', err);
         this.error = err.message || 'Something went wrong. Please try again.';
@@ -666,23 +747,56 @@ createApp({
     },
 
     async generateAllImages(storyData) {
-      const totalImages = 1 + storyData.pages.length;
-      let doneCount = 0;
+      // Determine which images to actually generate based on imageGenMode
+      const mode = this.imageGenMode || 'all';
+      let toGen;
+      if (mode === 'skip') toGen = [];
+      else if (mode === 'first-two') toGen = ['cover', 0];
+      else toGen = ['cover', ...storyData.pages.map((_, i) => i)];
 
-      this.loadingProgress = `Drawing cover (1 of ${totalImages})…`;
-      await this.generateOneImage('cover', storyData);
-      doneCount++;
+      const total = toGen.length;
+      for (let idx = 0; idx < toGen.length; idx++) {
+        const target = toGen[idx];
+        const label = target === 'cover' ? 'cover' : `page ${target + 1}`;
+        this.loadingProgress = `Drawing ${label} (${idx + 1} of ${total})…`;
+        await this.generateOneImage(target, storyData);
+      }
 
-      for (let i = 0; i < storyData.pages.length; i++) {
-        doneCount++;
-        this.loadingProgress = `Drawing page ${i + 1} (${doneCount} of ${totalImages})…`;
-        await this.generateOneImage(i, storyData);
+      // Mark non-generated slots as skipped so UI shows placeholder cleanly
+      if (mode !== 'all') {
+        if (mode === 'skip' || mode === 'first-two') {
+          if (mode === 'skip' && storyData.cover.image_status === 'pending') {
+            storyData.cover.image_status = 'skipped';
+          }
+          storyData.pages.forEach((p, i) => {
+            const shouldHave = mode === 'first-two' && i === 0;
+            if (!shouldHave && p.image_status === 'pending') p.image_status = 'skipped';
+          });
+        }
       }
 
       saveStoryToStorage(storyData);
       this.refreshStorageSize();
       this.refreshImageStats();
       this.loadingProgress = '';
+    },
+
+    // ============================================================
+    // Dynamic font size based on words per page
+    // ============================================================
+    applyStoryFontSize(storyData) {
+      if (!storyData || !storyData.pages || !storyData.pages.length) return;
+      const totalWords = storyData.pages.reduce(
+        (sum, p) => sum + ((p.text || '').split(/\s+/).filter(Boolean).length), 0
+      );
+      const avg = totalWords / storyData.pages.length;
+      let size;
+      if (avg < 40)       size = '1.3rem';
+      else if (avg < 60)  size = '1.2rem';
+      else if (avg < 80)  size = '1.1rem';
+      else if (avg < 100) size = '1.0rem';
+      else                size = '0.95rem';
+      document.documentElement.style.setProperty('--story-text-size', size);
     },
 
     async generateOneImage(target, storyData) {
@@ -893,7 +1007,9 @@ createApp({
       window.scrollTo(0, 0);
     },
 
-    // Swipe gestures for page navigation
+    // Swipe gestures — orientation-aware
+    // Portrait: vertical swipe (up = next, down = prev)
+    // Landscape: horizontal swipe (left = next, right = prev)
     handleTouchStart(e) {
       if (e.touches && e.touches.length === 1) {
         this.touchStartX = e.touches[0].clientX;
@@ -905,10 +1021,17 @@ createApp({
       const touch = e.changedTouches[0];
       const dx = touch.clientX - this.touchStartX;
       const dy = touch.clientY - this.touchStartY;
-      // Horizontal swipe: threshold 60px, vertical movement under 50px
-      if (Math.abs(dx) > 60 && Math.abs(dy) < 50) {
-        if (dx > 0) this.prevPage();
-        else this.nextPage();
+      const TH = 60;
+      if (this.isPortrait) {
+        if (Math.abs(dy) > TH && Math.abs(dx) < TH) {
+          if (dy < 0) this.nextPage();
+          else this.prevPage();
+        }
+      } else {
+        if (Math.abs(dx) > TH && Math.abs(dy) < TH) {
+          if (dx > 0) this.prevPage();
+          else this.nextPage();
+        }
       }
       this.touchStartX = null;
       this.touchStartY = null;
@@ -978,6 +1101,11 @@ createApp({
     },
     closeSettings() { this.showSettings = false; },
     setNextStoryQuality(q) { this.nextStoryQuality = q; },
+    setImageGenMode(m) {
+      this.imageGenMode = m;
+      // Mirror to skipImages flag for backward compat in any old code paths
+      this.skipImages = (m === 'skip');
+    },
     toggleShowInspect() {
       this.showInspect = !this.showInspect;
       setShowInspect(this.showInspect);
@@ -1026,50 +1154,98 @@ createApp({
     // ============================================================
     // PHOTO CAPTURE for character creation
     // ============================================================
-    triggerPhotoInput() {
-      const el = this.$refs.photoInput;
+    triggerTakePhoto() {
+      const el = this.$refs.takePhotoInput;
+      if (el) el.click();
+    },
+    triggerUploadPhoto() {
+      const el = this.$refs.uploadPhotoInput;
       if (el) el.click();
     },
     async handlePhotoSelect(e) {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      e.target.value = ''; // reset so same file can be re-picked
-
-      this.analyzingPhoto = true;
-      this.error = '';
+      e.target.value = '';
 
       try {
-        // Read as data URL
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (ev) => resolve(ev.target.result);
           reader.onerror = () => reject(new Error('Could not read file'));
           reader.readAsDataURL(file);
         });
-
-        // Save photo blob to IndexedDB
-        const photoId = `photo_${this.charForm.id || 'new'}_${Date.now()}`;
-        // Delete previous photo if any
+        // Open cropper modal
+        this.cropperSrc = dataUrl;
+        this.showCropper = true;
+        this.$nextTick(() => this.initCropper());
+      } catch (err) {
+        console.error('Photo read failed:', err);
+        this.error = err.message || 'Could not read photo';
+      }
+    },
+    initCropper() {
+      const imgEl = this.$refs.cropperImg;
+      if (!imgEl) return;
+      // window.Cropper from cropperjs CDN
+      if (typeof Cropper === 'undefined') {
+        // No cropper available — bypass and use full image
+        this.confirmCrop();
+        return;
+      }
+      if (this.cropperInstance) {
+        this.cropperInstance.destroy();
+        this.cropperInstance = null;
+      }
+      this.cropperInstance = new Cropper(imgEl, {
+        viewMode: 1,
+        autoCropArea: 0.9,
+        background: false,
+        responsive: true,
+        movable: true,
+        zoomable: true,
+      });
+    },
+    cancelCrop() {
+      if (this.cropperInstance) {
+        this.cropperInstance.destroy();
+        this.cropperInstance = null;
+      }
+      this.cropperSrc = null;
+      this.showCropper = false;
+    },
+    async confirmCrop() {
+      let croppedDataUrl = this.cropperSrc;
+      if (this.cropperInstance) {
+        try {
+          const canvas = this.cropperInstance.getCroppedCanvas({ maxWidth: 1024, maxHeight: 1024 });
+          if (canvas) croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        } catch (e) {
+          console.warn('Crop failed, using original', e);
+        }
+        this.cropperInstance.destroy();
+        this.cropperInstance = null;
+      }
+      this.showCropper = false;
+      this.cropperSrc = null;
+      await this.processPhotoForCharacter(croppedDataUrl);
+    },
+    async processPhotoForCharacter(dataUrl) {
+      this.analyzingPhoto = true;
+      this.error = '';
+      try {
+        // Save photo blob (delete previous if any)
         if (this.charForm.photo_id) {
           try { await deleteImageBlob(this.charForm.photo_id); } catch (e) {}
           if (this._urlCache) delete this._urlCache[this.charForm.photo_id];
         }
-        // Save as blob
+        const photoId = `photo_${this.charForm.id || 'new'}_${Date.now()}`;
         const blob = await (await fetch(dataUrl)).blob();
         await saveImageBlob(photoId, blob);
         this.charForm.photo_id = photoId;
 
-        // Call vision API to analyze
+        // Call Vision API
         const result = await analyzeCharacterPhoto(dataUrl, this.password);
-        const photoDesc = result.description;
-
-        // Merge with existing user_description
-        if (this.charForm.user_description && this.charForm.user_description.trim()) {
-          this.charForm.user_description += '\n\nFrom photo: ' + photoDesc;
-        } else {
-          this.charForm.user_description = photoDesc;
-        }
-
+        this.charForm.photo_description = result.description;
         this.refreshImageStats();
       } catch (err) {
         console.error('Photo analysis failed:', err);
@@ -1080,11 +1256,58 @@ createApp({
     },
     async handleRemovePhoto() {
       if (!this.charForm.photo_id) return;
-      if (!confirm('Remove this photo?')) return;
       try { await deleteImageBlob(this.charForm.photo_id); } catch (e) {}
       if (this._urlCache) delete this._urlCache[this.charForm.photo_id];
       this.charForm.photo_id = null;
+      this.charForm.photo_description = '';
       this.refreshImageStats();
+    },
+
+    // ============================================================
+    // CHARACTER THUMBNAIL generation
+    // ============================================================
+    async generateThumbnailFor(charForm) {
+      if (!charForm.visual_description) return;
+      this.generatingThumbnail = true;
+      this.error = '';
+      try {
+        const result = await generateCharacterThumbnail(charForm.visual_description, this.password);
+        // Delete previous thumbnail if any
+        if (charForm.thumbnail_id) {
+          try { await deleteImageBlob(charForm.thumbnail_id); } catch (e) {}
+          if (this._urlCache) delete this._urlCache[charForm.thumbnail_id];
+        }
+        const blob = base64ToBlob(result.b64, 'image/png');
+        const thumbId = `thumb_${charForm.id || 'new'}_${Date.now()}`;
+        await saveImageBlob(thumbId, blob);
+        charForm.thumbnail_id = thumbId;
+        this.refreshImageStats();
+      } catch (err) {
+        console.error('Thumbnail generation failed:', err);
+        this.error = 'Thumbnail generation failed: ' + (err.message || 'unknown error');
+      } finally {
+        this.generatingThumbnail = false;
+      }
+    },
+    async handleGenerateThumbnail() {
+      await this.generateThumbnailFor(this.charForm);
+    },
+
+    // ============================================================
+    // CREATED BY suggestions
+    // ============================================================
+    selectCreatedBy(name) {
+      this.formData.createdBy = name;
+      this.showCreatedBySuggestions = false;
+    },
+    removeCreatedBy(name) {
+      removeCreatedBySuggestion(name);
+      this.createdBySuggestions = getCreatedBySuggestions();
+    },
+    onCreatedByFocus() { this.showCreatedBySuggestions = true; },
+    onCreatedByBlur() {
+      // Delay so click on suggestion can register
+      setTimeout(() => { this.showCreatedBySuggestions = false; }, 200);
     },
 
     // ============================================================
@@ -1163,12 +1386,14 @@ function emptyCharForm() {
     name: '',
     tagline: '',
     user_description: '',
+    photo_description: '',
     visual_description: '',
     safe_fallback_name: '',
     safe_fallback_visual_description: '',
     always_use_fallback: false,
     confirmed_safe: false,
     photo_id: null,
+    thumbnail_id: null,
     fallback_success_count: 0,
     fallback_fail_count: 0,
     created_at: null,

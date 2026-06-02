@@ -13,7 +13,8 @@
   <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
-  <link rel="stylesheet" href="css/style.css?v=0.6.5" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.6" />
 </head>
 <body>
 
@@ -65,6 +66,26 @@
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
               <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Created By <span class="optional">(optional)</span></label>
+            <div class="created-by-wrapper">
+              <input
+                type="text"
+                v-model="formData.createdBy"
+                @focus="onCreatedByFocus"
+                @blur="onCreatedByBlur"
+                placeholder="e.g. Kai, Kai & Papa, Nozomi"
+                class="text-input"
+              />
+              <div v-if="showCreatedBySuggestions && filteredCreatedBySuggestions.length" class="suggestions-list">
+                <div v-for="s in filteredCreatedBySuggestions" :key="s" class="suggestion-item">
+                  <button @mousedown.prevent="selectCreatedBy(s)" class="suggestion-pick">{{ s }}</button>
+                  <button @mousedown.prevent="removeCreatedBy(s)" class="suggestion-x" title="Remove">✕</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -184,6 +205,7 @@
                   <button v-if="showInspect && currentStory.cover.image_status === 'ready'" class="inspect-btn" @click="openImageInspection('cover')" aria-label="Inspect image">ⓘ</button>
                 </div>
               </div>
+              <div v-if="currentStory.created_by" class="cover-by">By {{ currentStory.created_by }}</div>
             </div>
 
             <!-- ===== STORY SPREAD ===== -->
@@ -258,24 +280,17 @@
               </div>
             </div>
 
-            <!-- Side arrows in bottom corners -->
-            <button v-if="canGoPrev()" class="side-arrow side-arrow-left" @click="prevPage" aria-label="Previous page">‹</button>
-            <button v-if="canGoNext()" class="side-arrow side-arrow-right" @click="nextPage" aria-label="Next page">›</button>
+            <!-- Orientation-aware navigation arrows -->
+            <template v-if="isPortrait">
+              <button v-if="canGoPrev()" class="nav-arrow-portrait nav-portrait-top" @click="prevPage" aria-label="Previous">▲</button>
+              <button v-if="canGoNext()" class="nav-arrow-portrait nav-portrait-bottom" @click="nextPage" aria-label="Next">▼</button>
+            </template>
+            <template v-else>
+              <button v-if="canGoPrev()" class="nav-arrow-landscape nav-landscape-left" @click="prevPage" aria-label="Previous">‹</button>
+              <button v-if="canGoNext()" class="nav-arrow-landscape nav-landscape-right" @click="nextPage" aria-label="Next">›</button>
+            </template>
 
           </div>
-
-          <!-- Bottom progress toast (during generation) -->
-          <div v-if="loadingProgress && !toastDismissed" class="loading-toast">
-            <svg class="progress-ring" viewBox="0 0 40 40">
-              <circle class="progress-ring-bg" cx="20" cy="20" r="16" fill="none" stroke-width="3.5" />
-              <circle class="progress-ring-fill" cx="20" cy="20" r="16" fill="none" stroke-width="3.5"
-                :style="{ strokeDasharray: '100.53', strokeDashoffset: (100.53 * (1 - loadingProgressPercentage())) }"
-                transform="rotate(-90 20 20)" />
-            </svg>
-            <span class="loading-toast-text">{{ loadingProgress }}</span>
-            <button @click="dismissToast" class="loading-toast-close" aria-label="Hide">✕</button>
-          </div>
-
         </div>
 
       </main>
@@ -437,8 +452,9 @@
               </div>
               <div v-for="c in filteredCharacters" :key="c.id" :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]">
                 <div class="char-row-top">
-                  <div v-if="c.photo_id && getImageURL(c.photo_id)" class="char-row-photo">
-                    <img :src="getImageURL(c.photo_id)" :alt="c.name" />
+                  <div class="char-row-thumb">
+                    <img v-if="c.thumbnail_id && getImageURL(c.thumbnail_id)" :src="getImageURL(c.thumbnail_id)" :alt="c.name" />
+                    <img v-else src="assets/images/character-default.png" :alt="c.name" />
                   </div>
                   <div class="char-row-info">
                     <div class="char-row-name-line">
@@ -500,20 +516,22 @@
               <!-- Photo capture -->
               <div class="form-field">
                 <label>Reference Photo <span class="optional">(optional)</span></label>
-                <p class="form-hint">Upload or take a photo of a person, drawing, or toy. The AI will analyze it and merge into the description (~2¢ per photo).</p>
-                <input ref="photoInput" type="file" accept="image/*" capture="environment" @change="handlePhotoSelect" style="display: none;" />
-                <div class="photo-row">
-                  <button v-if="!charForm.photo_id" @click="triggerPhotoInput" :disabled="analyzingPhoto" class="btn-secondary btn-small">
-                    📸 {{ analyzingPhoto ? 'Analyzing…' : 'Add Photo' }}
-                  </button>
-                  <div v-if="charForm.photo_id && getImageURL(charForm.photo_id)" class="photo-preview">
-                    <img :src="getImageURL(charForm.photo_id)" alt="Reference" />
-                    <div class="photo-actions">
-                      <button @click="triggerPhotoInput" :disabled="analyzingPhoto" class="btn-secondary btn-tiny">Replace</button>
-                      <button @click="handleRemovePhoto" :disabled="analyzingPhoto" class="btn-secondary btn-tiny btn-danger">Remove</button>
-                    </div>
-                  </div>
+                <p class="form-hint">Take a photo or upload a picture of a person, drawing, or toy. The AI will analyze it (~2¢ per photo).</p>
+                <input ref="takePhotoInput" type="file" accept="image/*" capture="environment" @change="handlePhotoSelect" style="display: none;" />
+                <input ref="uploadPhotoInput" type="file" accept="image/*" @change="handlePhotoSelect" style="display: none;" />
+                <div v-if="!charForm.photo_id" class="photo-buttons">
+                  <button @click="triggerTakePhoto" :disabled="analyzingPhoto" class="btn-secondary btn-small">📸 Take Photo</button>
+                  <button @click="triggerUploadPhoto" :disabled="analyzingPhoto" class="btn-secondary btn-small">🖼️ Upload Photo</button>
                 </div>
+                <div v-else-if="getImageURL(charForm.photo_id)" class="photo-preview-square">
+                  <img :src="getImageURL(charForm.photo_id)" alt="Reference" />
+                  <button @click="handleRemovePhoto" :disabled="analyzingPhoto" class="photo-delete-x" aria-label="Remove photo">✕</button>
+                </div>
+                <div v-if="analyzingPhoto" class="form-hint" style="margin-top: 0.5rem; color: var(--accent);">Analyzing photo…</div>
+                <details v-if="charForm.photo_description" class="photo-description-toggle" style="margin-top: 0.6rem;">
+                  <summary>▸ Photo description (auto-generated)</summary>
+                  <textarea v-model="charForm.photo_description" rows="4" class="textarea-input" style="margin-top: 0.4rem;"></textarea>
+                </details>
               </div>
 
               <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
@@ -524,6 +542,23 @@
               <div v-if="charForm.visual_description" class="form-field">
                 <label>Character Profile <span class="help-text">— how the storyteller and illustrator will see them</span></label>
                 <textarea v-model="charForm.visual_description" class="textarea-input" rows="6"></textarea>
+              </div>
+
+              <!-- Thumbnail section -->
+              <div v-if="charForm.visual_description" class="form-field">
+                <label>Avatar Thumbnail <span class="help-text">— shown in character list</span></label>
+                <div class="thumbnail-row">
+                  <div v-if="charForm.thumbnail_id && getImageURL(charForm.thumbnail_id)" class="thumbnail-preview">
+                    <img :src="getImageURL(charForm.thumbnail_id)" alt="Thumbnail" />
+                  </div>
+                  <div v-else class="thumbnail-preview thumbnail-placeholder">
+                    <img src="assets/images/character-default.png" alt="No thumbnail" />
+                  </div>
+                  <button @click="handleGenerateThumbnail" :disabled="generatingThumbnail" class="btn-secondary btn-small">
+                    {{ generatingThumbnail ? 'Generating…' : (charForm.thumbnail_id ? '🔁 Regenerate' : '✨ Generate Thumbnail') }}
+                  </button>
+                </div>
+                <p class="form-hint">Costs ~1¢ to generate. Cartoon portrait, transparent background.</p>
               </div>
 
               <!-- Generic backup fields: hidden by default, expandable -->
@@ -558,6 +593,24 @@
         </div>
       </div>
 
+      <!-- ============== CROPPER MODAL ============== -->
+      <div v-if="showCropper" class="modal-overlay">
+        <div class="modal modal-wide">
+          <div class="modal-header">
+            <h2>Crop Photo</h2>
+            <button @click="cancelCrop" class="modal-close modal-close-big">✕</button>
+          </div>
+          <p class="modal-hint">Drag to crop to just the main subject — ignore background and extra stuff.</p>
+          <div class="cropper-container">
+            <img v-if="cropperSrc" ref="cropperImg" :src="cropperSrc" alt="Crop" />
+          </div>
+          <div class="modal-footer">
+            <button @click="cancelCrop" class="btn-secondary">Cancel</button>
+            <button @click="confirmCrop" class="btn-primary">Use This Crop</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ============== SETTINGS MENU ============== -->
       <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
         <div class="modal modal-wide settings-modal">
@@ -568,6 +621,7 @@
 
           <div class="settings-section">
             <div class="settings-section-title">🎨 Image Settings</div>
+
             <div class="settings-sub">Picture quality (next story)</div>
             <div class="settings-segment">
               <button :class="{ active: nextStoryQuality === 'low' }" @click="setNextStoryQuality('low')">Low</button>
@@ -575,13 +629,18 @@
               <button :class="{ active: nextStoryQuality === 'high' }" @click="setNextStoryQuality('high')">High</button>
             </div>
             <p class="settings-fine-print">Resets to Medium after one story.</p>
-            <label class="toggle-line">
-              <input type="checkbox" :checked="skipImages" @change="toggleSkipImages" />
-              <span>Skip image generation (placeholders only)</span>
-            </label>
+
+            <div class="settings-sub">Image generation (next story)</div>
+            <div class="settings-segment settings-segment-stacked">
+              <button :class="{ active: imageGenMode === 'all' }" @click="setImageGenMode('all')">Generate all images</button>
+              <button :class="{ active: imageGenMode === 'first-two' }" @click="setImageGenMode('first-two')">Only first 2 images (cover + page 1)</button>
+              <button :class="{ active: imageGenMode === 'skip' }" @click="setImageGenMode('skip')">Skip all images</button>
+            </div>
+            <p class="settings-fine-print">Resets to "Generate all" after one story.</p>
+
             <label class="toggle-line">
               <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
-              <span>Show ⓘ button on images (for parents)</span>
+              <span>Show ⓘ button on images</span>
             </label>
           </div>
 
@@ -655,10 +714,11 @@
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="js/storage.js?v=0.6.5"></script>
-  <script src="js/imageStorage.js?v=0.6.5"></script>
-  <script src="js/api.js?v=0.6.5"></script>
-  <script src="js/app.js?v=0.6.5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+  <script src="js/storage.js?v=0.6.6"></script>
+  <script src="js/imageStorage.js?v=0.6.6"></script>
+  <script src="js/api.js?v=0.6.6"></script>
+  <script src="js/app.js?v=0.6.6"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

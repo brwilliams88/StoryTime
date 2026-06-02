@@ -9,6 +9,41 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.6 — 2026-06-02 — Polish + Auto Thumbnails + Photo Cropping
+  • New ingredients: 🏎️ Race, 🌟 Save the Day (max 3 selectable still)
+  • Story ingredients now MRU-sorted (most recently used pills move up)
+  • Photo capture redesigned: two separate buttons (📸 Take Photo / 🖼️ Upload Photo); photo state shows preview with ✕ overlay to delete (no more Replace/Remove confusion)
+  • Photo cropping via Cropper.js — drag rectangle around main subject before AI analysis
+  • Vision API prompt tightened: now describes ONLY the main subject, ignores background/surroundings
+  • Photo description stored in separate collapsible field (not shoved into main description)
+  • Both descriptions get combined automatically when Bring to Life runs
+  • Auto-generated cartoon thumbnail on character save (~1¢ via gpt-image-1 low quality)
+  • Thumbnail prompt produces centered head-and-shoulders portrait with breathing room for circle crop
+  • "Regenerate Thumbnail" button in character edit for any character (existing ones included)
+  • Default placeholder image (character-default.png) shown when no thumbnail
+  • Character list shows circular thumbnails (replaces generic placeholder)
+  • Genre + Artwork Style dropdowns now MRU-sorted (Surprise me always pinned at top)
+  • Retro Video Game style: renamed from "Pixel / Video Game"; prompt emphasizes visible pixels + game-environment aesthetics
+  • Chalkboard art style added (replaces Colored Pencil + Storybook Ink)
+  • Paper Cutout style massively enhanced (kid-art-project feel with ripped edges, cardboard, wrinkles)
+  • Pencil Sketch enhanced (more sketchy, looser lines, eraser marks; STRICTLY monochrome)
+  • Removed: Slice of Life genre; Colored Pencil + Storybook Ink art styles
+  • Settings: Image Generation now a 3-way radio (Generate all / Only first 2 / Skip all) — either-or
+  • Settings: cleaned up labels (no "for parents", no "placeholders only")
+  • New "Created By" form field with type-ahead suggestions (e.g. "Kai", "Kai & Papa"); X to delete suggestions; localStorage-backed
+  • Cover now shows "By [name]" line at bottom when created_by is set
+  • Cover layout in portrait fixed AGAIN with proper flex column + order property
+  • Dynamic font size per story: text size scales based on average words per page (under 40 = 1.3rem, 100+ = 0.95rem); consistent across all pages of same story
+  • Navigation arrows orientation-aware:
+      Portrait → arrows at TOP and BOTTOM of book page (▲/▼); swipe UP for next, DOWN for previous
+      Landscape → arrows LEFT and RIGHT centered (‹/›); swipe LEFT for next, RIGHT for previous
+  • Bottom progress toast removed (will revisit in polish rev)
+  • Cost estimate updates to reflect Image Generation mode (Skip = 0¢ images; First 2 = 2 × image cost)
+  • Reference photo in character edit shown as SQUARE preview (not circular) — only thumbnails are circular
+  • Photo + thumbnail blobs cleaned up on character delete
+  • Build date corrected to 2026-06-02
+
+--------------------------
 v0.6.5 — 2026-06-01 — Photo Capture, Quiz, Search, Cost Transparency, Style Expansion
   • Photo capture for character creation/edit — Add Photo button uses camera (mobile) or file picker (desktop); GPT-4o Vision analyzes and merges into description; ~2¢ per photo
   • Photo preview shown in character form with Replace/Remove

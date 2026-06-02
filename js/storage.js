@@ -9,6 +9,10 @@ const STORAGE_KEYS = {
   DEBUG_MODE: 'storytime_debug_mode',
   STICKY_PREFS: 'storytime_sticky_prefs',
   SHOW_INSPECT: 'storytime_show_inspect',
+  GENRE_MRU: 'storytime_genre_mru',          // { value: timestamp }
+  ARTSTYLE_MRU: 'storytime_artstyle_mru',
+  INGREDIENT_MRU: 'storytime_ingredient_mru',
+  CREATED_BY_LIST: 'storytime_createdby_list', // array of strings
 };
 
 // ---- Password ----
@@ -101,6 +105,55 @@ function setCharacterPhotoId(id, photoId) {
   if (!c) return;
   c.photo_id = photoId;
   localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
+function setCharacterThumbnailId(id, thumbnailId) {
+  const all = getStoredCharacters();
+  const c = all.find(x => x.id === id);
+  if (!c) return;
+  c.thumbnail_id = thumbnailId;
+  localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
+// ---- MRU tracking ----
+function getMRU(key) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch (e) { return {}; }
+}
+function touchMRU(key, value) {
+  const mru = getMRU(key);
+  mru[value] = Date.now();
+  localStorage.setItem(key, JSON.stringify(mru));
+}
+// Sort an array of options (each with .value) by MRU desc; preserves order for ties.
+// Items with `pinned: true` (like "Surprise me") always stay at index 0.
+function sortByMRU(items, key, pinValue) {
+  const mru = getMRU(key);
+  const pinned = pinValue ? items.find(i => i.value === pinValue) : null;
+  const rest = pinValue ? items.filter(i => i.value !== pinValue) : items.slice();
+  rest.sort((a, b) => (mru[b.value] || 0) - (mru[a.value] || 0));
+  return pinned ? [pinned, ...rest] : rest;
+}
+
+// ---- Created By suggestions ----
+function getCreatedBySuggestions() {
+  const raw = localStorage.getItem(STORAGE_KEYS.CREATED_BY_LIST);
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch (e) { return []; }
+}
+function addCreatedBySuggestion(name) {
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  const list = getCreatedBySuggestions().filter(n => n !== trimmed);
+  list.unshift(trimmed);
+  // cap at 20 to avoid runaway growth
+  while (list.length > 20) list.pop();
+  localStorage.setItem(STORAGE_KEYS.CREATED_BY_LIST, JSON.stringify(list));
+}
+function removeCreatedBySuggestion(name) {
+  const list = getCreatedBySuggestions().filter(n => n !== name);
+  localStorage.setItem(STORAGE_KEYS.CREATED_BY_LIST, JSON.stringify(list));
 }
 
 // ---- Debug mode (kept for backwards compatibility — Settings menu now controls visibility) ----

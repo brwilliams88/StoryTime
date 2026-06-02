@@ -37,7 +37,6 @@ const GENRE_GUIDANCE = {
   'spooky':         'playfully spooky — friendly ghosts, harmless surprises, no real fear',
   'animal-tales':   'animals are the main focus — their world, their feelings, their adventures',
   'dinosaurs':      'set in a world of dinosaurs — prehistoric jungles, roars, big footprints',
-  'slice-of-life':  'cozy everyday adventure — small relatable moments, comforting tone',
   'underwater':     'underwater adventure — deep sea, sea creatures, coral reefs, sunken treasures',
   'western':        'old west adventure — cowboys, frontier towns, dusty trails, horseback rides',
 };
@@ -51,24 +50,25 @@ const INGREDIENT_GUIDANCE = {
   'puzzle':        'work in a clever puzzle or riddle that gets solved',
   'magical-object':'feature a magical object that matters to the plot',
   'battle':        'include a meaningful battle, duel, or competition. Intensity and weapon use should match the reader age (see age guidance).',
+  'race':          'feature a race or time-pressured competition — could be cars, rockets, spaceships, animals, runners, or a desperate dash against a deadline',
+  'save-the-day':  'one or more characters must save the day — protect their community, neighborhood, or world from danger, solve a major problem, or do something that helps many people',
 };
 
-// ----- Artwork style guidance (enhanced for v0.6.5) -----
+// ----- Artwork style guidance -----
 const ARTWORK_STYLE_GUIDANCE = {
   'surprise-me':    null,  // null = let GPT-4o choose based on story context
   'watercolor':     'warm watercolor children\'s book illustration, soft painterly brushstrokes, gentle textures, hand-painted feel',
-  'pencil':         'BLACK-AND-WHITE detailed pencil sketch, fine cross-hatching, soft graphite shading, paper grain visible, monochrome only',
-  'colored-pencil': 'colored pencil illustration, layered hand-drawn strokes, soft pencil texture across a full muted color palette, paper grain visible',
+  'pencil':         'HAND-DRAWN black-and-white pencil sketch with VISIBLE LOOSE SKETCH LINES, varied line weight, eraser marks and ghosting visible, cross-hatching for shading, paper grain texture. STRICTLY MONOCHROME — only black, white, and grayscale. NO color whatsoever. Imperfect organic strokes like a real artist\'s sketchbook page',
   'crayon':         'CHUNKY childlike crayon drawing, visible waxy strokes, paper texture peeking through, slightly imperfect coloring like a real kid drew it',
   'comic-book':     'classic American comic book illustration, bold black ink outlines, halftone dot shading, vibrant pop-art primary color palette, dynamic action poses',
   'anime':          'vibrant anime style with EXAGGERATED large expressive eyes, dynamic dramatic facial expressions, action-packed compositions, clean cel-shading',
-  'pixel-art':      '16-bit retro video game pixel art aesthetic, blocky pixelated rendering, limited color palette, classic SNES-era look',
+  'pixel-art':      'Retro 16-bit video game aesthetic, distinctly PIXELATED rendering with VISIBLE BLOCKY PIXELS, limited classic console color palette. Background elements feel like vintage SNES/Genesis-era game environments — tiled grass, platforming sprites, classic game UI feel. Action poses, dynamic compositions, nostalgic gaming vibe',
   '3d-animation':   '3D Pixar-style CGI animation, expressive characters, soft volumetric lighting, glossy materials',
   'claymation':     'DEEPLY TEXTURED claymation stop-motion style, visible fingerprint marks and lumpy clay surfaces, slightly imperfect handmade modeling clay feel',
   'building-blocks':'scene built entirely from interlocking plastic toy bricks, blocky stud-topped pieces, primary colors, glossy plastic finish, toy-construction aesthetic',
   'stuffies':       'characters look like soft plush stuffed animals made of fabric, button eyes, visible stitching, cozy bedroom toy aesthetic',
-  'paper-cutouts':  'layered cut construction paper collage, visible scissor edges, dimensional paper layers, art-project handmade look',
-  'storybook-ink':  'classic pen-and-ink storybook illustration with hand-drawn line work and a soft watercolor wash, vintage children\'s book feel',
+  'paper-cutouts':  'Layered collage artwork made from CONSTRUCTION PAPER as if assembled by a child for an art project. Pieces are cut out with VISIBLY IMPERFECT scissor lines, some edges torn or ripped, occasional crinkled or slightly wrinkled paper. Pieces are stacked and overlapped, sometimes with visible glue spots. Backgrounds incorporate CARDBOARD with visible corrugated edges in places. Color palette is bright but limited like a kid\'s craft box. Recognizable characters and scenes, but with the charming imperfection of a kid\'s hands-on art project — enthusiastic and heartfelt rather than polished',
+  'chalkboard':     'Drawing on a BLACK-GREEN CHALKBOARD canvas. Made entirely from colored chalk with a LIMITED PALETTE of about 6-8 chalk colors. Some elements fully colored in, others just outlines. HAND-DRAWN with imperfect lines, occasional VISIBLE CHALK DUST particles, and the occasional smudge or partially-erased mark where something was \'fixed\'. Authentic schoolroom chalkboard feel — not too neat, joyfully real',
 };
 
 
@@ -613,20 +613,29 @@ function estimateStoryCost(formData, quality) {
 
 
 // =====================================================================
-// VISION: analyze a character photo, return rich description
+// VISION: analyze a character photo — focus ONLY on the main subject
 // =====================================================================
 async function analyzeCharacterPhoto(base64DataUrl, password) {
-  const prompt = `Look at this photo and write a detailed visual description of the person, character, animal, drawing, or toy shown. Focus on what an illustrator would need to draw this character consistently:
-- Face (shape, expression, distinctive features, freckles, dimples, etc)
+  const prompt = `Look at this photo and write a detailed visual description of the MAIN SUBJECT only.
+
+CRITICAL FOCUS RULES:
+- Describe ONLY the main character / person / drawing / toy that is the subject of the photo.
+- IGNORE everything else: background, surroundings, walls, surfaces it's sitting on, other people in the periphery, furniture, decor, other objects in the scene. Do NOT mention them at all.
+- If the photo shows a person centered with stuff around them, describe ONLY the person.
+- If the photo shows a child's drawing on a desk, describe ONLY the drawing (not the desk, paper edge, hand holding it, etc).
+- If the photo shows a stuffed toy on a bed, describe ONLY the toy (not the bed, blanket, room).
+
+DESCRIBE the main subject in detail:
+- Face shape and distinctive features (freckles, dimples, expression, etc)
 - Hair (color, length, style, texture)
 - Eyes (color, shape, expression)
-- Skin tone and complexion
-- Build (size, posture, energy)
-- Clothing or outfit (specific colors, style, fit, accessories)
-- Anything visually distinctive (jewelry, glasses, scars, tattoos, etc)
-- For drawings/toys: art style, colors, materials
+- Skin tone and complexion (for people/characters)
+- Build (size relative to frame, posture, energy)
+- Clothing or outfit (specific colors, style, fit, accessories) — only what's worn/attached to the subject
+- Anything visually distinctive (jewelry, glasses, scars, signature features)
+- For drawings/toys: art style, materials, colors of the subject itself
 
-Write a single descriptive paragraph (~100–150 words). Be specific and concrete. Do not add commentary — just the description.`;
+Write a single descriptive paragraph (~100–150 words) about the subject alone. Be specific and concrete. Do not add commentary or preamble — just the description.`;
 
   const requestBody = {
     model: 'gpt-4o',
@@ -637,9 +646,53 @@ Write a single descriptive paragraph (~100–150 words). Be specific and concret
         { type: 'image_url', image_url: { url: base64DataUrl } }
       ]
     }],
-    temperature: 0.7,
+    temperature: 0.6,
   };
 
   const result = await callOpenAIChatRaw(requestBody, password);
   return { description: result.text.trim(), cost: result.cost, tokens: result.tokens };
+}
+
+
+// =====================================================================
+// CHARACTER THUMBNAIL — cartoon portrait headshot (low quality, cheap)
+// =====================================================================
+async function generateCharacterThumbnail(visualDescription, password) {
+  const prompt = `Cartoon portrait headshot avatar of this character:
+
+${visualDescription}
+
+COMPOSITION RULES (must follow):
+- Head and upper shoulders only (avatar headshot view)
+- Character CENTERED in the frame with breathing room on all sides so it crops nicely as a circular avatar
+- Character is the ONLY thing in the image — no scene, no background scenery, no other objects, no text
+- Plain transparent background (or solid simple color if transparency isn't possible)
+
+STYLE:
+- Friendly children's book character icon style
+- Clean simple outlines
+- Flat simple colors
+- Warm, inviting expression`;
+
+  const requestBody = {
+    model: 'gpt-image-1',
+    prompt,
+    size: '1024x1024',
+    quality: 'low',
+    n: 1,
+  };
+
+  const response = await fetch(`${WORKER_URL}/v1/images/generations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
+    body: JSON.stringify(requestBody),
+  });
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Thumbnail generation failed (HTTP ${response.status}): ${errText}`);
+  }
+  const data = await response.json();
+  const b64 = data.data && data.data[0] && data.data[0].b64_json;
+  if (!b64) throw new Error('No thumbnail data in response');
+  return { b64, cost: PRICING.image['1024x1024'].low, rawResponse: data };
 }
