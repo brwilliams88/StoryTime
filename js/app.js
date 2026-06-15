@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.6',
-      buildDate: '2026-06-02',
+      version: 'v0.6.7',
+      buildDate: '2026-06-15',
 
       showSplash: true,
 
@@ -75,13 +75,20 @@ createApp({
       createdBySuggestions: [],
       showCreatedBySuggestions: false,
 
+      // Bumped whenever MRU changes so the MRU-sorted computeds recompute
+      // (localStorage isn't reactive, so we need an explicit trigger).
+      mruVersion: 0,
+
       // Cropper state
       showCropper: false,
       cropperInstance: null,
       cropperSrc: null,
 
-      // Thumbnail generation state
-      generatingThumbnail: false,
+      // Thumbnail generation state — IDs of characters whose thumbnail is
+      // currently generating (in the background, so save/close don't wait)
+      thumbnailGeneratingIds: [],
+      // Guard against double-tap saving a character (caused disappearing chars)
+      savingCharacter: false,
 
       formData: defaultFormData(),
 
@@ -222,14 +229,17 @@ createApp({
     estimatedStoryCostFormatted() {
       return formatCostFriendly(this.estimatedStoryCostNumber);
     },
-    // MRU-sorted lists
+    // MRU-sorted lists. Touch mruVersion so they recompute after touchMRU().
     genres() {
+      this.mruVersion;
       return sortByMRU(this.genresRaw, STORAGE_KEYS.GENRE_MRU, 'surprise-me');
     },
     artStyles() {
+      this.mruVersion;
       return sortByMRU(this.artStylesRaw, STORAGE_KEYS.ARTSTYLE_MRU, 'surprise-me');
     },
     ingredients() {
+      this.mruVersion;
       return sortByMRU(this.ingredientsRaw, STORAGE_KEYS.INGREDIENT_MRU, null);
     },
     // Filtered By suggestions
@@ -304,6 +314,25 @@ createApp({
       this.isPortrait = e.matches;
       this.$nextTick(() => window.scrollTo(0, 0));
     });
+
+    // Desktop keyboard navigation for the reading view (arrow keys).
+    // On-screen arrows were removed — touch uses swipe, desktop uses keys.
+    this._keyHandler = (e) => {
+      if (this.view !== 'story' || !this.currentStory) return;
+      // Don't hijack keys while typing in a field
+      const tag = (e.target && e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      // Don't navigate while a modal is open over the story
+      if (this.showSettings || this.showQuiz || this.inspectingImage ||
+          this.copyrightModal || this.warningModal || this.showCharactersModal) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); this.nextPage(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); this.prevPage(); }
+    };
+    window.addEventListener('keydown', this._keyHandler);
+  },
+
+  beforeUnmount() {
+    if (this._keyHandler) window.removeEventListener('keydown', this._keyHandler);
   },
 
   methods: {
@@ -354,7 +383,13 @@ createApp({
     },
     handleModalX() {
       if (this.charModalMode === 'list') this.closeCharactersModal();
-      else this.cancelCharForm();
+      else this.handleCloseCharForm();
+    },
+    // Clicking the dark overlay: in list mode close the modal; in edit mode
+    // auto-save & return to list (so accidental taps never lose generated work).
+    handleCharOverlayClick() {
+      if (this.charModalMode === 'list') this.closeCharactersModal();
+      else this.handleCloseCharForm();
     },
     toggleCharacterSelected(charId) {
       const idx = this.formData.selectedCharacterIds.indexOf(charId);
@@ -496,6 +531,11 @@ createApp({
         this.charForm.visual_description = result.visual_description;
         this.charForm.safe_fallback_name = result.safe_fallback_name || '';
         this.charForm.safe_fallback_visual_description = result.safe_fallback_visual_description || '';
+
+        // Auto-(re)generate the avatar thumbnail every time Bring to Life runs.
+        // Runs in the BACKGROUND so the user can keep editing / close right away.
+        if (!this.charForm.id) this.charForm.id = 'char_' + Date.now();
+        this.generateThumbnailInBackground(this.charForm.id, this.charForm.visual_description);
       } catch (err) {
         console.error('Enhance failed:', err);
         this.error = err.message || 'Could not bring character to life. Try again.';
@@ -525,6 +565,10 @@ createApp({
         this.isRandomNew = true;
         this.showCharFallbackFields = false;
         this.charModalMode = 'create';
+
+        // Random characters come with a full description — auto-make a thumbnail too.
+        if (!this.charForm.id) this.charForm.id = 'char_' + Date.now();
+        this.generateThumbnailInBackground(this.charForm.id, this.charForm.visual_description);
       } catch (err) {
         console.error('Random character failed:', err);
         this.error = err.message || 'Could not generate a random character. Try again.';
@@ -533,17 +577,12 @@ createApp({
       }
     },
 
-    async handleSaveCharacter() {
-      if (!this.charFormCanSave) return;
+    // Persist the current charForm to storage. Does NOT wait for the
+    // thumbnail (that runs in the background). Returns true on success.
+    saveCharacterRecord() {
+      if (!this.charFormCanSave) return false;
       const now = new Date().toISOString();
-      const isNewChar = !this.charForm.id;
-
-      // Auto-generate thumbnail if new character and no thumbnail yet
-      if (isNewChar && !this.charForm.thumbnail_id) {
-        // Set ID first so the thumb gets keyed correctly
-        this.charForm.id = 'char_' + Date.now();
-        await this.generateThumbnailFor(this.charForm);
-      }
+      if (!this.charForm.id) this.charForm.id = 'char_' + Date.now();
 
       const record = {
         id: this.charForm.id,
@@ -563,11 +602,32 @@ createApp({
         created_at: this.charForm.created_at || now,
         last_used_at: this.charForm.last_used_at || null,
       };
-      saveCharacter(record);
+      try {
+        saveCharacter(record);
+      } catch (err) {
+        if (err.isQuota) { this.error = err.message; return false; }
+        throw err;
+      }
       this.characters = getStoredCharacters();
-      this.charForm = emptyCharForm();
-      this.isRandomNew = false;
-      this.charModalMode = 'list';
+      return true;
+    },
+
+    // Single bottom button (Option B): saves if there's saveable content,
+    // otherwise just discards, then returns to the list. The old top ✕ is gone.
+    handleCloseCharForm() {
+      if (this.savingCharacter) return;   // guard against double-tap
+      this.savingCharacter = true;
+      try {
+        if (this.charFormCanSave) {
+          const ok = this.saveCharacterRecord();
+          if (!ok && this.error) return;  // quota error — stay on form so user sees it
+        }
+        this.charForm = emptyCharForm();
+        this.isRandomNew = false;
+        this.charModalMode = 'list';
+      } finally {
+        this.savingCharacter = false;
+      }
     },
 
     async handleDeleteCharacter(char) {
@@ -613,6 +673,7 @@ createApp({
       touchMRU(STORAGE_KEYS.GENRE_MRU, this.formData.genre);
       touchMRU(STORAGE_KEYS.ARTSTYLE_MRU, this.formData.artStyle);
       (this.formData.ingredients || []).forEach(i => touchMRU(STORAGE_KEYS.INGREDIENT_MRU, i));
+      this.mruVersion++;  // trigger MRU-sorted computeds to refresh
       if (this.formData.createdBy && this.formData.createdBy.trim()) {
         addCreatedBySuggestion(this.formData.createdBy.trim());
         this.createdBySuggestions = getCreatedBySuggestions();
@@ -775,7 +836,12 @@ createApp({
         }
       }
 
-      saveStoryToStorage(storyData);
+      try {
+        saveStoryToStorage(storyData);
+      } catch (err) {
+        if (err.isQuota) { this.error = err.message; alert(err.message); }
+        else throw err;
+      }
       this.refreshStorageSize();
       this.refreshImageStats();
       this.loadingProgress = '';
@@ -1154,12 +1220,10 @@ createApp({
     // ============================================================
     // PHOTO CAPTURE for character creation
     // ============================================================
-    triggerTakePhoto() {
-      const el = this.$refs.takePhotoInput;
-      if (el) el.click();
-    },
-    triggerUploadPhoto() {
-      const el = this.$refs.uploadPhotoInput;
+    // Single "Add Photo" button — the OS picker already offers
+    // Camera / Photo Library / Choose File, so one input covers all cases.
+    triggerAddPhoto() {
+      const el = this.$refs.addPhotoInput;
       if (el) el.click();
     },
     async handlePhotoSelect(e) {
@@ -1203,6 +1267,11 @@ createApp({
         responsive: true,
         movable: true,
         zoomable: true,
+        // 'none' = dragging the canvas does NOT spawn a new crop box.
+        // The box is moved by dragging it and resized via the corner handles,
+        // so all four corners behave the same (no accidental box restart).
+        dragMode: 'none',
+        toggleDragModeOnDblclick: false,
       });
     },
     cancelCrop() {
@@ -1266,31 +1335,56 @@ createApp({
     // ============================================================
     // CHARACTER THUMBNAIL generation
     // ============================================================
-    async generateThumbnailFor(charForm) {
-      if (!charForm.visual_description) return;
-      this.generatingThumbnail = true;
-      this.error = '';
+    // True if a thumbnail is currently generating for the character being edited.
+    isThumbGenerating() {
+      return !!this.charForm.id && this.thumbnailGeneratingIds.includes(this.charForm.id);
+    },
+
+    // Generate a thumbnail WITHOUT blocking. Updates the live form (if still
+    // open on this character) and the saved record (if already saved) when done.
+    // Failures are silently ignored — the character keeps the default avatar.
+    async generateThumbnailInBackground(charId, visualDescription) {
+      if (!charId || !visualDescription) return;
+      if (this.thumbnailGeneratingIds.includes(charId)) return;  // already running
+      this.thumbnailGeneratingIds.push(charId);
+
+      // Snapshot the old thumbnail id to clean up after success
+      const oldThumbId = (this.charForm && this.charForm.id === charId)
+        ? this.charForm.thumbnail_id
+        : ((getStoredCharacters().find(c => c.id === charId) || {}).thumbnail_id);
+
       try {
-        const result = await generateCharacterThumbnail(charForm.visual_description, this.password);
-        // Delete previous thumbnail if any
-        if (charForm.thumbnail_id) {
-          try { await deleteImageBlob(charForm.thumbnail_id); } catch (e) {}
-          if (this._urlCache) delete this._urlCache[charForm.thumbnail_id];
-        }
+        const result = await generateCharacterThumbnail(visualDescription, this.password);
         const blob = base64ToBlob(result.b64, 'image/png');
-        const thumbId = `thumb_${charForm.id || 'new'}_${Date.now()}`;
+        const thumbId = `thumb_${charId}_${Date.now()}`;
         await saveImageBlob(thumbId, blob);
-        charForm.thumbnail_id = thumbId;
+
+        if (oldThumbId && oldThumbId !== thumbId) {
+          try { await deleteImageBlob(oldThumbId); } catch (e) {}
+          if (this._urlCache) delete this._urlCache[oldThumbId];
+        }
+
+        // Update the live form if the user is still on this character
+        if (this.charForm && this.charForm.id === charId) {
+          this.charForm.thumbnail_id = thumbId;
+        }
+        // Update the saved record if it already exists in storage
+        setCharacterThumbnailId(charId, thumbId);
+        this.characters = getStoredCharacters();
         this.refreshImageStats();
       } catch (err) {
-        console.error('Thumbnail generation failed:', err);
-        this.error = 'Thumbnail generation failed: ' + (err.message || 'unknown error');
+        // Silently ignore (per design) — keep the placeholder avatar
+        console.warn('Background thumbnail generation failed (ignored):', err);
       } finally {
-        this.generatingThumbnail = false;
+        const i = this.thumbnailGeneratingIds.indexOf(charId);
+        if (i !== -1) this.thumbnailGeneratingIds.splice(i, 1);
       }
     },
-    async handleGenerateThumbnail() {
-      await this.generateThumbnailFor(this.charForm);
+
+    handleGenerateThumbnail() {
+      if (!this.charForm.visual_description) return;
+      if (!this.charForm.id) this.charForm.id = 'char_' + Date.now();
+      this.generateThumbnailInBackground(this.charForm.id, this.charForm.visual_description);
     },
 
     // ============================================================

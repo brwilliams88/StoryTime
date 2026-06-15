@@ -66,9 +66,9 @@ const ARTWORK_STYLE_GUIDANCE = {
   '3d-animation':   '3D Pixar-style CGI animation, expressive characters, soft volumetric lighting, glossy materials',
   'claymation':     'DEEPLY TEXTURED claymation stop-motion style, visible fingerprint marks and lumpy clay surfaces, slightly imperfect handmade modeling clay feel',
   'building-blocks':'scene built entirely from interlocking plastic toy bricks, blocky stud-topped pieces, primary colors, glossy plastic finish, toy-construction aesthetic',
-  'stuffies':       'characters look like soft plush stuffed animals made of fabric, button eyes, visible stitching, cozy bedroom toy aesthetic',
+  'stuffies':       'EVERY character rendered as a REAL, PHYSICAL stuffed animal / plush toy — photographic realism of the plush itself. Realistic soft fabric with visible fuzz, fluff, and fibers; yarn or felt details; stitched seams and visible thread stitching; button or glossy plastic safety eyes; slightly lumpy hand-sewn shape. Small authentic touches: a sewn-on fabric tag, a loose thread, or a tiny bit of stuffing peeking from a seam. NOT cartoon, NOT sketched, NOT flat illustration — they look like actual plush toys you could pick up. IMPORTANT: the SETTING and scenery follow the story (forest, ocean, space, castle, etc.) — do NOT default to a bedroom or toy shelf unless the story actually calls for it. Plush characters exist within the real story world',
   'paper-cutouts':  'Layered collage artwork made from CONSTRUCTION PAPER as if assembled by a child for an art project. Pieces are cut out with VISIBLY IMPERFECT scissor lines, some edges torn or ripped, occasional crinkled or slightly wrinkled paper. Pieces are stacked and overlapped, sometimes with visible glue spots. Backgrounds incorporate CARDBOARD with visible corrugated edges in places. Color palette is bright but limited like a kid\'s craft box. Recognizable characters and scenes, but with the charming imperfection of a kid\'s hands-on art project — enthusiastic and heartfelt rather than polished',
-  'chalkboard':     'Drawing on a BLACK-GREEN CHALKBOARD canvas. Made entirely from colored chalk with a LIMITED PALETTE of about 6-8 chalk colors. Some elements fully colored in, others just outlines. HAND-DRAWN with imperfect lines, occasional VISIBLE CHALK DUST particles, and the occasional smudge or partially-erased mark where something was \'fixed\'. Authentic schoolroom chalkboard feel — not too neat, joyfully real',
+  'chalkboard':     'A SIMPLE, AMATEUR chalk drawing on a dark chalkboard — as if doodled by a child or an untrained hand, NOT by a professional artist. CRUDE and BASIC: wobbly uneven lines, rough simple shapes, stick-figure-level simplicity. STRICTLY LIMITED palette of just white chalk plus 2-3 other chalk colors. NO realistic shading, NO blending, NO gradients, NO fine detail — fills are flat, scratchy, and often left incomplete (just outlines, partially colored in). Lines are scratchy and broken with visible chalk dust and the occasional smudge or half-erased mark. The whole image should obviously read as basic chalkboard scribbles — flat, childlike, and unpolished. Avoid anything that looks skilled or detailed',
 };
 
 
@@ -88,12 +88,19 @@ function buildStoryPrompt(formData, selectedCharacters) {
   const [ageMin, ageMax] = ageRange.split('-').map(n => parseInt(n, 10));
   const midAge = Math.round((ageMin + ageMax) / 2);
   let intensityNote;
-  if (ageMax <= 5) {
-    intensityNote = `For young readers (ages ${ageRange}), keep stakes gentle. Conflict is symbolic — chases, gentle disagreements, helping each other. NO weapons or fighting violence. Resolution quick and reassuring. Simple vocabulary.`;
+  let vocabNote;
+  if (ageMax <= 3) {
+    intensityNote = `For young readers (ages ${ageRange}), keep stakes gentle. Conflict is symbolic — chases, gentle disagreements, helping each other. NO weapons or fighting violence. Resolution quick and reassuring.`;
+    vocabNote = `VOCABULARY: Use simple, familiar everyday words a toddler hears in daily life. Short, clear sentences. Playful and repeated words are great. Avoid abstract, literary, or rare words entirely.`;
+  } else if (ageMax <= 5) {
+    intensityNote = `For young readers (ages ${ageRange}), keep stakes gentle. Conflict is symbolic — chases, gentle disagreements, helping each other. NO weapons or fighting violence. Resolution quick and reassuring.`;
+    vocabNote = `VOCABULARY: Use clear, simple words and short sentences. You may introduce an occasional fun new word ONLY if its meaning is obvious from the surrounding sentence. Avoid advanced or literary vocabulary.`;
   } else if (ageMax <= 7) {
     intensityNote = `For these readers (ages ${ageRange}), stakes can feel real. Mild action is welcome: swords, magic spells, chases, captures, escapes. NO real violence or graphic detail. Battles end with resolution, not harm. Some character growth.`;
+    vocabNote = `VOCABULARY: Use common, grade-appropriate words for a 6-7 year old. A few slightly richer words are fine if the sentence makes their meaning clear. Avoid advanced or literary words.`;
   } else {
     intensityNote = `For these older readers (ages ${ageRange}), don't water down challenges. Real action allowed: weapons, tactical battles, genuine peril, even mild violence is appropriate (a hero dodges a strike, lands a clean hit, etc). NO gore, NO graphic harm to good characters. Make stakes feel earned. Avoid soft endings unless the genre calls for it.`;
+    vocabNote = `VOCABULARY: Keep words accessible for ages 8-10 and natural to read aloud. You may use varied, descriptive language, but AVOID advanced/literary words that would send a child to a dictionary — e.g. NOT "macabre", "embodiment", "malice", "bellowed", "perseverance". Prefer plain synonyms ("spooky", "spirit", "meanness", "shouted", "keep trying").`;
   }
 
   const lines = [];
@@ -109,6 +116,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `- Characters introduced on page 1 stay consistent throughout — same names, personalities, voices. Do NOT introduce new important characters in the final page.`,
     `- Use varied sentence rhythm and beautiful read-aloud language.`,
     `- ${intensityNote}`,
+    `- ${vocabNote}`,
   );
 
   if (isBedtime) {
@@ -462,7 +470,7 @@ function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback) {
   if (useFallback) {
     parts.push(`The characters in this image are ORIGINAL CREATIONS for this story. Do not interpret them as references to any existing copyrighted or trademarked characters from films, games, or shows. Render them based solely on the descriptions provided.`);
   }
-  parts.push(`Do not include the story title or any large text/words as the focus of the image. Incidental text on clothing, signs, or world objects is acceptable if natural to the scene.`);
+  parts.push(`TEXT RULES: Do NOT overlay any caption, narration, title, or floating words on top of the image (no subtitle bars, no "The End", no scene-description text). The ONLY text allowed is: (1) a short comic-style speech bubble for a few words a character is actually saying, and (2) incidental text that naturally belongs in the scene (on signs, books, clothing, objects). Never add explanatory or narrative text describing the scene.`);
   if (styleAnchor) {
     parts.push(`Reminder: render in this exact style: ${styleAnchor}.`);
   }
@@ -658,15 +666,15 @@ Write a single descriptive paragraph (~100–150 words) about the subject alone.
 // CHARACTER THUMBNAIL — cartoon portrait headshot (low quality, cheap)
 // =====================================================================
 async function generateCharacterThumbnail(visualDescription, password) {
-  const prompt = `Cartoon portrait headshot avatar of this character:
+  const prompt = `Portrait avatar of this character:
 
 ${visualDescription}
 
 COMPOSITION RULES (must follow):
-- Head and upper shoulders only (avatar headshot view)
-- Character CENTERED in the frame with breathing room on all sides so it crops nicely as a circular avatar
-- Character is the ONLY thing in the image — no scene, no background scenery, no other objects, no text
-- Plain transparent background (or solid simple color if transparency isn't possible)
+- Avatar headshot framing — show the character CENTERED with breathing room on all sides so it crops nicely as a circular avatar.
+- ANATOMY: Show ONLY what the description actually includes. If the character has no neck, no body, no torso, or no shoulders (e.g. a floating head, a disembodied face, an orb, a creature without a body), do NOT invent or add a neck, shoulders, or body. Render exactly the form described — nothing more.
+- Character is the ONLY thing in the image — no scene, no background scenery, no other objects, no text.
+- Plain transparent background (or solid simple color if transparency isn't possible).
 
 STYLE:
 - Friendly children's book character icon style
@@ -682,17 +690,35 @@ STYLE:
     n: 1,
   };
 
-  const response = await fetch(`${WORKER_URL}/v1/images/generations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
-    body: JSON.stringify(requestBody),
-  });
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Thumbnail generation failed (HTTP ${response.status}): ${errText}`);
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(`${WORKER_URL}/v1/images/generations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
+        body: JSON.stringify(requestBody),
+      });
+      if (response.status >= 500 && attempt === 0) {
+        lastError = new Error(`Thumbnail server error (HTTP ${response.status}) — retrying`);
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Thumbnail generation failed (HTTP ${response.status}): ${errText}`);
+      }
+      const data = await response.json();
+      const b64 = data.data && data.data[0] && data.data[0].b64_json;
+      if (!b64) throw new Error('No thumbnail data in response');
+      return { b64, cost: PRICING.image['1024x1024'].low, rawResponse: data };
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0 && /HTTP 5\d\d/.test(err.message)) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      throw err;
+    }
   }
-  const data = await response.json();
-  const b64 = data.data && data.data[0] && data.data[0].b64_json;
-  if (!b64) throw new Error('No thumbnail data in response');
-  return { b64, cost: PRICING.image['1024x1024'].low, rawResponse: data };
+  throw lastError;
 }

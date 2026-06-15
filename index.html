@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.6.6" />
+  <link rel="stylesheet" href="css/style.css?v=0.6.7" />
 </head>
 <body>
 
@@ -66,26 +66,6 @@
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
               <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
-            </div>
-          </div>
-
-          <div class="form-field">
-            <label>Created By <span class="optional">(optional)</span></label>
-            <div class="created-by-wrapper">
-              <input
-                type="text"
-                v-model="formData.createdBy"
-                @focus="onCreatedByFocus"
-                @blur="onCreatedByBlur"
-                placeholder="e.g. Kai, Kai & Papa, Nozomi"
-                class="text-input"
-              />
-              <div v-if="showCreatedBySuggestions && filteredCreatedBySuggestions.length" class="suggestions-list">
-                <div v-for="s in filteredCreatedBySuggestions" :key="s" class="suggestion-item">
-                  <button @mousedown.prevent="selectCreatedBy(s)" class="suggestion-pick">{{ s }}</button>
-                  <button @mousedown.prevent="removeCreatedBy(s)" class="suggestion-x" title="Remove">✕</button>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -155,6 +135,26 @@
           <div class="form-field">
             <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
             <input type="text" v-model="formData.theme" placeholder="e.g. 'the moral of the story is to keep trying', family, sharing, being brave..." class="text-input" />
+          </div>
+
+          <div class="form-field">
+            <label>Created By <span class="optional">(optional)</span></label>
+            <div class="created-by-wrapper">
+              <input
+                type="text"
+                v-model="formData.createdBy"
+                @focus="onCreatedByFocus"
+                @blur="onCreatedByBlur"
+                placeholder="e.g. Kai, Kai & Papa, Nozomi"
+                class="text-input"
+              />
+              <div v-if="showCreatedBySuggestions && filteredCreatedBySuggestions.length" class="suggestions-list suggestions-list-up">
+                <div v-for="s in filteredCreatedBySuggestions" :key="s" class="suggestion-item">
+                  <button @mousedown.prevent="selectCreatedBy(s)" class="suggestion-pick">{{ s }}</button>
+                  <button @mousedown.prevent="removeCreatedBy(s)" class="suggestion-x" title="Remove">✕</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="cost-estimate">Estimated cost: <strong>~{{ estimatedStoryCostFormatted }}</strong></div>
@@ -280,15 +280,7 @@
               </div>
             </div>
 
-            <!-- Orientation-aware navigation arrows -->
-            <template v-if="isPortrait">
-              <button v-if="canGoPrev()" class="nav-arrow-portrait nav-portrait-top" @click="prevPage" aria-label="Previous">▲</button>
-              <button v-if="canGoNext()" class="nav-arrow-portrait nav-portrait-bottom" @click="nextPage" aria-label="Next">▼</button>
-            </template>
-            <template v-else>
-              <button v-if="canGoPrev()" class="nav-arrow-landscape nav-landscape-left" @click="prevPage" aria-label="Previous">‹</button>
-              <button v-if="canGoNext()" class="nav-arrow-landscape nav-landscape-right" @click="nextPage" aria-label="Next">›</button>
-            </template>
+            <!-- Navigation: swipe on touch, arrow keys on desktop (on-screen arrows removed) -->
 
           </div>
         </div>
@@ -429,7 +421,7 @@
       </div>
 
       <!-- ============== CHARACTERS MODAL ============== -->
-      <div v-if="showCharactersModal" class="modal-overlay" @click.self="closeCharactersModal">
+      <div v-if="showCharactersModal" class="modal-overlay" @click.self="handleCharOverlayClick">
         <div class="modal modal-wide">
 
           <template v-if="charModalMode === 'list'">
@@ -500,28 +492,26 @@
           <template v-else>
             <div class="modal-header">
               <h2>{{ charModalMode === 'create' ? 'Create Character' : 'Edit Character' }}</h2>
-              <button @click="handleModalX" class="modal-close" aria-label="Back to list">✕</button>
             </div>
-            <p v-if="isRandomNew" class="modal-hint modal-hint-emphasize">✨ This character is newly invented but not saved yet. Tap <strong>Save</strong> below to keep them.</p>
+            <p v-if="isRandomNew" class="modal-hint modal-hint-emphasize">✨ This character is newly invented. Tap <strong>Save &amp; Close</strong> below to keep them.</p>
             <div class="char-form">
               <div class="form-field">
                 <label>Name</label>
                 <input type="text" v-model="charForm.name" placeholder="e.g. Kai, Bumble, Lord Frostbeard" class="text-input" />
               </div>
               <div class="form-field">
-                <label>Description</label>
-                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent." class="textarea-input" rows="4"></textarea>
+                <label>Description <span class="help-text">— the key details to keep consistent</span></label>
+                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent." class="textarea-input textarea-char-desc" rows="6"></textarea>
               </div>
 
               <!-- Photo capture -->
               <div class="form-field">
                 <label>Reference Photo <span class="optional">(optional)</span></label>
-                <p class="form-hint">Take a photo or upload a picture of a person, drawing, or toy. The AI will analyze it (~2¢ per photo).</p>
-                <input ref="takePhotoInput" type="file" accept="image/*" capture="environment" @change="handlePhotoSelect" style="display: none;" />
-                <input ref="uploadPhotoInput" type="file" accept="image/*" @change="handlePhotoSelect" style="display: none;" />
-                <div v-if="!charForm.photo_id" class="photo-buttons">
-                  <button @click="triggerTakePhoto" :disabled="analyzingPhoto" class="btn-secondary btn-small">📸 Take Photo</button>
-                  <button @click="triggerUploadPhoto" :disabled="analyzingPhoto" class="btn-secondary btn-small">🖼️ Upload Photo</button>
+                <input ref="addPhotoInput" type="file" accept="image/*" @change="handlePhotoSelect" style="display: none;" />
+                <div v-if="!charForm.photo_id" class="photo-add-area" @click="!analyzingPhoto && triggerAddPhoto()" :class="{ disabled: analyzingPhoto }">
+                  <div class="photo-add-icon">📷</div>
+                  <div class="photo-add-label">Add a Photo</div>
+                  <div class="photo-add-sub">Person, drawing, or toy · AI analyzes it (~2¢)</div>
                 </div>
                 <div v-else-if="getImageURL(charForm.photo_id)" class="photo-preview-square">
                   <img :src="getImageURL(charForm.photo_id)" alt="Reference" />
@@ -554,8 +544,8 @@
                   <div v-else class="thumbnail-preview thumbnail-placeholder">
                     <img src="assets/images/character-default.png" alt="No thumbnail" />
                   </div>
-                  <button @click="handleGenerateThumbnail" :disabled="generatingThumbnail" class="btn-secondary btn-small">
-                    {{ generatingThumbnail ? 'Generating…' : (charForm.thumbnail_id ? '🔁 Regenerate' : '✨ Generate Thumbnail') }}
+                  <button @click="handleGenerateThumbnail" :disabled="isThumbGenerating()" class="btn-secondary btn-small">
+                    {{ isThumbGenerating() ? 'Generating…' : (charForm.thumbnail_id ? '🔁 Regenerate' : '✨ Generate Thumbnail') }}
                   </button>
                 </div>
                 <p class="form-hint">Costs ~1¢ to generate. Cartoon portrait, transparent background.</p>
@@ -583,9 +573,10 @@
               </template>
 
               <div v-if="error" class="error-text">{{ error }}</div>
+              <p v-if="isThumbGenerating()" class="form-hint" style="text-align:center; margin: 0.2rem 0 0;">Avatar is still drawing — you can close; it'll finish in the background.</p>
               <div class="modal-footer">
                 <button v-if="charForm.visual_description" @click="handleEnhance" :disabled="enhancing" class="btn-secondary">🔁 Try Again</button>
-                <button @click="handleSaveCharacter" :disabled="!charFormCanSave" class="btn-primary">💾 Save</button>
+                <button @click="handleCloseCharForm" class="btn-primary">{{ charFormCanSave ? '✓ Save &amp; Close' : 'Close' }}</button>
               </div>
             </div>
           </template>
@@ -715,10 +706,10 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.6.6"></script>
-  <script src="js/imageStorage.js?v=0.6.6"></script>
-  <script src="js/api.js?v=0.6.6"></script>
-  <script src="js/app.js?v=0.6.6"></script>
+  <script src="js/storage.js?v=0.6.7"></script>
+  <script src="js/imageStorage.js?v=0.6.7"></script>
+  <script src="js/api.js?v=0.6.7"></script>
+  <script src="js/app.js?v=0.6.7"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

@@ -20,6 +20,31 @@ function getStoredPassword() { return localStorage.getItem(STORAGE_KEYS.PASSWORD
 function setStoredPassword(pw) { localStorage.setItem(STORAGE_KEYS.PASSWORD, pw); }
 function clearStoredPassword() { localStorage.removeItem(STORAGE_KEYS.PASSWORD); }
 
+// ---- Quota detection ----
+// localStorage has a ~5MB cap. When it's full, setItem throws. Detect it so
+// the app can show a friendly "clear some stories" message instead of a raw error.
+function isQuotaError(err) {
+  if (!err) return false;
+  return err.name === 'QuotaExceededError'
+    || err.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || err.code === 22
+    || err.code === 1014;
+}
+const STORAGE_FULL_MESSAGE = 'Storage is full. Open Settings and clear some saved stories to free up space.';
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    if (isQuotaError(err)) {
+      const e = new Error(STORAGE_FULL_MESSAGE);
+      e.isQuota = true;
+      throw e;
+    }
+    throw err;
+  }
+}
+
 // ---- Stories ----
 function getStoredStories() {
   const raw = localStorage.getItem(STORAGE_KEYS.STORIES);
@@ -31,7 +56,7 @@ function saveStoryToStorage(story) {
   const idx = stories.findIndex(s => s.id === story.id);
   if (idx === -1) stories.unshift(story);
   else stories[idx] = story;
-  localStorage.setItem(STORAGE_KEYS.STORIES, JSON.stringify(stories));
+  safeSetItem(STORAGE_KEYS.STORIES, JSON.stringify(stories));
 }
 function deleteStoryFromStorage(storyId) {
   const stories = getStoredStories().filter(s => s.id !== storyId);
@@ -50,7 +75,7 @@ function saveCharacter(character) {
   const idx = all.findIndex(c => c.id === character.id);
   if (idx === -1) all.unshift(character);
   else all[idx] = character;
-  localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+  safeSetItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
 }
 function deleteCharacter(id) {
   const all = getStoredCharacters().filter(c => c.id !== id);

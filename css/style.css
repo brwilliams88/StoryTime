@@ -565,6 +565,11 @@ body {
   min-height: 140px;
 }
 
+/* Character Description — the key input area, give it more room */
+.textarea-char-desc {
+  min-height: 130px;
+}
+
 /* Cost estimate above Generate button */
 .cost-estimate {
   text-align: center;
@@ -645,13 +650,34 @@ body {
   padding: 0.4rem 0.7rem;
 }
 .suggestion-x:hover { color: var(--error); }
-
-/* Photo capture - two buttons */
-.photo-buttons {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+/* When the field is near the bottom of the form, open the dropdown upward */
+.suggestions-list-up {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 0.3rem;
 }
+
+/* Photo capture - single "Add a Photo" tappable card */
+.photo-add-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 1.1rem 1rem;
+  border: 1.5px dashed var(--border-soft);
+  border-radius: 12px;
+  background: var(--bg-input);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.photo-add-area:hover { border-color: var(--accent); background: var(--bg-card); }
+.photo-add-area.disabled { opacity: 0.5; pointer-events: none; }
+.photo-add-icon { font-size: 1.6rem; line-height: 1; }
+.photo-add-label { font-weight: 600; color: var(--text-main); font-size: 0.95rem; }
+.photo-add-sub { font-size: 0.78rem; color: var(--text-dim); }
 
 /* Square photo preview (not circular) - this is the reference photo in edit */
 .photo-preview-square {
@@ -729,6 +755,27 @@ body {
   display: block;
   max-width: 100%;
 }
+/* Normalize all four corner handles to the same touch-friendly size.
+   Cropper.js makes the SE handle much bigger by default, which felt
+   inconsistent (it stretched while others seemed to do nothing). */
+.cropper-container .cropper-point {
+  width: 16px !important;
+  height: 16px !important;
+  opacity: 0.9 !important;
+  background-color: var(--accent, #ffd479) !important;
+  border-radius: 50%;
+}
+.cropper-container .cropper-point.point-n,
+.cropper-container .cropper-point.point-s,
+.cropper-container .cropper-point.point-e,
+.cropper-container .cropper-point.point-w {
+  /* hide the midpoint edge handles — corners only, cleaner on touch */
+  display: none !important;
+}
+.cropper-container .cropper-point.point-ne { top: -8px; right: -8px; margin: 0 !important; }
+.cropper-container .cropper-point.point-nw { top: -8px; left: -8px; margin: 0 !important; }
+.cropper-container .cropper-point.point-se { bottom: -8px; right: -8px; margin: 0 !important; }
+.cropper-container .cropper-point.point-sw { bottom: -8px; left: -8px; margin: 0 !important; }
 
 /* Settings stacked segment (radio-style buttons) */
 .settings-segment-stacked {
@@ -1506,52 +1553,6 @@ body:has(.app-main-reading) {
 }
 .inspect-btn:hover { background: rgba(0, 0, 0, 0.8); }
 
-/* ---- Orientation-aware nav arrows ---- */
-.nav-arrow-portrait, .nav-arrow-landscape {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.35);
-  border: none;
-  color: white;
-  cursor: pointer;
-  z-index: 6;
-  font-family: inherit;
-  line-height: 0;
-  opacity: 0.4;
-  transition: opacity 0.2s ease;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.nav-arrow-portrait:hover, .nav-arrow-landscape:hover { opacity: 0.95; }
-
-/* Portrait: arrows at top and bottom, horizontally centered */
-.nav-arrow-portrait {
-  width: 56px;
-  height: 30px;
-  font-size: 0.95rem;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.nav-portrait-top    { top: 8px; }
-.nav-portrait-bottom { bottom: 14px; }
-
-/* Landscape: arrows at left and right edges, vertically centered */
-.nav-arrow-landscape {
-  width: 36px;
-  height: 56px;
-  font-size: 1.7rem;
-  top: 50%;
-  transform: translateY(-50%);
-  padding-bottom: 4px;
-}
-.nav-landscape-left {
-  left: max(8px, env(safe-area-inset-left));
-}
-.nav-landscape-right {
-  right: max(8px, env(safe-area-inset-right));
-}
-
 /* ---- Bottom progress toast ---- */
 .loading-toast {
   position: fixed;
@@ -2165,6 +2166,4 @@ body:has(.app-main-reading) {
   .spread-text { font-size: 1rem; max-width: 100%; }
   .cover-title { font-size: 1.6rem; }
   .end-title { font-size: 1.8rem; }
-  .nav-zone { width: 44px; }
-  .nav-arrow { font-size: 2rem; width: 36px; height: 36px; }
 }

@@ -9,6 +9,28 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.7 — 2026-06-15 — Debug Rev: Character UX, Nav, Prompts, Robustness
+  • "Created By" field moved to the bottom of the form, just above Generate Story
+  • Character Description field enlarged (key input area)
+  • Character edit: single "Save & Close" button (auto-saves valid characters); removed top ✕ — closing no longer loses generated work
+  • Bring to Life now auto-(re)generates the avatar thumbnail every time
+  • Thumbnail generation runs in the BACKGROUND — close the edit screen anytime; the avatar fills in when ready
+  • Random characters also auto-generate a thumbnail
+  • Fixed disappearing-character bug (double-tap save race); no cap on number of characters
+  • Background thumbnail failures are silently ignored (keeps placeholder, no scary red error)
+  • Thumbnail generation retries once on server (500) errors
+  • Thumbnail prompt: no longer invents a neck/body for characters described without one
+  • Reference Photo: single "📷 Add a Photo" button (OS picker handles camera/library/file); cleaner layout
+  • On-screen navigation arrows removed — swipe on touch, arrow keys (←/→/↑/↓) on desktop/laptop
+  • Image text rule tightened: NO overlaid caption/narration text; short character speech bubbles + natural scene text (signs, objects) still allowed
+  • Chalkboard style: now genuinely basic/amateur — wobbly lines, limited chalk palette, no realistic shading
+  • Stuffies style: realistic plush look (fuzz, stitching, tags, stuffing); no longer forces a bedroom setting — scenery follows the story
+  • Vocabulary tuned per age group (Toddler / Preschool / Early Reader / Older Kid); avoids advanced words like "macabre", "malice", "bellowed"
+  • Fixed Genre / Artwork Style / Story Ingredients not reordering (MRU) after creating a story
+  • Crop tool: consistent corner handles (no oversized bottom-right); dragging the canvas no longer restarts the box
+  • Storage-full error now shows a clear "clear some stories" message instead of raw "quota exceeded"
+
+--------------------------
 v0.6.6 — 2026-06-02 — Polish + Auto Thumbnails + Photo Cropping
   • New ingredients: 🏎️ Race, 🌟 Save the Day (max 3 selectable still)
   • Story ingredients now MRU-sorted (most recently used pills move up)
