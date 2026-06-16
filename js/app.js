@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.7',
+      version: 'v0.6.8',
       buildDate: '2026-06-15',
 
       showSplash: true,
@@ -89,6 +89,10 @@ createApp({
       thumbnailGeneratingIds: [],
       // Guard against double-tap saving a character (caused disappearing chars)
       savingCharacter: false,
+
+      // Reactive map of imageId -> object URL. Backs getImageURL so images
+      // appear the instant they're ready (no more "flip a page to see the cover").
+      imageUrls: {},
 
       formData: defaultFormData(),
 
@@ -635,11 +639,11 @@ createApp({
       // Clean up photo + thumbnail blobs
       if (char.photo_id) {
         try { await deleteImageBlob(char.photo_id); } catch (e) {}
-        if (this._urlCache) delete this._urlCache[char.photo_id];
+        this.releaseImageURL(char.photo_id);
       }
       if (char.thumbnail_id) {
         try { await deleteImageBlob(char.thumbnail_id); } catch (e) {}
-        if (this._urlCache) delete this._urlCache[char.thumbnail_id];
+        this.releaseImageURL(char.thumbnail_id);
       }
       deleteCharacter(char.id);
       this.characters = getStoredCharacters();
@@ -749,12 +753,33 @@ createApp({
         this.currentImagesCost = 0;
         this.currentStoryCost = textResult.cost;
         this.currentPageIndex = 0;
-        this.loading = false;
-        this.view = 'story';
         this.applyStoryFontSize(storyData);
-        window.scrollTo(0, 0);
 
-        await this.generateAllImages(storyData);
+        const mode = this.imageGenMode || 'all';
+
+        if (mode === 'skip') {
+          // No images — mark everything skipped and open the book right away
+          storyData.cover.image_status = 'skipped';
+          storyData.pages.forEach(p => { if (p.image_status === 'pending') p.image_status = 'skipped'; });
+          this.loading = false;
+          this.view = 'story';
+          window.scrollTo(0, 0);
+          this.persistStory(storyData);
+        } else {
+          // Draw the COVER first and keep the loading screen up until it's ready,
+          // so the book opens with its title page fully drawn.
+          this.loadingMessage = 'Drawing the cover…';
+          await this.generateOneImage('cover', storyData);
+
+          // Cover is ready (or failed) — open the book now
+          this.loading = false;
+          this.view = 'story';
+          window.scrollTo(0, 0);
+
+          // Draw the remaining pages in the BACKGROUND, several at a time,
+          // so they stream in while you start reading.
+          await this.generateRemainingImages(storyData, mode);
+        }
 
         // After all images: mark characters confirmed_safe if no fallback was triggered
         if (Object.keys(this.useFallbackChars).length === 0) {
@@ -807,35 +832,8 @@ createApp({
       return result;
     },
 
-    async generateAllImages(storyData) {
-      // Determine which images to actually generate based on imageGenMode
-      const mode = this.imageGenMode || 'all';
-      let toGen;
-      if (mode === 'skip') toGen = [];
-      else if (mode === 'first-two') toGen = ['cover', 0];
-      else toGen = ['cover', ...storyData.pages.map((_, i) => i)];
-
-      const total = toGen.length;
-      for (let idx = 0; idx < toGen.length; idx++) {
-        const target = toGen[idx];
-        const label = target === 'cover' ? 'cover' : `page ${target + 1}`;
-        this.loadingProgress = `Drawing ${label} (${idx + 1} of ${total})…`;
-        await this.generateOneImage(target, storyData);
-      }
-
-      // Mark non-generated slots as skipped so UI shows placeholder cleanly
-      if (mode !== 'all') {
-        if (mode === 'skip' || mode === 'first-two') {
-          if (mode === 'skip' && storyData.cover.image_status === 'pending') {
-            storyData.cover.image_status = 'skipped';
-          }
-          storyData.pages.forEach((p, i) => {
-            const shouldHave = mode === 'first-two' && i === 0;
-            if (!shouldHave && p.image_status === 'pending') p.image_status = 'skipped';
-          });
-        }
-      }
-
+    // Save a story, surfacing a friendly message if device storage is full.
+    persistStory(storyData) {
       try {
         saveStoryToStorage(storyData);
       } catch (err) {
@@ -844,6 +842,37 @@ createApp({
       }
       this.refreshStorageSize();
       this.refreshImageStats();
+    },
+
+    // Draw the page images (the cover is drawn separately, before this).
+    // Uses a small concurrency pool so several images render at once — roughly
+    // halves the wait — without tripping the image API's rate limits. Image
+    // quality is unaffected: each image is an independent API call.
+    async generateRemainingImages(storyData, mode) {
+      let pageIndices;
+      if (mode === 'first-two') {
+        pageIndices = storyData.pages.length > 0 ? [0] : [];
+        // Mark the rest skipped so the UI shows a clean placeholder
+        storyData.pages.forEach((p, i) => {
+          if (i !== 0 && p.image_status === 'pending') p.image_status = 'skipped';
+        });
+      } else {
+        pageIndices = storyData.pages.map((_, i) => i);
+      }
+
+      const CONCURRENCY = 3;
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < pageIndices.length) {
+          const pageIdx = pageIndices[cursor++];
+          await this.generateOneImage(pageIdx, storyData);
+        }
+      };
+      const pool = [];
+      for (let i = 0; i < Math.min(CONCURRENCY, pageIndices.length); i++) pool.push(worker());
+      await Promise.all(pool);
+
+      this.persistStory(storyData);
       this.loadingProgress = '';
     },
 
@@ -916,6 +945,10 @@ createApp({
         const imageId = `img_${storyData.id}_${target === 'cover' ? 'cover' : 'p' + target}_${Date.now()}`;
         await saveImageBlob(imageId, blob);
 
+        // Publish the object URL reactively so the image appears immediately
+        // (we already have the blob in memory — no round-trip to IndexedDB).
+        this.imageUrls[imageId] = URL.createObjectURL(blob);
+
         slot.image_id = imageId;
         slot.image_status = 'ready';
         slot.image_cost = result.cost;
@@ -958,7 +991,13 @@ createApp({
       this.characters = getStoredCharacters();
     },
 
-    async handleCopyrightFailure(target, storyData) {
+    // Returns a promise that resolves once the user decides (confirm/cancel).
+    // Blocking so that with parallel generation the fallback choice is applied
+    // before more images are drawn. Only ONE modal at a time — if one is already
+    // open, other concurrent failures resolve immediately (their images stay
+    // "failed" with a Try Again button, and any not-yet-drawn pages will use the
+    // fallback once it's confirmed).
+    handleCopyrightFailure(target, storyData) {
       const chars = storyData.selected_characters || [];
       const problematic = chars.filter(c =>
         !this.useFallbackChars[c.id] &&
@@ -969,17 +1008,21 @@ createApp({
         ? problematic
         : chars.filter(c => !this.useFallbackChars[c.id] && c.safe_fallback_visual_description);
 
-      if (candidates.length === 0) return;
+      if (candidates.length === 0) return Promise.resolve();
+      if (this.copyrightModal) return Promise.resolve();  // already handling one
 
-      this.copyrightModal = {
-        problematicChars: candidates,
-        target,
-      };
+      return new Promise((resolve) => {
+        this.copyrightModal = {
+          problematicChars: candidates,
+          target,
+          _resolve: resolve,
+        };
+      });
     },
 
     async confirmCopyrightFallback() {
       if (!this.copyrightModal) return;
-      const { problematicChars, target } = this.copyrightModal;
+      const { problematicChars, target, _resolve } = this.copyrightModal;
       problematicChars.forEach(c => {
         this.useFallbackChars[c.id] = true;
         setCharacterAlwaysUseFallback(c.id, true);
@@ -987,18 +1030,21 @@ createApp({
       this.characters = getStoredCharacters();
       this.copyrightModal = null;
       await this.generateOneImage(target, this.currentStory);
-      saveStoryToStorage(this.currentStory);
-      this.refreshImageStats();
+      this.persistStory(this.currentStory);
+      if (_resolve) _resolve();
     },
 
-    cancelCopyrightFallback() { this.copyrightModal = null; },
+    cancelCopyrightFallback() {
+      const resolve = this.copyrightModal && this.copyrightModal._resolve;
+      this.copyrightModal = null;
+      if (resolve) resolve();
+    },
 
     async regenerateOneImage(target) {
       if (!this.currentStory) return;
       this.inspectingImage = null;
       await this.generateOneImage(target, this.currentStory);
-      saveStoryToStorage(this.currentStory);
-      this.refreshImageStats();
+      this.persistStory(this.currentStory);
     },
 
     handleFakeStory() {
@@ -1137,15 +1183,25 @@ createApp({
 
     getImageURL(imageId) {
       if (!imageId) return null;
-      if (this._urlCache && this._urlCache[imageId]) return this._urlCache[imageId];
-      if (!this._urlCache) this._urlCache = {};
-      getImageBlob(imageId).then((blob) => {
-        if (blob) {
-          this._urlCache[imageId] = URL.createObjectURL(blob);
-          this.$forceUpdate();
-        }
-      });
+      // Reactive: once imageUrls[imageId] is set, Vue re-renders and the
+      // image shows immediately — no manual $forceUpdate, no missed first paint.
+      if (this.imageUrls[imageId]) return this.imageUrls[imageId];
+      // Kick off the blob load exactly once per id
+      if (!this._loadingUrls) this._loadingUrls = {};
+      if (!this._loadingUrls[imageId]) {
+        this._loadingUrls[imageId] = true;
+        getImageBlob(imageId).then((blob) => {
+          if (blob) this.imageUrls[imageId] = URL.createObjectURL(blob);
+        }).finally(() => { this._loadingUrls[imageId] = false; });
+      }
       return null;
+    },
+    // Free an object URL and drop it from the reactive map
+    releaseImageURL(imageId) {
+      if (!imageId) return;
+      const url = this.imageUrls[imageId];
+      if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
+      delete this.imageUrls[imageId];
     },
 
     setRating(stars) {
@@ -1305,7 +1361,7 @@ createApp({
         // Save photo blob (delete previous if any)
         if (this.charForm.photo_id) {
           try { await deleteImageBlob(this.charForm.photo_id); } catch (e) {}
-          if (this._urlCache) delete this._urlCache[this.charForm.photo_id];
+          this.releaseImageURL(this.charForm.photo_id);
         }
         const photoId = `photo_${this.charForm.id || 'new'}_${Date.now()}`;
         const blob = await (await fetch(dataUrl)).blob();
@@ -1326,7 +1382,7 @@ createApp({
     async handleRemovePhoto() {
       if (!this.charForm.photo_id) return;
       try { await deleteImageBlob(this.charForm.photo_id); } catch (e) {}
-      if (this._urlCache) delete this._urlCache[this.charForm.photo_id];
+      this.releaseImageURL(this.charForm.photo_id);
       this.charForm.photo_id = null;
       this.charForm.photo_description = '';
       this.refreshImageStats();
@@ -1361,7 +1417,7 @@ createApp({
 
         if (oldThumbId && oldThumbId !== thumbId) {
           try { await deleteImageBlob(oldThumbId); } catch (e) {}
-          if (this._urlCache) delete this._urlCache[oldThumbId];
+          this.releaseImageURL(oldThumbId);
         }
 
         // Update the live form if the user is still on this character

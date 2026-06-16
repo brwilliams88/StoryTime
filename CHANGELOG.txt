@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.6.8 — 2026-06-15 — Faster Loading + Parallel Image Generation
+  • Cover image now generated FIRST — loading screen stays up until the title page (incl. its image) is fully drawn, then the book opens
+  • Fixed cover/page images sometimes not appearing until you flipped a page and back (image display is now properly reactive — shows the instant it's ready)
+  • Page images generate in PARALLEL (3 at a time) instead of one-by-one — roughly halves the wait; image quality unchanged (each image is its own call)
+  • Pages stream in while you read — start on the cover/page 1 while later pages finish drawing
+  • Copyright fallback prompt now blocks correctly during parallel generation (one prompt at a time; resolves cleanly)
+  • Generated images display instantly from memory (no extra round-trip to on-device storage)
+
+--------------------------
 v0.6.7 — 2026-06-15 — Debug Rev: Character UX, Nav, Prompts, Robustness
   • "Created By" field moved to the bottom of the form, just above Generate Story
   • Character Description field enlarged (key input area)
