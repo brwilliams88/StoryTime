@@ -1,0 +1,155 @@
+// =====================================================================
+// sync.js — Client sync layer
+// =====================================================================
+// Keeps the on-device cache (localStorage + IndexedDB) in agreement with
+// the cloud (Supabase, reached through the Cloudflare Worker).
+//
+// This file is the WRITE path: push new/updated books + characters up,
+// delete them when removed, and compress images to JPEG before upload.
+// (Reads / offline cache / migration come in later chunks.)
+//
+// All cloud calls are best-effort: if the network or Worker is down they
+// reject, the caller logs it, and the local save still stands. A proper
+// offline retry queue comes later.
+// =====================================================================
+
+const JPEG_QUALITY = 0.82;
+
+// ---- Image helpers ----
+
+// Re-encode an image blob as JPEG (smaller). Returns the original blob
+// unchanged if it's already JPEG. Used for story images (no transparency).
+async function compressToJpeg(blob, quality = JPEG_QUALITY) {
+  if (!blob || blob.type === 'image/jpeg') return blob;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    // Flatten any transparency onto white (story images are full-bleed anyway)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0);
+    if (bitmap.close) bitmap.close();
+    const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    return jpeg || blob;
+  } catch (e) {
+    console.warn('JPEG compression failed; keeping original', e);
+    return blob;
+  }
+}
+
+// Blob -> base64 string (no data: prefix)
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('Could not read blob'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Upload one IndexedDB image blob to the cloud bucket (preserves its type)
+async function uploadImageBlob(imageId, blob) {
+  const b64 = await blobToBase64(blob);
+  return imgUploadToCloud(imageId, b64, blob.type || 'image/jpeg', getStoredPassword());
+}
+
+// ---- Row builders (full object in `data`, plus searchable columns) ----
+function storyToRow(story) {
+  const characterNames = (story.selected_characters || [])
+    .map(c => c.name).filter(Boolean).join(' ');
+  const fd = story.formData || {};
+  return {
+    id: story.id,
+    title: story.title || '',
+    created_by: story.created_by || '',
+    genre: fd.genre || '',
+    age_range: fd.ageRange || '',
+    theme: fd.theme || '',
+    summary: story.summary || '',
+    character_names: characterNames,
+    rating: story.rating || 0,
+    last_read_at: story.last_read_at || null,
+    data: story,
+  };
+}
+
+function characterToRow(char) {
+  return {
+    id: char.id,
+    name: char.name || '',
+    tagline: char.tagline || '',
+    last_used_at: char.last_used_at || null,
+    data: char,
+  };
+}
+
+// ---- Push: stories ----
+// Uploads any not-yet-uploaded story images (compressing to JPEG), then
+// upserts the story row. Marks slots as uploaded so re-syncs are cheap.
+async function syncPushStory(story) {
+  const pw = getStoredPassword();
+  if (!pw || !story || !story.id) return;
+
+  const slots = [story.cover, ...(story.pages || [])];
+  let flagsChanged = false;
+  for (const slot of slots) {
+    if (!slot || !slot.image_id || slot.image_status !== 'ready' || slot.image_uploaded) continue;
+    try {
+      let blob = await getImageBlob(slot.image_id);
+      if (!blob) continue;
+      blob = await compressToJpeg(blob);
+      await uploadImageBlob(slot.image_id, blob);
+      slot.image_uploaded = true;
+      flagsChanged = true;
+    } catch (e) {
+      console.warn('Story image upload failed:', slot.image_id, e);
+    }
+  }
+
+  await dbUpsertStory(storyToRow(story), pw);
+
+  // Persist the image_uploaded flags so we don't re-upload next time
+  if (flagsChanged) {
+    try { saveStoryToStorage(story); } catch (e) { /* quota etc — ignore here */ }
+  }
+}
+
+// ---- Push: characters ----
+// Character images are few and small; just upload them (idempotent upsert),
+// preserving type so transparent PNG thumbnails stay transparent.
+async function syncPushCharacter(char) {
+  const pw = getStoredPassword();
+  if (!pw || !char || !char.id) return;
+
+  for (const imgId of [char.thumbnail_id, char.photo_id]) {
+    if (!imgId) continue;
+    try {
+      const blob = await getImageBlob(imgId);
+      if (blob) await uploadImageBlob(imgId, blob);
+    } catch (e) {
+      console.warn('Character image upload failed:', imgId, e);
+    }
+  }
+
+  await dbUpsertCharacter(characterToRow(char), pw);
+}
+
+// ---- Delete ----
+async function syncDeleteStory(story) {
+  const pw = getStoredPassword();
+  if (!pw || !story) return;
+  const imgIds = [story.cover && story.cover.image_id, ...((story.pages || []).map(p => p.image_id))].filter(Boolean);
+  try { if (imgIds.length) await imgDeleteCloud(imgIds, pw); } catch (e) { console.warn(e); }
+  await dbDeleteStory(story.id, pw);
+}
+
+async function syncDeleteCharacter(char) {
+  const pw = getStoredPassword();
+  if (!pw || !char) return;
+  const imgIds = [char.thumbnail_id, char.photo_id].filter(Boolean);
+  try { if (imgIds.length) await imgDeleteCloud(imgIds, pw); } catch (e) { console.warn(e); }
+  await dbDeleteCharacter(char.id, pw);
+}

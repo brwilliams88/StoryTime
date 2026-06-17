@@ -722,3 +722,42 @@ STYLE:
   }
   throw lastError;
 }
+
+
+// =====================================================================
+// SUPABASE (via the Cloudflare Worker)
+// Thin wrappers around the Worker's /db/* and /img/* endpoints. The
+// browser never holds the Supabase Secret Key — the Worker does.
+// =====================================================================
+async function workerPost(path, body, password) {
+  const response = await fetch(`${WORKER_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
+    body: JSON.stringify(body || {}),
+  });
+  if (response.status === 401) throw new Error('Wrong password. Open Settings to reset.');
+  let data = {};
+  try { data = await response.json(); } catch (e) {}
+  if (!response.ok || data.error) {
+    throw new Error(data.error || `Worker error (HTTP ${response.status})`);
+  }
+  return data;
+}
+
+// ---- Database: stories ----
+function dbUpsertStory(row, pw)   { return workerPost('/db/stories/upsert', row, pw); }
+function dbDeleteStory(id, pw)    { return workerPost('/db/stories/delete', { id }, pw); }
+function dbGetStory(id, pw)       { return workerPost('/db/stories/get', { id }, pw); }
+function dbListStories(opts, pw)  { return workerPost('/db/stories/list', opts || {}, pw); }
+
+// ---- Database: characters ----
+function dbUpsertCharacter(row, pw) { return workerPost('/db/characters/upsert', row, pw); }
+function dbDeleteCharacter(id, pw)  { return workerPost('/db/characters/delete', { id }, pw); }
+function dbListCharacters(pw)       { return workerPost('/db/characters/list', {}, pw); }
+
+// ---- Image storage ----
+function imgUploadToCloud(id, b64, contentType, pw) {
+  return workerPost('/img/upload', { id, b64, contentType }, pw);
+}
+function imgSignUrls(ids, pw)   { return workerPost('/img/sign', { ids }, pw); }
+function imgDeleteCloud(ids, pw) { return workerPost('/img/delete', { ids }, pw); }

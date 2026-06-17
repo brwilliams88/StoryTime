@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.6.8',
-      buildDate: '2026-06-15',
+      version: 'v0.7.0',
+      buildDate: '2026-06-16',
 
       showSplash: true,
 
@@ -613,6 +613,8 @@ createApp({
         throw err;
       }
       this.characters = getStoredCharacters();
+      // Cloud sync — fire-and-forget
+      syncPushCharacter(record).catch(e => console.warn('Cloud sync (character) failed:', e));
       return true;
     },
 
@@ -636,6 +638,8 @@ createApp({
 
     async handleDeleteCharacter(char) {
       if (!confirm(`Delete "${char.name}"? This cannot be undone.`)) return;
+      // Remove from the cloud too (best-effort)
+      syncDeleteCharacter(char).catch(e => console.warn('Cloud delete (character) failed:', e));
       // Clean up photo + thumbnail blobs
       if (char.photo_id) {
         try { await deleteImageBlob(char.photo_id); } catch (e) {}
@@ -832,7 +836,7 @@ createApp({
       return result;
     },
 
-    // Save a story, surfacing a friendly message if device storage is full.
+    // Save a story locally, then push it to the cloud (best-effort).
     persistStory(storyData) {
       try {
         saveStoryToStorage(storyData);
@@ -842,6 +846,8 @@ createApp({
       }
       this.refreshStorageSize();
       this.refreshImageStats();
+      // Cloud sync — fire-and-forget; local save already succeeded
+      syncPushStory(storyData).catch(e => console.warn('Cloud sync (story) failed:', e));
     },
 
     // Draw the page images (the cover is drawn separately, before this).
@@ -941,7 +947,10 @@ createApp({
 
       try {
         const result = await generateImage(fullPrompt, this.password, { quality, size: '1024x1024' });
-        const blob = base64ToBlob(result.b64, 'image/png');
+        // Compress PNG → JPEG (~80-90% smaller, visually identical for art)
+        // before caching locally and uploading to the cloud.
+        const pngBlob = base64ToBlob(result.b64, 'image/png');
+        const blob = await compressToJpeg(pngBlob);
         const imageId = `img_${storyData.id}_${target === 'cover' ? 'cover' : 'p' + target}_${Date.now()}`;
         await saveImageBlob(imageId, blob);
 
@@ -1209,7 +1218,9 @@ createApp({
       this.currentStory.rating = stars;
       if (this.currentStoryRecord) {
         this.currentStoryRecord.rating = stars;
-        saveStoryToStorage(this.currentStoryRecord);
+        try { saveStoryToStorage(this.currentStoryRecord); } catch (e) { if (!e.isQuota) throw e; }
+        // Sync the rating up (images already uploaded, so this is just metadata)
+        syncPushStory(this.currentStoryRecord).catch(e => console.warn('Cloud sync (rating) failed:', e));
       }
     },
 
@@ -1428,6 +1439,12 @@ createApp({
         setCharacterThumbnailId(charId, thumbId);
         this.characters = getStoredCharacters();
         this.refreshImageStats();
+        // If this character is already saved, push the new thumbnail to the cloud.
+        // (Brand-new unsaved characters get pushed when the user taps Save & Close.)
+        const storedChar = this.characters.find(c => c.id === charId);
+        if (storedChar) {
+          syncPushCharacter(storedChar).catch(e => console.warn('Cloud sync (thumbnail) failed:', e));
+        }
       } catch (err) {
         // Silently ignore (per design) — keep the placeholder avatar
         console.warn('Background thumbnail generation failed (ignored):', err);

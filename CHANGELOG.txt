@@ -9,6 +9,16 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.7.0 — 2026-06-16 — Cloud Sync (Supabase) — Write Path + Image Compression
+  • Supabase backend wired up: NEW books + characters now back up to the cloud automatically as you create them
+  • All cloud access goes through the password-gated Cloudflare Worker using the Supabase Secret Key (never exposed in the browser); tables locked down with Row-Level Security
+  • Story images compressed to JPEG before saving + uploading (~80-90% smaller, visually identical for illustrations); thumbnails stay PNG to keep transparency
+  • Images stored in a PRIVATE Supabase bucket; shown via short-lived signed URLs
+  • New client sync layer (js/sync.js): pushes stories/characters, uploads images, removes them from the cloud on delete — all best-effort (local save always works even offline)
+  • Worker gained /db/* (stories, characters: upsert/delete/get/list) and /img/* (upload/sign/delete) endpoints
+  • NOTE: this is part 1 of v0.7. Your EXISTING books + 31 characters aren't in the cloud yet — that's the migration step (v0.7.1). Cross-device reading + offline cache come in v0.7.2.
+
+--------------------------
 v0.6.8 — 2026-06-15 — Faster Loading + Parallel Image Generation
   • Cover image now generated FIRST — loading screen stays up until the title page (incl. its image) is fully drawn, then the book opens
   • Fixed cover/page images sometimes not appearing until you flipped a page and back (image display is now properly reactive — shows the instant it's ready)

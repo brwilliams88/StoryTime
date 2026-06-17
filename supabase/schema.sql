@@ -1,0 +1,92 @@
+-- ============================================================
+-- StoryTime — Supabase schema (v0.7)
+-- Run this in: Supabase Dashboard → SQL Editor → New query → paste → Run
+-- Safe to re-run (everything is "if not exists" / "or replace").
+-- ============================================================
+
+-- Optional speed-up: lets us do fast fuzzy text search (ILIKE) on
+-- titles and character names for the Library view.
+create extension if not exists pg_trgm;
+
+-- ------------------------------------------------------------
+-- CHARACTERS
+-- One row per saved character. The FULL character object lives in
+-- `data` (jsonb). The columns above it are copies we sort/search on.
+-- ------------------------------------------------------------
+create table if not exists public.characters (
+  id            text primary key,             -- client id, e.g. "char_1718..."
+  name          text not null,
+  tagline       text,
+  data          jsonb not null,               -- full character object
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  last_used_at  timestamptz
+);
+
+create index if not exists characters_created_idx   on public.characters (created_at desc);
+create index if not exists characters_lastused_idx  on public.characters (last_used_at desc nulls last);
+create index if not exists characters_name_trgm     on public.characters using gin (name gin_trgm_ops);
+
+-- ------------------------------------------------------------
+-- STORIES
+-- One row per generated book. The FULL book (pages, cover, quiz,
+-- image references, costs…) lives in `data` (jsonb). The columns
+-- above it drive the Library view's sort + search.
+-- NOTE: the image FILES are not stored here — they live in the
+-- "story-images" Storage bucket; `data` only holds their ids/paths.
+-- ------------------------------------------------------------
+create table if not exists public.stories (
+  id               text primary key,          -- client id, e.g. "story_1718..."
+  title            text,
+  created_by       text,
+  genre            text,
+  age_range        text,
+  theme            text,
+  summary          text,
+  character_names  text,                       -- e.g. "Kai Nozomi Bumble" (for search)
+  rating           int not null default 0,
+  data             jsonb not null,             -- full story object
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  last_read_at     timestamptz
+);
+
+create index if not exists stories_created_idx    on public.stories (created_at desc);
+create index if not exists stories_lastread_idx   on public.stories (last_read_at desc nulls last);
+create index if not exists stories_title_trgm     on public.stories using gin (title gin_trgm_ops);
+create index if not exists stories_chars_trgm     on public.stories using gin (character_names gin_trgm_ops);
+
+-- ------------------------------------------------------------
+-- Keep `updated_at` honest: bump it automatically on every UPDATE.
+-- (Used later for cross-device sync — newest write wins.)
+-- ------------------------------------------------------------
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists characters_touch on public.characters;
+create trigger characters_touch before update on public.characters
+  for each row execute function public.touch_updated_at();
+
+drop trigger if exists stories_touch on public.stories;
+create trigger stories_touch before update on public.stories
+  for each row execute function public.touch_updated_at();
+
+-- ------------------------------------------------------------
+-- SECURITY — Row-Level Security (RLS)
+-- We turn RLS ON and add NO policies. Result:
+--   • The public "Publishable Key" (anything in the browser) is
+--     DENIED all read/write on these tables.
+--   • Your Cloudflare Worker uses the "Secret Key", which BYPASSES
+--     RLS, so it keeps full access.
+-- This is the lock that makes Option A safe even though the tables
+-- are exposed through the API.
+-- ------------------------------------------------------------
+alter table public.characters enable row level security;
+alter table public.stories    enable row level security;
+
+-- Done. Next: create the "story-images" Storage bucket (see SETUP.md).
