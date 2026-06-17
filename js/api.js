@@ -470,7 +470,7 @@ function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback) {
   if (useFallback) {
     parts.push(`The characters in this image are ORIGINAL CREATIONS for this story. Do not interpret them as references to any existing copyrighted or trademarked characters from films, games, or shows. Render them based solely on the descriptions provided.`);
   }
-  parts.push(`TEXT RULES: Do NOT overlay any caption, narration, title, or floating words on top of the image (no subtitle bars, no "The End", no scene-description text). The ONLY text allowed is: (1) a short comic-style speech bubble for a few words a character is actually saying, and (2) incidental text that naturally belongs in the scene (on signs, books, clothing, objects). Never add explanatory or narrative text describing the scene.`);
+  parts.push(`TEXT RULES: Do NOT add ANY text overlays, captions, narration, titles, or speech/thought bubbles. No words floating on the image, no "The End", no dialogue or caption bubbles of any kind. The ONLY text allowed is incidental text that naturally belongs to an object in the scene itself — e.g. on a sign, a book cover, a label, or clothing. Never add text that describes, narrates, or quotes the scene.`);
   if (styleAnchor) {
     parts.push(`Reminder: render in this exact style: ${styleAnchor}.`);
   }

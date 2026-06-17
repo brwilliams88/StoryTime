@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.7.0',
+      version: 'v0.7.1',
       buildDate: '2026-06-16',
 
       showSplash: true,
@@ -93,6 +93,10 @@ createApp({
       // Reactive map of imageId -> object URL. Backs getImageURL so images
       // appear the instant they're ready (no more "flip a page to see the cover").
       imageUrls: {},
+
+      // One-time cloud backup (migration) state
+      migrating: false,
+      migrateProgress: '',
 
       formData: defaultFormData(),
 
@@ -1249,6 +1253,25 @@ createApp({
     async refreshImageStats() {
       try { this.imageStats = await getImageDBStats(); }
       catch (e) { this.imageStats = { count: 0, bytes: 0 }; }
+    },
+
+    // One-time backup of all existing on-device data to the cloud
+    async handleMigrateToCloud() {
+      if (this.migrating) return;
+      if (!confirm('Back up all your current characters and books to the cloud? This may take a few minutes depending on how many you have.')) return;
+      this.migrating = true;
+      this.migrateProgress = 'Starting…';
+      try {
+        const s = await syncMigrateAll((p) => { this.migrateProgress = p; });
+        const failed = s.charsFail + s.storiesFail;
+        this.migrateProgress =
+          `Done! Characters ${s.charsOk}/${s.charsTotal}, Books ${s.storiesOk}/${s.storiesTotal}.` +
+          (failed > 0 ? ` ${failed} failed — tap again to retry those.` : ' 🎉');
+      } catch (e) {
+        this.migrateProgress = 'Backup failed: ' + (e.message || 'unknown error');
+      } finally {
+        this.migrating = false;
+      }
     },
     handleClearStories() {
       if (!confirm('Clear all saved stories? This cannot be undone.')) return;

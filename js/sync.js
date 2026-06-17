@@ -153,3 +153,33 @@ async function syncDeleteCharacter(char) {
   try { if (imgIds.length) await imgDeleteCloud(imgIds, pw); } catch (e) { console.warn(e); }
   await dbDeleteCharacter(char.id, pw);
 }
+
+// ---- One-time migration ----
+// Push everything currently on this device (characters + stories, with
+// their images) up to the cloud. Safe to re-run: already-uploaded images
+// are skipped and rows are upserted. `onProgress(text)` gets status strings.
+async function syncMigrateAll(onProgress) {
+  const pw = getStoredPassword();
+  if (!pw) throw new Error('No app password set — open the app first.');
+
+  const chars = getStoredCharacters();
+  const stories = getStoredStories();
+  const summary = {
+    charsOk: 0, charsFail: 0, charsTotal: chars.length,
+    storiesOk: 0, storiesFail: 0, storiesTotal: stories.length,
+  };
+
+  for (let i = 0; i < chars.length; i++) {
+    if (onProgress) onProgress(`Backing up characters… ${i + 1}/${chars.length}`);
+    try { await syncPushCharacter(chars[i]); summary.charsOk++; }
+    catch (e) { console.warn('Migrate character failed:', chars[i] && chars[i].id, e); summary.charsFail++; }
+  }
+
+  for (let i = 0; i < stories.length; i++) {
+    if (onProgress) onProgress(`Backing up books… ${i + 1}/${stories.length}`);
+    try { await syncPushStory(stories[i]); summary.storiesOk++; }
+    catch (e) { console.warn('Migrate story failed:', stories[i] && stories[i].id, e); summary.storiesFail++; }
+  }
+
+  return summary;
+}

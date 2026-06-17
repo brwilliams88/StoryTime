@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.7.0" />
+  <link rel="stylesheet" href="css/style.css?v=0.7.1" />
 </head>
 <body>
 
@@ -525,9 +525,9 @@
               </div>
 
               <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
-              <div v-if="charForm.tagline" class="form-field" style="margin-top: 1.2rem;">
+              <div v-if="charForm.visual_description" class="form-field" style="margin-top: 1.2rem;">
                 <label>Tagline <span class="help-text">— short identifier shown in the list</span></label>
-                <input type="text" v-model="charForm.tagline" class="text-input" />
+                <input type="text" v-model="charForm.tagline" placeholder="e.g. 8-year-old curious boy" class="text-input" />
               </div>
               <div v-if="charForm.visual_description" class="form-field">
                 <label>Character Profile <span class="help-text">— how the storyteller and illustrator will see them</span></label>
@@ -646,6 +646,17 @@
           </div>
 
           <div class="settings-section">
+            <div class="settings-section-title">☁️ Cloud Backup</div>
+            <p class="settings-fine-print">One-time: copy all your current characters &amp; books to the cloud. New ones save automatically from now on.</p>
+            <div class="settings-row-actions">
+              <button @click="handleMigrateToCloud" :disabled="migrating" class="btn-secondary btn-small">
+                {{ migrating ? 'Backing up…' : '☁️ Back Up Existing Data' }}
+              </button>
+            </div>
+            <p v-if="migrateProgress" class="settings-fine-print" style="color: var(--accent);">{{ migrateProgress }}</p>
+          </div>
+
+          <div class="settings-section">
             <div class="settings-section-title">🔐 Account</div>
             <div class="settings-row-actions">
               <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
@@ -706,11 +717,11 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.7.0"></script>
-  <script src="js/imageStorage.js?v=0.7.0"></script>
-  <script src="js/api.js?v=0.7.0"></script>
-  <script src="js/sync.js?v=0.7.0"></script>
-  <script src="js/app.js?v=0.7.0"></script>
+  <script src="js/storage.js?v=0.7.1"></script>
+  <script src="js/imageStorage.js?v=0.7.1"></script>
+  <script src="js/api.js?v=0.7.1"></script>
+  <script src="js/sync.js?v=0.7.1"></script>
+  <script src="js/app.js?v=0.7.1"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

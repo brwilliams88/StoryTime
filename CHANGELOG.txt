@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.7.1 — 2026-06-16 — Cloud Backup (Migration) + Fixes
+  • New "☁️ Back Up Existing Data" button in Settings — one-time copy of all current characters + books (and their images) to the cloud, with progress; safe to re-run to retry failures
+  • Images now NEVER contain text bubbles — removed the speech-bubble allowance; only incidental text that's naturally part of an object in the scene (a sign, book, label) is allowed
+  • Fixed: clearing the Tagline field in the character editor made the whole field disappear — it now stays visible (and empty) so you can type a new one
+
+--------------------------
 v0.7.0 — 2026-06-16 — Cloud Sync (Supabase) — Write Path + Image Compression
   • Supabase backend wired up: NEW books + characters now back up to the cloud automatically as you create them
   • All cloud access goes through the password-gated Cloudflare Worker using the Supabase Secret Key (never exposed in the browser); tables locked down with Row-Level Security
