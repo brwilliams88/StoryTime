@@ -9,6 +9,18 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.7.2 — 2026-06-18 — Cloud Reads, Library (My Books) + Offline Cache
+  • NEW "📚 My Books" screen — browse all your books (cover + title) and tap to re-read; pulls the list from the cloud, works across devices
+  • Re-read any past book: opens from the on-device cache if present, otherwise downloads it (text + images) from the cloud on demand
+  • Images fetched once via signed URL then stored on-device, so re-reads work offline and don't depend on the link staying valid
+  • Offline cache keeps the last 10 books fully on-device; older ones auto-evict locally (still safe in the cloud) — this also keeps device storage from filling up
+  • Characters now sync down from the cloud on open (so a character made on one device shows on another)
+  • On open, recent books are quietly pre-loaded in the background for instant offline reading
+  • Fixed the dates: created_at now reflects when a book/character was really made (not the backup day); re-running backup is now fast and skips anything already in the cloud
+  • App "wakes up" the cloud project on open so it doesn't go to sleep
+  • REQUIRES: (1) redeploy the Worker (adds cover image to the list), (2) run the v0.7.2 SQL block in supabase/schema.sql (adds cover_image_id column + backfills real dates)
+
+--------------------------
 v0.7.1 — 2026-06-16 — Cloud Backup (Migration) + Fixes
   • New "☁️ Back Up Existing Data" button in Settings — one-time copy of all current characters + books (and their images) to the cloud, with progress; safe to re-run to retry failures
   • Images now NEVER contain text bubbles — removed the speech-bubble allowance; only incidental text that's naturally part of an object in the scene (a sign, book, label) is allowed

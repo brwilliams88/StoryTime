@@ -71,6 +71,10 @@ function storyToRow(story) {
     summary: story.summary || '',
     character_names: characterNames,
     rating: story.rating || 0,
+    cover_image_id: (story.cover && story.cover.image_id) || null,
+    // Send the REAL creation date so the column matches reality (not the
+    // upload time). Self-heals migrated rows on their next sync.
+    created_at: story.createdAt || null,
     last_read_at: story.last_read_at || null,
     data: story,
   };
@@ -81,6 +85,7 @@ function characterToRow(char) {
     id: char.id,
     name: char.name || '',
     tagline: char.tagline || '',
+    created_at: char.created_at || null,
     last_used_at: char.last_used_at || null,
     data: char,
   };
@@ -155,9 +160,8 @@ async function syncDeleteCharacter(char) {
 }
 
 // ---- One-time migration ----
-// Push everything currently on this device (characters + stories, with
-// their images) up to the cloud. Safe to re-run: already-uploaded images
-// are skipped and rows are upserted. `onProgress(text)` gets status strings.
+// Push everything on this device that ISN'T already in the cloud. Re-running
+// is cheap: items already backed up are detected by id and skipped.
 async function syncMigrateAll(onProgress) {
   const pw = getStoredPassword();
   if (!pw) throw new Error('No app password set — open the app first.');
@@ -165,21 +169,114 @@ async function syncMigrateAll(onProgress) {
   const chars = getStoredCharacters();
   const stories = getStoredStories();
   const summary = {
-    charsOk: 0, charsFail: 0, charsTotal: chars.length,
-    storiesOk: 0, storiesFail: 0, storiesTotal: stories.length,
+    charsOk: 0, charsFail: 0, charsSkipped: 0, charsTotal: chars.length,
+    storiesOk: 0, storiesFail: 0, storiesSkipped: 0, storiesTotal: stories.length,
   };
 
+  // Find what's already in the cloud so we can skip it
+  const existingCharIds = new Set();
+  const existingStoryIds = new Set();
+  try { (await dbListCharacters(pw)).rows.forEach(r => existingCharIds.add(r.id)); } catch (e) { /* offline → push all */ }
+  try { (await dbListStories({ limit: 1000 }, pw)).rows.forEach(r => existingStoryIds.add(r.id)); } catch (e) {}
+
   for (let i = 0; i < chars.length; i++) {
-    if (onProgress) onProgress(`Backing up characters… ${i + 1}/${chars.length}`);
+    if (onProgress) onProgress(`Characters… ${i + 1}/${chars.length}`);
+    if (existingCharIds.has(chars[i].id)) { summary.charsSkipped++; continue; }
     try { await syncPushCharacter(chars[i]); summary.charsOk++; }
     catch (e) { console.warn('Migrate character failed:', chars[i] && chars[i].id, e); summary.charsFail++; }
   }
 
   for (let i = 0; i < stories.length; i++) {
-    if (onProgress) onProgress(`Backing up books… ${i + 1}/${stories.length}`);
+    if (onProgress) onProgress(`Books… ${i + 1}/${stories.length}`);
+    if (existingStoryIds.has(stories[i].id)) { summary.storiesSkipped++; continue; }
     try { await syncPushStory(stories[i]); summary.storiesOk++; }
     catch (e) { console.warn('Migrate story failed:', stories[i] && stories[i].id, e); summary.storiesFail++; }
   }
 
   return summary;
+}
+
+// =====================================================================
+// READ PATH (cloud → device)
+// =====================================================================
+
+// Pull characters from the cloud and make them the local set. Keeps any
+// local-only (not-yet-synced) characters and pushes them up. Cloud wins on
+// shared ids (good enough for family use; offline-edit conflicts are rare).
+async function pullCharacters() {
+  const pw = getStoredPassword();
+  if (!pw) return getStoredCharacters();
+  let rows;
+  try { rows = (await dbListCharacters(pw)).rows || []; }
+  catch (e) { console.warn('pullCharacters failed; keeping local', e); return getStoredCharacters(); }
+
+  const cloudChars = rows.map(r => r.data).filter(Boolean);
+  const cloudIds = new Set(cloudChars.map(c => c.id));
+  const localOnly = getStoredCharacters().filter(c => !cloudIds.has(c.id));
+  const merged = [...cloudChars, ...localOnly];
+  saveAllCharacters(merged);
+  // Best-effort: push any local-only characters up
+  localOnly.forEach(c => syncPushCharacter(c).catch(() => {}));
+  return merged;
+}
+
+// Fetch the lightweight book list (metadata + cover id) for the Library.
+async function fetchLibraryIndex(opts) {
+  const pw = getStoredPassword();
+  if (!pw) return { rows: [] };
+  return dbListStories(opts || {}, pw);
+}
+
+// Fetch one full story object from the cloud (or null).
+async function fetchFullStory(id) {
+  const pw = getStoredPassword();
+  if (!pw) return null;
+  const res = await dbGetStory(id, pw);
+  return (res && res.row && res.row.data) || null;
+}
+
+// Make sure every image a story needs is present in the on-device cache.
+// Missing ones are fetched via a short-lived signed URL and stored locally
+// (so they then work offline and the signed URL expiring doesn't matter).
+async function ensureStoryImagesLocal(story) {
+  const ids = [story.cover && story.cover.image_id, ...((story.pages || []).map(p => p.image_id))].filter(Boolean);
+  const missing = [];
+  for (const id of ids) {
+    try { if (!(await getImageBlob(id))) missing.push(id); } catch (e) { missing.push(id); }
+  }
+  if (!missing.length) return;
+
+  const pw = getStoredPassword();
+  let urls = {};
+  try { urls = (await imgSignUrls(missing, pw)).urls || {}; }
+  catch (e) { console.warn('Could not sign image URLs', e); return; }
+
+  for (const id of missing) {
+    const url = urls[id];
+    if (!url) continue;
+    try {
+      const blob = await (await fetch(url)).blob();
+      await saveImageBlob(id, blob);
+    } catch (e) {
+      console.warn('Image download failed:', id, e);
+    }
+  }
+}
+
+// Batch-sign cover images for Library thumbnails (display straight from the
+// signed URL — no need to cache every cover locally). Returns { id: url }.
+async function signCoverUrls(coverIds) {
+  const ids = (coverIds || []).filter(Boolean);
+  if (!ids.length) return {};
+  const pw = getStoredPassword();
+  try { return (await imgSignUrls(ids, pw)).urls || {}; }
+  catch (e) { console.warn('Cover sign failed', e); return {}; }
+}
+
+// Push just the last_read_at change up (metadata only; no image work).
+async function syncStampLastRead(story) {
+  const pw = getStoredPassword();
+  if (!pw || !story) return;
+  try { await dbUpsertStory(storyToRow(story), pw); }
+  catch (e) { console.warn('last_read sync failed', e); }
 }

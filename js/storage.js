@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   ARTSTYLE_MRU: 'storytime_artstyle_mru',
   INGREDIENT_MRU: 'storytime_ingredient_mru',
   CREATED_BY_LIST: 'storytime_createdby_list', // array of strings
+  LIBRARY_INDEX: 'storytime_library_index',    // cloud book metadata (for offline list)
 };
 
 // ---- Password ----
@@ -81,6 +82,10 @@ function deleteCharacter(id) {
   const all = getStoredCharacters().filter(c => c.id !== id);
   localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
 }
+// Overwrite the whole character set (used when merging the cloud copy in)
+function saveAllCharacters(arr) {
+  safeSetItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(arr || []));
+}
 function touchCharacterLastUsed(id) {
   const all = getStoredCharacters();
   const c = all.find(x => x.id === id);
@@ -138,6 +143,17 @@ function setCharacterThumbnailId(id, thumbnailId) {
   if (!c) return;
   c.thumbnail_id = thumbnailId;
   localStorage.setItem(STORAGE_KEYS.CHARACTERS, JSON.stringify(all));
+}
+
+// ---- Library index (cloud book metadata, cached for offline list display) ----
+function getLibraryIndex() {
+  const raw = localStorage.getItem(STORAGE_KEYS.LIBRARY_INDEX);
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch (e) { return []; }
+}
+function setLibraryIndex(rows) {
+  try { safeSetItem(STORAGE_KEYS.LIBRARY_INDEX, JSON.stringify(rows || [])); }
+  catch (e) { /* index is a convenience cache; ignore quota */ }
 }
 
 // ---- MRU tracking ----

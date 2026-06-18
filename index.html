@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.7.1" />
+  <link rel="stylesheet" href="css/style.css?v=0.7.2" />
 </head>
 <body>
 
@@ -64,6 +64,7 @@
             <h2 class="section-title">Create a New Story</h2>
             <div class="form-top-actions">
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
+              <button @click="openLibrary" class="btn-secondary btn-small">📚 My Books</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
               <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
             </div>
@@ -162,6 +163,43 @@
 
           <p v-if="error" class="error-text">{{ error }}</p>
 
+        </div>
+
+        <!-- ============== LIBRARY (MY BOOKS) ============== -->
+        <div v-else-if="view === 'library'" class="library-view">
+          <div class="form-top-bar">
+            <h2 class="section-title">📚 My Books</h2>
+            <div class="form-top-actions">
+              <button @click="closeLibrary" class="btn-secondary btn-small">+ New Story</button>
+            </div>
+          </div>
+
+          <div v-if="libraryLoading && !libraryBooks.length" class="library-loading">
+            <div class="loading-spinner small"></div>
+            <p>Loading your books…</p>
+          </div>
+
+          <div v-else-if="!libraryBooks.length" class="char-list-empty">
+            <div class="empty-emoji">📚</div>
+            <div class="empty-title">No books yet</div>
+            <div class="empty-text">Tap <strong>+ New Story</strong> to create your first one.</div>
+          </div>
+
+          <div v-else class="library-grid">
+            <button v-for="book in libraryBooks" :key="book.id" class="library-card" @click="openBook(book)">
+              <div class="library-cover">
+                <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" draggable="false" />
+                <div v-else class="library-cover-fallback">📖</div>
+              </div>
+              <div class="library-card-info">
+                <div class="library-card-title">{{ book.title || 'Untitled' }}</div>
+                <div class="library-card-meta">
+                  <span v-if="book.created_by">By {{ book.created_by }}</span>
+                  <span v-if="libraryDate(book)" class="library-card-date">{{ libraryDate(book) }}</span>
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
 
         <!-- ============== READING VIEW ============== -->
@@ -717,11 +755,11 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.7.1"></script>
-  <script src="js/imageStorage.js?v=0.7.1"></script>
-  <script src="js/api.js?v=0.7.1"></script>
-  <script src="js/sync.js?v=0.7.1"></script>
-  <script src="js/app.js?v=0.7.1"></script>
+  <script src="js/storage.js?v=0.7.2"></script>
+  <script src="js/imageStorage.js?v=0.7.2"></script>
+  <script src="js/api.js?v=0.7.2"></script>
+  <script src="js/sync.js?v=0.7.2"></script>
+  <script src="js/app.js?v=0.7.2"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

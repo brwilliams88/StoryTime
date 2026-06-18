@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.7.1',
-      buildDate: '2026-06-16',
+      version: 'v0.7.2',
+      buildDate: '2026-06-18',
 
       showSplash: true,
 
@@ -97,6 +97,12 @@ createApp({
       // One-time cloud backup (migration) state
       migrating: false,
       migrateProgress: '',
+
+      // Library (My Books) — cloud-backed list
+      libraryBooks: [],          // metadata rows from the cloud
+      libraryLoading: false,
+      coverUrls: {},             // cover_image_id -> signed URL (for thumbnails)
+      MAX_CACHED_BOOKS: 10,      // keep this many full books on-device for offline
 
       formData: defaultFormData(),
 
@@ -337,6 +343,9 @@ createApp({
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); this.prevPage(); }
     };
     window.addEventListener('keydown', this._keyHandler);
+
+    // If we already have a password, sync with the cloud on open
+    if (this.password) this.initCloudData();
   },
 
   beforeUnmount() {
@@ -358,6 +367,7 @@ createApp({
       this.passwordInput = '';
       this.showPasswordPrompt = false;
       this.error = '';
+      this.initCloudData();
     },
     resetPassword() {
       clearStoredPassword();
@@ -803,11 +813,37 @@ createApp({
         // Reset quality + image gen overrides
         this.nextStoryQuality = 'medium';
         this.imageGenMode = 'all';
+
+        // Add to the in-memory Library list so it shows up immediately,
+        // then trim the on-device cache to the last N books.
+        this.addToLibraryIndex(storyData);
+        this.evictOldCachedBooks();
       } catch (err) {
         console.error('Generation failed:', err);
         this.error = err.message || 'Something went wrong. Please try again.';
         this.loading = false;
       }
+    },
+
+    // Prepend/replace a just-saved story in the in-memory Library list
+    addToLibraryIndex(story) {
+      const meta = {
+        id: story.id,
+        title: story.title || '',
+        created_by: story.created_by || '',
+        genre: (story.formData && story.formData.genre) || '',
+        age_range: (story.formData && story.formData.ageRange) || '',
+        theme: (story.formData && story.formData.theme) || '',
+        summary: story.summary || '',
+        character_names: (story.selected_characters || []).map(c => c.name).filter(Boolean).join(' '),
+        rating: story.rating || 0,
+        cover_image_id: (story.cover && story.cover.image_id) || null,
+        created_at: story.createdAt || new Date().toISOString(),
+        last_read_at: story.last_read_at || null,
+      };
+      this.libraryBooks = [meta, ...this.libraryBooks.filter(b => b.id !== meta.id)];
+      setLibraryIndex(this.libraryBooks);
+      // The cover blob is already local, so the thumbnail shows without signing
     },
 
     // Returns characters with fallback name + description applied where flagged
@@ -1272,6 +1308,143 @@ createApp({
       } finally {
         this.migrating = false;
       }
+    },
+
+    // ============================================================
+    // CLOUD SYNC + LIBRARY (My Books)
+    // ============================================================
+    // Run on app open (and right after entering the password). Pulls the
+    // cloud copy of characters + the book list, then prefetches recent books
+    // in the background. The list fetch also doubles as the "wake-up ping"
+    // that keeps the free-tier Supabase project from sleeping.
+    async initCloudData() {
+      try { this.characters = await pullCharacters(); }
+      catch (e) { console.warn('Character pull failed:', e); }
+
+      try {
+        const res = await fetchLibraryIndex({ sort: 'created', limit: 200 });
+        this.libraryBooks = res.rows || [];
+        setLibraryIndex(this.libraryBooks);
+      } catch (e) {
+        this.libraryBooks = getLibraryIndex();   // offline fallback
+        console.warn('Library index fetch failed; using cached:', e);
+      }
+
+      // Background: pull recent books + their images onto the device for offline
+      this.prefetchRecentBooks().catch(e => console.warn('Prefetch failed:', e));
+    },
+
+    async openLibrary() {
+      this.view = 'library';
+      window.scrollTo(0, 0);
+      this.libraryLoading = true;
+      try {
+        const res = await fetchLibraryIndex({ sort: 'created', limit: 200 });
+        this.libraryBooks = res.rows || [];
+        setLibraryIndex(this.libraryBooks);
+        const covers = await signCoverUrls(this.libraryBooks.map(b => b.cover_image_id));
+        this.coverUrls = { ...this.coverUrls, ...covers };
+      } catch (e) {
+        this.libraryBooks = getLibraryIndex();
+        console.warn('Library load failed; showing cached list:', e);
+      } finally {
+        this.libraryLoading = false;
+      }
+    },
+
+    closeLibrary() { this.view = 'create'; window.scrollTo(0, 0); },
+
+    // Open a book from the Library — use the local cache if present, else
+    // fetch it from the cloud and pull its images down for offline reading.
+    async openBook(meta) {
+      this.error = '';
+      this.loading = true;
+      this.loadingMessage = 'Opening book…';
+      this.loadingHint = 'just a moment';
+      try {
+        let story = getStoredStories().find(s => s.id === meta.id);
+        if (!story) {
+          story = await fetchFullStory(meta.id);
+          if (!story) throw new Error('Could not load this book.');
+        }
+        await ensureStoryImagesLocal(story);
+
+        // Stamp last-read (local + cloud) and cache it
+        story.last_read_at = new Date().toISOString();
+        try { saveStoryToStorage(story); } catch (e) { if (!e.isQuota) throw e; }
+        syncStampLastRead(story).catch(() => {});
+
+        this.currentStory = story;
+        this.currentStoryRecord = story;
+        this.currentStoryCost = story.cost || 0;
+        this.currentTextCost = story.text_cost || 0;
+        this.currentImagesCost = story.images_cost || 0;
+        this.currentPageIndex = 0;
+        this.applyStoryFontSize(story);
+        this.loading = false;
+        this.view = 'story';
+        window.scrollTo(0, 0);
+
+        await this.evictOldCachedBooks();
+      } catch (e) {
+        this.loading = false;
+        this.error = e.message || 'Could not open book.';
+        alert(this.error);
+      }
+    },
+
+    // Keep only the most-recently-read N books fully on-device; older ones
+    // stay in the cloud and re-download on demand. Frees local space.
+    async evictOldCachedBooks() {
+      const stories = getStoredStories();
+      if (stories.length <= this.MAX_CACHED_BOOKS) return;
+      const sorted = [...stories].sort((a, b) => {
+        const ax = a.last_read_at || a.createdAt || '';
+        const bx = b.last_read_at || b.createdAt || '';
+        return bx.localeCompare(ax);
+      });
+      const evict = sorted.slice(this.MAX_CACHED_BOOKS);
+      for (const s of evict) {
+        const ids = [s.cover && s.cover.image_id, ...((s.pages || []).map(p => p.image_id))].filter(Boolean);
+        for (const id of ids) {
+          try { await deleteImageBlob(id); } catch (e) {}
+          this.releaseImageURL(id);
+        }
+        deleteStoryFromStorage(s.id);
+      }
+      this.refreshStorageSize();
+      this.refreshImageStats();
+    },
+
+    // Background: ensure the most recent books are fully cached for offline
+    async prefetchRecentBooks() {
+      const recent = (this.libraryBooks || []).slice(0, this.MAX_CACHED_BOOKS);
+      for (const meta of recent) {
+        try {
+          let story = getStoredStories().find(s => s.id === meta.id);
+          if (!story) {
+            story = await fetchFullStory(meta.id);
+            if (story) { try { saveStoryToStorage(story); } catch (e) { if (!e.isQuota) throw e; } }
+          }
+          if (story) await ensureStoryImagesLocal(story);
+        } catch (e) {
+          console.warn('Prefetch book failed:', meta.id, e);
+        }
+      }
+      await this.evictOldCachedBooks();
+    },
+
+    // Cover thumbnail for the Library: local cached blob first, then signed URL
+    libraryCover(meta) {
+      if (!meta || !meta.cover_image_id) return null;
+      return this.getImageURL(meta.cover_image_id) || this.coverUrls[meta.cover_image_id] || null;
+    },
+    libraryDate(meta) {
+      const iso = (meta && (meta.created_at || meta.createdAt)) || '';
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     },
     handleClearStories() {
       if (!confirm('Clear all saved stories? This cannot be undone.')) return;

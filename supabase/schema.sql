@@ -90,3 +90,21 @@ alter table public.characters enable row level security;
 alter table public.stories    enable row level security;
 
 -- Done. Next: create the "story-images" Storage bucket (see SETUP.md).
+
+
+-- ============================================================
+-- v0.7.2 migration — run this block once (safe to re-run)
+-- Adds a cover-image column for fast Library thumbnails, and
+-- backfills the REAL created_at from the stored objects (fixes the
+-- migrated rows that all showed the backup date).
+-- ============================================================
+alter table public.stories add column if not exists cover_image_id text;
+update public.stories set cover_image_id = data->'cover'->>'image_id';
+
+update public.stories
+  set created_at = (data->>'createdAt')::timestamptz
+  where data ? 'createdAt';
+
+update public.characters
+  set created_at = (data->>'created_at')::timestamptz
+  where data ? 'created_at';
