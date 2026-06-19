@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.7.2',
+      version: 'v0.8.0',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -35,7 +35,7 @@ createApp({
       passwordInput: '',
       showPasswordPrompt: false,
 
-      view: 'create',
+      view: 'library',   // Library is home
 
       loading: false,
       loadingMessage: '',
@@ -101,8 +101,10 @@ createApp({
       // Library (My Books) — cloud-backed list
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
+      librarySearch: '',         // basic client-side filter
       coverUrls: {},             // cover_image_id -> signed URL (for thumbnails)
-      MAX_CACHED_BOOKS: 10,      // keep this many full books on-device for offline
+      bookDetail: null,          // the book whose detail popup is open
+      MAX_CACHED_BOOKS: 25,      // keep this many full books on-device for offline
 
       formData: defaultFormData(),
 
@@ -264,6 +266,19 @@ createApp({
         s.toLowerCase().includes(q) && s.toLowerCase() !== q
       );
     },
+    // Basic client-side search over the loaded book list (full filter/sort = v0.8.1)
+    filteredLibraryBooks() {
+      const q = (this.librarySearch || '').toLowerCase().trim();
+      if (!q) return this.libraryBooks;
+      return this.libraryBooks.filter(b =>
+        (b.title || '').toLowerCase().includes(q) ||
+        (b.created_by || '').toLowerCase().includes(q) ||
+        (b.character_names || '').toLowerCase().includes(q) ||
+        (b.theme || '').toLowerCase().includes(q) ||
+        (b.genre || '').toLowerCase().includes(q)
+      );
+    },
+
     charFormCanSave() {
       return this.charForm.name.trim().length > 0
         && (this.charForm.visual_description || '').trim().length > 0;
@@ -716,6 +731,11 @@ createApp({
 
         selected.forEach(c => touchCharacterLastUsed(c.id));
         this.characters = getStoredCharacters();
+        // Sync the updated last_used_at up to the cloud (was previously local-only)
+        selected.forEach(c => {
+          const stored = this.characters.find(x => x.id === c.id);
+          if (stored) syncPushCharacter(stored).catch(() => {});
+        });
 
         const storyId = 'story_' + Date.now();
         const story = textResult.story;
@@ -784,12 +804,14 @@ createApp({
           window.scrollTo(0, 0);
           this.persistStory(storyData);
         } else {
-          // Draw the COVER first and keep the loading screen up until it's ready,
-          // so the book opens with its title page fully drawn.
-          this.loadingMessage = 'Drawing the cover…';
-          await this.generateOneImage('cover', storyData);
+          // Draw the COVER + PAGE 1 together, keeping the loading screen up
+          // until both are ready, so the book opens with its first spreads drawn.
+          this.loadingMessage = 'Drawing the first pages…';
+          const firstBatch = [this.generateOneImage('cover', storyData)];
+          if (storyData.pages.length > 0) firstBatch.push(this.generateOneImage(0, storyData));
+          await Promise.all(firstBatch);
 
-          // Cover is ready (or failed) — open the book now
+          // Open the book now
           this.loading = false;
           this.view = 'story';
           window.scrollTo(0, 0);
@@ -897,13 +919,16 @@ createApp({
     async generateRemainingImages(storyData, mode) {
       let pageIndices;
       if (mode === 'first-two') {
-        pageIndices = storyData.pages.length > 0 ? [0] : [];
-        // Mark the rest skipped so the UI shows a clean placeholder
+        // Page 1 was already drawn with the cover; mark the rest skipped
         storyData.pages.forEach((p, i) => {
           if (i !== 0 && p.image_status === 'pending') p.image_status = 'skipped';
         });
+        pageIndices = [];
       } else {
-        pageIndices = storyData.pages.map((_, i) => i);
+        // Everything still 'pending' (cover + page 1 are already done)
+        pageIndices = storyData.pages
+          .map((_, i) => i)
+          .filter(i => storyData.pages[i].image_status === 'pending');
       }
 
       const CONCURRENCY = 3;
@@ -1318,6 +1343,7 @@ createApp({
     // in the background. The list fetch also doubles as the "wake-up ping"
     // that keeps the free-tier Supabase project from sleeping.
     async initCloudData() {
+      this.libraryLoading = true;
       try { this.characters = await pullCharacters(); }
       catch (e) { console.warn('Character pull failed:', e); }
 
@@ -1325,34 +1351,32 @@ createApp({
         const res = await fetchLibraryIndex({ sort: 'created', limit: 200 });
         this.libraryBooks = res.rows || [];
         setLibraryIndex(this.libraryBooks);
+        const covers = await signCoverUrls(this.libraryBooks.map(b => b.cover_image_id));
+        this.coverUrls = { ...this.coverUrls, ...covers };
       } catch (e) {
         this.libraryBooks = getLibraryIndex();   // offline fallback
         console.warn('Library index fetch failed; using cached:', e);
+      } finally {
+        this.libraryLoading = false;
       }
 
       // Background: pull recent books + their images onto the device for offline
       this.prefetchRecentBooks().catch(e => console.warn('Prefetch failed:', e));
     },
 
-    async openLibrary() {
-      this.view = 'library';
-      window.scrollTo(0, 0);
-      this.libraryLoading = true;
-      try {
-        const res = await fetchLibraryIndex({ sort: 'created', limit: 200 });
-        this.libraryBooks = res.rows || [];
-        setLibraryIndex(this.libraryBooks);
-        const covers = await signCoverUrls(this.libraryBooks.map(b => b.cover_image_id));
-        this.coverUrls = { ...this.coverUrls, ...covers };
-      } catch (e) {
-        this.libraryBooks = getLibraryIndex();
-        console.warn('Library load failed; showing cached list:', e);
-      } finally {
-        this.libraryLoading = false;
-      }
-    },
+    // ---- Navigation between the 3 areas ----
+    goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
+    goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
 
-    closeLibrary() { this.view = 'create'; window.scrollTo(0, 0); },
+    // ---- Book detail popup ----
+    openBookDetail(meta) { this.bookDetail = meta; },
+    closeBookDetail() { this.bookDetail = null; },
+    readFromDetail() {
+      const m = this.bookDetail;
+      this.bookDetail = null;
+      if (m) this.openBook(m);
+    },
+    isBookNew(meta) { return meta && !meta.last_read_at; },
 
     // Open a book from the Library — use the local cache if present, else
     // fetch it from the cloud and pull its images down for offline reading.
@@ -1369,10 +1393,13 @@ createApp({
         }
         await ensureStoryImagesLocal(story);
 
-        // Stamp last-read (local + cloud) and cache it
+        // Stamp last-read (local + cloud) — this also clears the "NEW" badge
         story.last_read_at = new Date().toISOString();
         try { saveStoryToStorage(story); } catch (e) { if (!e.isQuota) throw e; }
         syncStampLastRead(story).catch(() => {});
+        // reflect last_read in the in-memory list so the badge updates live
+        const m = this.libraryBooks.find(b => b.id === meta.id);
+        if (m) m.last_read_at = story.last_read_at;
 
         this.currentStory = story;
         this.currentStoryRecord = story;
@@ -1393,18 +1420,49 @@ createApp({
       }
     },
 
+    // Delete a book everywhere: cloud row + cloud images + local cache + shelf
+    async deleteBook(meta) {
+      if (!meta) return;
+      if (!confirm(`Delete "${meta.title || 'this book'}"? This removes it from all your devices and can't be undone.`)) return;
+
+      // Get the full story (local or cloud) so we can clean up ALL its images
+      let full = getStoredStories().find(s => s.id === meta.id);
+      if (!full) { try { full = await fetchFullStory(meta.id); } catch (e) {} }
+
+      // Local cleanup
+      if (full) {
+        const ids = [full.cover && full.cover.image_id, ...((full.pages || []).map(p => p.image_id))].filter(Boolean);
+        for (const id of ids) { try { await deleteImageBlob(id); } catch (e) {} this.releaseImageURL(id); }
+      }
+      deleteStoryFromStorage(meta.id);
+
+      // Cloud cleanup (best-effort)
+      syncDeleteStory(full || { id: meta.id, cover: {}, pages: [] }).catch(e => console.warn('Cloud delete failed:', e));
+
+      // UI
+      this.libraryBooks = this.libraryBooks.filter(b => b.id !== meta.id);
+      setLibraryIndex(this.libraryBooks);
+      this.bookDetail = null;
+      this.refreshStorageSize();
+      this.refreshImageStats();
+    },
+
     // Keep only the most-recently-read N books fully on-device; older ones
     // stay in the cloud and re-download on demand. Frees local space.
+    // SAFETY: only ever evict a book we've CONFIRMED is in the cloud index —
+    // never delete the only copy of something that hasn't synced.
     async evictOldCachedBooks() {
       const stories = getStoredStories();
       if (stories.length <= this.MAX_CACHED_BOOKS) return;
+      const cloudIds = new Set((this.libraryBooks || []).map(b => b.id));
       const sorted = [...stories].sort((a, b) => {
         const ax = a.last_read_at || a.createdAt || '';
         const bx = b.last_read_at || b.createdAt || '';
         return bx.localeCompare(ax);
       });
-      const evict = sorted.slice(this.MAX_CACHED_BOOKS);
-      for (const s of evict) {
+      const overflow = sorted.slice(this.MAX_CACHED_BOOKS);
+      for (const s of overflow) {
+        if (!cloudIds.has(s.id)) continue;   // not confirmed in cloud → keep it local
         const ids = [s.cover && s.cover.image_id, ...((s.pages || []).map(p => p.image_id))].filter(Boolean);
         for (const id of ids) {
           try { await deleteImageBlob(id); } catch (e) {}
@@ -1711,7 +1769,7 @@ createApp({
     updateBodyScroll() {
       const anyOpen = this.showSettings || this.showCharactersModal ||
         this.copyrightModal || this.warningModal || this.inspectingImage ||
-        this.showQuiz;
+        this.showQuiz || this.bookDetail;
       document.body.style.overflow = anyOpen ? 'hidden' : '';
     },
 
@@ -1738,6 +1796,7 @@ createApp({
     warningModal() { this.updateBodyScroll(); },
     inspectingImage() { this.updateBodyScroll(); },
     showQuiz() { this.updateBodyScroll(); },
+    bookDetail() { this.updateBodyScroll(); },
   },
 
 }).mount('#app')

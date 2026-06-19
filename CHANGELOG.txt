@@ -9,6 +9,20 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.0 — 2026-06-18 — Bookshelf Library + Navigation
+  • The Library is now HOME — you land on a wooden bookshelf of all your books
+  • Real bookshelf look: your bookshelf.png wood, books sit face-out on each shelf with a 3D book edge + title underneath
+  • First "book" on the shelf is a glowing "+ New Story" tile
+  • Tap a book → detail popup (cover, author, dates, rating, summary) with Read + Delete
+  • Delete a book → removes it from this device AND the cloud (images too)
+  • "NEW" badge on books you haven't opened yet (clears once you read them)
+  • Navigation reworked: Library (home) ⇄ Create (← My Books) ⇄ Reader (← My Books); after generating, Back returns to the shelf with the new book on it
+  • Basic search box (title / character / theme / genre) — full filters & sort coming in v0.8.1
+  • Eviction safety: the device cache now never deletes a book unless it's confirmed saved in the cloud; cache bumped to 25 books
+  • Loading screen now waits for the cover AND page 1 before opening a new book
+  • Fixed: a character's "last used" date now syncs to the cloud when used in a story
+
+--------------------------
 v0.7.2 — 2026-06-18 — Cloud Reads, Library (My Books) + Offline Cache
   • NEW "📚 My Books" screen — browse all your books (cover + title) and tap to re-read; pulls the list from the cloud, works across devices
   • Re-read any past book: opens from the on-device cache if present, otherwise downloads it (text + images) from the cloud on demand

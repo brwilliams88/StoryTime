@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.7.2" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.0" />
 </head>
 <body>
 
@@ -43,8 +43,8 @@
     <!-- ============== MAIN APP ============== -->
     <template v-else>
 
-      <header v-if="view !== 'story' || !currentStory" class="app-header">
-        <h1 @click="handleNewStory">📖 StoryTime</h1>
+      <header v-if="view === 'create'" class="app-header">
+        <h1 @click="goLibrary">📖 StoryTime</h1>
         <p class="tagline">Bedtime stories for Kai &amp; Nozomi</p>
       </header>
 
@@ -64,7 +64,7 @@
             <h2 class="section-title">Create a New Story</h2>
             <div class="form-top-actions">
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
-              <button @click="openLibrary" class="btn-secondary btn-small">📚 My Books</button>
+              <button @click="goLibrary" class="btn-secondary btn-small">← My Books</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
               <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
             </div>
@@ -167,47 +167,64 @@
 
         <!-- ============== LIBRARY (MY BOOKS) ============== -->
         <div v-else-if="view === 'library'" class="library-view">
-          <div class="form-top-bar">
-            <h2 class="section-title">📚 My Books</h2>
-            <div class="form-top-actions">
-              <button @click="closeLibrary" class="btn-secondary btn-small">+ New Story</button>
-            </div>
+
+          <div class="library-topbar">
+            <h2 class="library-heading">📚 My Books</h2>
+            <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
+          <input type="text" v-model="librarySearch" placeholder="🔍 Search by title, character, theme…" class="text-input library-search" />
 
           <div v-if="libraryLoading && !libraryBooks.length" class="library-loading">
             <div class="loading-spinner small"></div>
             <p>Loading your books…</p>
           </div>
 
-          <div v-else-if="!libraryBooks.length" class="char-list-empty">
-            <div class="empty-emoji">📚</div>
-            <div class="empty-title">No books yet</div>
-            <div class="empty-text">Tap <strong>+ New Story</strong> to create your first one.</div>
-          </div>
+          <!-- The bookshelf: wood texture repeats per row; books sit on each ledge -->
+          <div v-else class="bookshelf">
+            <div class="shelf-grid">
 
-          <div v-else class="library-grid">
-            <button v-for="book in libraryBooks" :key="book.id" class="library-card" @click="openBook(book)">
-              <div class="library-cover">
-                <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" draggable="false" />
-                <div v-else class="library-cover-fallback">📖</div>
+              <!-- Create-new tile (always first, hidden while searching) -->
+              <div v-if="!librarySearch.trim()" class="book-slot">
+                <button class="book create-book" @click="goCreate" aria-label="Create a new story">
+                  <div class="book-cover create-cover">
+                    <span class="create-plus">+</span>
+                    <span class="create-label">New Story</span>
+                  </div>
+                </button>
               </div>
-              <div class="library-card-info">
-                <div class="library-card-title">{{ book.title || 'Untitled' }}</div>
-                <div class="library-card-meta">
-                  <span v-if="book.created_by">By {{ book.created_by }}</span>
-                  <span v-if="libraryDate(book)" class="library-card-date">{{ libraryDate(book) }}</span>
-                </div>
+
+              <!-- Books -->
+              <div v-for="book in filteredLibraryBooks" :key="book.id" class="book-slot">
+                <button class="book" @click="openBookDetail(book)">
+                  <div class="book-cover">
+                    <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" draggable="false" />
+                    <div v-else class="book-cover-fallback">📖</div>
+                    <span v-if="isBookNew(book)" class="book-new-badge">NEW</span>
+                  </div>
+                  <div class="book-title">{{ book.title || 'Untitled' }}</div>
+                </button>
               </div>
-            </button>
+
+            </div>
+
+            <!-- Empty states -->
+            <div v-if="!filteredLibraryBooks.length && librarySearch.trim()" class="library-empty">
+              <div class="empty-text">No books match “{{ librarySearch }}”.</div>
+            </div>
+            <div v-else-if="!libraryBooks.length" class="library-empty">
+              <div class="empty-emoji">📚</div>
+              <div class="empty-title">No books yet</div>
+              <div class="empty-text">Tap the glowing <strong>New Story</strong> book to create your first one.</div>
+            </div>
           </div>
         </div>
 
         <!-- ============== READING VIEW ============== -->
         <div v-else-if="view === 'story' && currentStory" class="reading-view" :class="{ 'portrait-mode': isPortrait }">
 
-          <!-- Compact single header: Back · Page label · Settings -->
+          <!-- Compact single header: Back to shelf · Page label · Settings -->
           <div class="reading-header">
-            <button @click="editSettingsForm" class="btn-secondary btn-small">← Back</button>
+            <button @click="goLibrary" class="btn-secondary btn-small">← My Books</button>
             <div class="page-counter">{{ pageCounterLabel }}</div>
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
@@ -622,6 +639,41 @@
         </div>
       </div>
 
+      <!-- ============== BOOK DETAIL POPUP ============== -->
+      <div v-if="bookDetail" class="modal-overlay" @click.self="closeBookDetail">
+        <div class="modal book-detail-modal">
+          <div class="modal-header">
+            <h2>{{ bookDetail.title || 'Untitled' }}</h2>
+            <button @click="closeBookDetail" class="modal-close modal-close-big" aria-label="Close">✕</button>
+          </div>
+
+          <div class="book-detail-body">
+            <div class="book-detail-cover">
+              <img v-if="libraryCover(bookDetail)" :src="libraryCover(bookDetail)" :alt="bookDetail.title" draggable="false" />
+              <div v-else class="book-cover-fallback">📖</div>
+            </div>
+            <div class="book-detail-info">
+              <div v-if="bookDetail.created_by" class="book-detail-by">By {{ bookDetail.created_by }}</div>
+              <div v-if="bookDetail.rating" class="book-detail-rating">
+                <span v-for="n in 5" :key="n" :class="['rating-star', { filled: bookDetail.rating >= n }]">★</span>
+              </div>
+              <div class="book-detail-dates">
+                <div v-if="libraryDate(bookDetail)">Created {{ libraryDate(bookDetail) }}</div>
+                <div v-if="bookDetail.last_read_at">Last read {{ libraryDate({ created_at: bookDetail.last_read_at }) }}</div>
+                <div v-else class="book-detail-unread">Not read yet</div>
+              </div>
+            </div>
+          </div>
+
+          <p v-if="bookDetail.summary" class="book-detail-summary">“{{ bookDetail.summary }}”</p>
+
+          <div class="modal-footer book-detail-actions">
+            <button @click="deleteBook(bookDetail)" class="btn-secondary btn-danger-text">🗑 Delete</button>
+            <button @click="readFromDetail" class="btn-primary">📖 Read</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ============== CROPPER MODAL ============== -->
       <div v-if="showCropper" class="modal-overlay">
         <div class="modal modal-wide">
@@ -755,11 +807,11 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.7.2"></script>
-  <script src="js/imageStorage.js?v=0.7.2"></script>
-  <script src="js/api.js?v=0.7.2"></script>
-  <script src="js/sync.js?v=0.7.2"></script>
-  <script src="js/app.js?v=0.7.2"></script>
+  <script src="js/storage.js?v=0.8.0"></script>
+  <script src="js/imageStorage.js?v=0.8.0"></script>
+  <script src="js/api.js?v=0.8.0"></script>
+  <script src="js/sync.js?v=0.8.0"></script>
+  <script src="js/app.js?v=0.8.0"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
