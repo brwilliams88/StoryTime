@@ -9,6 +9,20 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.3 — 2026-06-20 — Library Filters/Sort + Shelf Rebuild + Polish
+  • Shelf rebuilt so books reliably SIT on the shelf board (flat wood + a CSS shelf ledge drawn per row); back to 2 books per row on phone; ~8° lean-back; contact shadow + cover gloss; removed the right-side "pages" (cleaner face-on); titles centered in the plate
+  • New Story book is now clearly magical: bigger pulsing glow, twinkling sparkles, gentle bob
+  • Library now has SEARCH + FILTER + SORT: filter by genre, artwork style, age, created-by, ⭐ favorites; sort by newest / last-read / top-rated / title
+  • "Surprise me" stories now record the ACTUAL art style chosen, so the artwork filter works for them
+  • Delete is now a "Manage" mode ON the bookshelf (entered from Settings → tap books → Delete) — no separate list, still deliberate/Kai-proof
+  • Summaries no longer all start with "Join…" — varied openings now
+  • Avatar thumbnails generate on a solid background (fixes white areas like teeth turning transparent)
+  • Photo→character: auto-retries on the occasional vision refusal; clears the stray error message when you leave the editor
+  • Search ✕ is bigger; search no longer zooms the screen on iPhone; empty search shows a full-height empty bookshelf
+  • Settings → Offline Cache: clearer labels + a "Clean Up Unused" button to purge leftover/orphaned images
+  • REQUIRES: redeploy the Worker + run the v0.8.3 SQL block in supabase/schema.sql (adds the art_style column)
+
+--------------------------
 v0.8.2 — 2026-06-20 — Shelf Refinements + Photo Fix + Library Tools
   • Books smaller & ~3 per row on phone (more visible); dropped onto the shelf lip with an air gap above; horizontal breathing room
   • Books lean back ~4° like a real shelf; more prominent spines; rebuilt page edges (flush, fine page lines)

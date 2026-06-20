@@ -74,6 +74,18 @@ async function clearAllImages() {
   });
 }
 
+// Returns all image ids currently stored (for orphan cleanup)
+async function getAllImageIds() {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([IMAGE_STORE], 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    const req = store.getAllKeys();
+    req.onsuccess = (e) => resolve(e.target.result || []);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
 // Returns rough stats about the image DB
 async function getImageDBStats() {
   const db = await openImageDB();

@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.2',
+      version: 'v0.8.3',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -102,13 +102,16 @@ createApp({
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
       librarySearch: '',         // basic client-side filter
+      showFilters: false,
+      sortBy: 'created',
+      filterGenre: '', filterArt: '', filterAge: '', filterCreator: '', filterFav: false,
       coverUrls: {},             // cover_image_id -> signed URL (for thumbnails)
       bookDetail: null,          // the book (meta) whose detail popup is open
       bookDetailStory: null,     // its full story (loaded for reading time + instant Read)
       MAX_CACHED_BOOKS: 25,      // keep this many full books on-device for offline
 
-      // Manage / delete books (from Settings)
-      showManageBooks: false,
+      // Manage / delete books — a select mode ON the bookshelf (entered from Settings)
+      manageMode: false,
       booksToDelete: [],
       managingDelete: false,
 
@@ -290,17 +293,38 @@ createApp({
       return ar ? `Ages ${ar}` : '';
     },
 
-    // Basic client-side search over the loaded book list (full filter/sort = v0.8.2)
-    filteredLibraryBooks() {
+    // Client-side search + filter + sort over the loaded book list
+    anyFilterActive() {
+      return !!(this.filterGenre || this.filterArt || this.filterAge || this.filterCreator || this.filterFav);
+    },
+    distinctGenres() { return this._distinct('genre'); },
+    distinctArtStyles() { return this._distinct('art_style'); },
+    distinctAges() { return this._distinct('age_range'); },
+    distinctCreators() { return this._distinct('created_by'); },
+    displayedBooks() {
       const q = (this.librarySearch || '').toLowerCase().trim();
-      if (!q) return this.libraryBooks;
-      return this.libraryBooks.filter(b =>
-        (b.title || '').toLowerCase().includes(q) ||
-        (b.created_by || '').toLowerCase().includes(q) ||
-        (b.character_names || '').toLowerCase().includes(q) ||
-        (b.theme || '').toLowerCase().includes(q) ||
-        (b.genre || '').toLowerCase().includes(q)
-      );
+      let list = this.libraryBooks.filter(b => {
+        if (q && !(
+          (b.title || '').toLowerCase().includes(q) ||
+          (b.created_by || '').toLowerCase().includes(q) ||
+          (b.character_names || '').toLowerCase().includes(q) ||
+          (b.theme || '').toLowerCase().includes(q) ||
+          (b.genre || '').toLowerCase().includes(q)
+        )) return false;
+        if (this.filterGenre && (b.genre || '') !== this.filterGenre) return false;
+        if (this.filterArt && (b.art_style || '') !== this.filterArt) return false;
+        if (this.filterAge && (b.age_range || '') !== this.filterAge) return false;
+        if (this.filterCreator && (b.created_by || '') !== this.filterCreator) return false;
+        if (this.filterFav && (b.rating || 0) < 4) return false;
+        return true;
+      });
+      const arr = list.slice();
+      const created = b => b.created_at || b.createdAt || '';
+      if (this.sortBy === 'last_read') arr.sort((a, b) => (b.last_read_at || '').localeCompare(a.last_read_at || ''));
+      else if (this.sortBy === 'rating') arr.sort((a, b) => (b.rating || 0) - (a.rating || 0) || created(b).localeCompare(created(a)));
+      else if (this.sortBy === 'title') arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      else arr.sort((a, b) => created(b).localeCompare(created(a)));
+      return arr;
     },
 
     charFormCanSave() {
@@ -532,12 +556,14 @@ createApp({
     isCharProfileExpanded(charId) { return this.expandedCharIds.includes(charId); },
 
     startCreateCharacter() {
+      this.error = '';
       this.charForm = emptyCharForm();
       this.isRandomNew = false;
       this.showCharFallbackFields = false;
       this.charModalMode = 'create';
     },
     startEditCharacter(char) {
+      this.error = '';
       this.charForm = {
         id: char.id,
         name: char.name,
@@ -684,6 +710,7 @@ createApp({
         this.charForm = emptyCharForm();
         this.isRandomNew = false;
         this.charModalMode = 'list';
+        this.error = '';   // clear any photo/analysis error so it doesn't linger on the list
       } finally {
         this.savingCharacter = false;
       }
@@ -789,6 +816,10 @@ createApp({
           summary: story.summary || '',
           created_by: (this.formData.createdBy || '').trim(),
           quiz: story.quiz || null,
+          // The actual artwork style: the picked one, or what the AI chose for "surprise me"
+          art_style: (this.formData.artStyle && this.formData.artStyle !== 'surprise-me')
+            ? this.formData.artStyle
+            : (story.chosen_art_style || 'surprise-me'),
           style_anchor: story.style_anchor || 'consistent children\'s storybook illustration style',
           cover: {
             image_prompt: story.cover_image_prompt,
@@ -886,6 +917,7 @@ createApp({
         created_by: story.created_by || '',
         genre: (story.formData && story.formData.genre) || '',
         age_range: (story.formData && story.formData.ageRange) || '',
+        art_style: story.art_style || (story.formData && story.formData.artStyle !== 'surprise-me' ? story.formData.artStyle : ''),
         theme: (story.formData && story.formData.theme) || '',
         summary: story.summary || '',
         character_names: (story.selected_characters || []).map(c => c.name).filter(Boolean).join(' '),
@@ -1399,6 +1431,17 @@ createApp({
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
     goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
 
+    // ---- Library filter/sort helpers ----
+    _distinct(field) {
+      const set = new Set();
+      this.libraryBooks.forEach(b => { if (b[field]) set.add(b[field]); });
+      return [...set].sort();
+    },
+    clearFilters() {
+      this.filterGenre = ''; this.filterArt = ''; this.filterAge = '';
+      this.filterCreator = ''; this.filterFav = false;
+    },
+
     // ---- Book detail popup ----
     async openBookDetail(meta) {
       this.bookDetail = meta;
@@ -1483,13 +1526,16 @@ createApp({
       setLibraryIndex(this.libraryBooks);
     },
 
-    // ---- Manage / delete books (Settings → deliberate, multi-select) ----
+    // ---- Manage / delete books — select mode on the bookshelf ----
     openManageBooks() {
       this.booksToDelete = [];
       this.showSettings = false;
-      this.showManageBooks = true;
+      this.librarySearch = '';
+      this.manageMode = true;
+      this.view = 'library';
+      window.scrollTo(0, 0);
     },
-    closeManageBooks() { this.showManageBooks = false; this.booksToDelete = []; },
+    exitManageMode() { this.manageMode = false; this.booksToDelete = []; },
     isBookSelectedForDelete(id) { return this.booksToDelete.includes(id); },
     toggleBookForDelete(id) {
       const i = this.booksToDelete.indexOf(id);
@@ -1506,7 +1552,7 @@ createApp({
       this.managingDelete = false;
       this.refreshStorageSize();
       this.refreshImageStats();
-      if (!this.libraryBooks.length) this.closeManageBooks();
+      this.exitManageMode();
     },
 
     // ---- One-time pass: refresh every book's summary (longer + fill missing) ----
@@ -1601,9 +1647,34 @@ createApp({
       this.refreshStorageSize();
     },
     async handleClearImages() {
-      if (!confirm('Clear all stored images? This cannot be undone.')) return;
+      if (!confirm('Clear the on-device image cache? Your books stay safe in the cloud and re-download when you open them.')) return;
       await clearAllImages();
+      if (this._loadingUrls) this._loadingUrls = {};
+      this.imageUrls = {};
       this.refreshImageStats();
+    },
+    // Remove leftover/orphaned images not referenced by any cached book or character
+    async handleCleanupImages() {
+      const referenced = new Set();
+      for (const s of getStoredStories()) {
+        if (s.cover && s.cover.image_id) referenced.add(s.cover.image_id);
+        (s.pages || []).forEach(p => { if (p.image_id) referenced.add(p.image_id); });
+      }
+      for (const c of getStoredCharacters()) {
+        if (c.thumbnail_id) referenced.add(c.thumbnail_id);
+        if (c.photo_id) referenced.add(c.photo_id);
+      }
+      let removed = 0;
+      try {
+        const all = await getAllImageIds();
+        for (const id of all) {
+          if (!referenced.has(id)) {
+            try { await deleteImageBlob(id); this.releaseImageURL(id); removed++; } catch (e) {}
+          }
+        }
+      } catch (e) { console.warn('Cleanup failed', e); }
+      await this.refreshImageStats();
+      alert(`Removed ${removed} unused image${removed !== 1 ? 's' : ''} from this device.`);
     },
     async copyToClipboard(text) {
       try { await navigator.clipboard.writeText(text); alert('Copied to clipboard'); }
@@ -1724,11 +1795,11 @@ createApp({
         await saveImageBlob(photoId, blob);
         this.charForm.photo_id = photoId;
 
-        // Call Vision API
-        const result = await analyzeCharacterPhoto(dataUrl, this.password);
-        if (isVisionRefusal(result.description)) {
+        // Call Vision API (auto-retries on the occasional refusal)
+        const result = await analyzeCharacterPhotoWithRetry(dataUrl, this.password);
+        if (result.refused) {
           // Keep the photo (so they can re-analyze) but don't store the refusal text
-          this.error = 'The photo reader declined to describe this one (it sometimes does). Tap "🔄 Re-analyze photo" to try again, or use a clearer/different photo.';
+          this.error = 'The photo reader declined to describe this one. Tap "🔄 Re-analyze photo" to try again, or use a clearer/different photo.';
         } else {
           this.charForm.photo_description = result.description;
         }
@@ -1755,8 +1826,8 @@ createApp({
           r.onerror = () => rej(new Error('Could not read photo'));
           r.readAsDataURL(blob);
         });
-        const result = await analyzeCharacterPhoto(dataUrl, this.password);
-        if (isVisionRefusal(result.description)) {
+        const result = await analyzeCharacterPhotoWithRetry(dataUrl, this.password);
+        if (result.refused) {
           this.error = 'Still couldn\'t read the photo. Try a different one — a clear, well-lit, front-facing photo works best.';
         } else {
           this.charForm.photo_description = result.description;
@@ -1892,7 +1963,7 @@ createApp({
     updateBodyScroll() {
       const anyOpen = this.showSettings || this.showCharactersModal ||
         this.copyrightModal || this.warningModal || this.inspectingImage ||
-        this.showQuiz || this.bookDetail || this.showManageBooks;
+        this.showQuiz || this.bookDetail;
       document.body.style.overflow = anyOpen ? 'hidden' : '';
     },
 
@@ -1920,7 +1991,6 @@ createApp({
     inspectingImage() { this.updateBodyScroll(); },
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
-    showManageBooks() { this.updateBodyScroll(); },
   },
 
 }).mount('#app')

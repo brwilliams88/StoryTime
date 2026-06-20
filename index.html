@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.2" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.3" />
 </head>
 <body>
 
@@ -166,15 +166,60 @@
         </div>
 
         <!-- ============== LIBRARY (home) ============== -->
-        <div v-else-if="view === 'library'" class="library-view">
+        <div v-else-if="view === 'library'" class="library-view" :class="{ 'manage-active': manageMode }">
 
-          <!-- Clean home bar: search + settings, no big heading -->
-          <div class="library-bar">
+          <!-- Normal home bar -->
+          <div v-if="!manageMode" class="library-bar">
             <div class="search-wrap">
               <input type="text" v-model="librarySearch" placeholder="🔍 Search your library…" class="text-input library-search" />
               <button v-if="librarySearch" @click="librarySearch = ''" class="search-clear" aria-label="Clear search">✕</button>
             </div>
+            <button @click="showFilters = !showFilters" :class="['btn-secondary btn-small', { 'filter-active': showFilters || anyFilterActive }]" title="Filter &amp; sort">⚙︎ Filter</button>
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
+          </div>
+
+          <!-- Manage (delete) bar -->
+          <div v-else class="library-bar manage-bar-top">
+            <span class="manage-bar-label">🗑 Tap books to delete · {{ booksToDelete.length }} selected</span>
+            <button @click="exitManageMode" class="btn-secondary btn-small">Cancel</button>
+          </div>
+
+          <!-- Filter / sort panel -->
+          <div v-if="showFilters && !manageMode" class="filter-panel">
+            <label class="filter-row"><span>Sort by</span>
+              <select v-model="sortBy" class="select-input">
+                <option value="created">Newest created</option>
+                <option value="last_read">Last read</option>
+                <option value="rating">Top rated</option>
+                <option value="title">Title A–Z</option>
+              </select>
+            </label>
+            <label class="filter-row"><span>Genre</span>
+              <select v-model="filterGenre" class="select-input">
+                <option value="">All</option>
+                <option v-for="g in distinctGenres" :key="g" :value="g">{{ g.replace('-', ' ') }}</option>
+              </select>
+            </label>
+            <label class="filter-row"><span>Artwork</span>
+              <select v-model="filterArt" class="select-input">
+                <option value="">All</option>
+                <option v-for="a in distinctArtStyles" :key="a" :value="a">{{ a.replace('-', ' ') }}</option>
+              </select>
+            </label>
+            <label class="filter-row"><span>Age</span>
+              <select v-model="filterAge" class="select-input">
+                <option value="">All</option>
+                <option v-for="a in distinctAges" :key="a" :value="a">Ages {{ a }}</option>
+              </select>
+            </label>
+            <label class="filter-row"><span>Created by</span>
+              <select v-model="filterCreator" class="select-input">
+                <option value="">Anyone</option>
+                <option v-for="c in distinctCreators" :key="c" :value="c">{{ c }}</option>
+              </select>
+            </label>
+            <label class="toggle-line"><input type="checkbox" v-model="filterFav" /> <span>⭐ Favorites only (4★ and up)</span></label>
+            <button v-if="anyFilterActive" @click="clearFilters" class="text-link">Clear filters</button>
           </div>
 
           <div v-if="libraryLoading && !libraryBooks.length" class="library-loading">
@@ -182,46 +227,57 @@
             <p>Loading your library…</p>
           </div>
 
-          <!-- The bookshelf: a wood crown caps it; each row tiles a shelf bay -->
+          <!-- The bookshelf: a wood crown caps it; each row is a shelf bay -->
           <div v-else class="bookshelf">
             <div class="shelf-crown"></div>
             <div class="shelf-grid">
 
-              <!-- Create-new "book" (always first, hidden while searching) -->
-              <div v-if="!librarySearch.trim()" class="book-slot">
+              <!-- Create-new "book" (first; hidden while searching/filtering/managing) -->
+              <div v-if="!manageMode && !librarySearch.trim() && !anyFilterActive" class="book-slot">
                 <button class="book create-book" @click="goCreate" aria-label="Create a new story">
                   <div class="book-cover create-cover">
                     <span class="create-sparkle create-sparkle-1">✦</span>
                     <span class="create-sparkle create-sparkle-2">✦</span>
+                    <span class="create-sparkle create-sparkle-3">✦</span>
                     <span class="create-plus">+</span>
                   </div>
-                  <div class="book-plate create-plate">New Story</div>
+                  <div class="book-plate create-plate"><span class="book-plate-text">New Story</span></div>
                 </button>
               </div>
 
               <!-- Books -->
-              <div v-for="book in filteredLibraryBooks" :key="book.id" class="book-slot">
-                <button class="book" @click="openBookDetail(book)">
+              <div v-for="book in displayedBooks" :key="book.id" class="book-slot">
+                <button class="book" :class="{ 'book-selected': manageMode && isBookSelectedForDelete(book.id) }"
+                        @click="manageMode ? toggleBookForDelete(book.id) : openBookDetail(book)">
                   <div class="book-cover">
                     <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" draggable="false" />
                     <div v-else class="book-cover-fallback">📖</div>
-                    <span v-if="isBookNew(book)" class="book-new-badge">NEW</span>
+                    <span v-if="manageMode" :class="['book-select-check', { on: isBookSelectedForDelete(book.id) }]">{{ isBookSelectedForDelete(book.id) ? '✓' : '' }}</span>
+                    <span v-else-if="isBookNew(book)" class="book-new-badge">NEW</span>
                   </div>
-                  <div class="book-plate">{{ book.title || 'Untitled' }}</div>
+                  <div class="book-plate"><span class="book-plate-text">{{ book.title || 'Untitled' }}</span></div>
                 </button>
               </div>
 
             </div>
 
             <!-- Empty states -->
-            <div v-if="!filteredLibraryBooks.length && librarySearch.trim()" class="library-empty">
-              <div class="empty-text">No books match “{{ librarySearch }}”.</div>
+            <div v-if="!displayedBooks.length && (librarySearch.trim() || anyFilterActive)" class="library-empty">
+              <div class="empty-text">No books match your search or filters.</div>
             </div>
             <div v-else-if="!libraryBooks.length" class="library-empty">
               <div class="empty-emoji">📚</div>
               <div class="empty-title">No books yet</div>
               <div class="empty-text">Tap the glowing <strong>New Story</strong> book to create your first one.</div>
             </div>
+          </div>
+
+          <!-- Manage action bar (fixed at the bottom) -->
+          <div v-if="manageMode" class="manage-action-bar">
+            <button @click="exitManageMode" class="btn-secondary">Cancel</button>
+            <button @click="confirmDeleteSelected" :disabled="!booksToDelete.length || managingDelete" class="btn-primary btn-danger">
+              {{ managingDelete ? 'Deleting…' : 'Delete (' + booksToDelete.length + ')' }}
+            </button>
           </div>
         </div>
 
@@ -685,38 +741,6 @@
         </div>
       </div>
 
-      <!-- ============== MANAGE / DELETE BOOKS ============== -->
-      <div v-if="showManageBooks" class="modal-overlay" @click.self="closeManageBooks">
-        <div class="modal modal-wide">
-          <div class="modal-header">
-            <h2>Manage Books</h2>
-            <button @click="closeManageBooks" class="modal-close modal-close-big" aria-label="Close">✕</button>
-          </div>
-          <p class="modal-hint">Tap books to select, then delete. This removes them from all your devices.</p>
-          <div class="manage-list">
-            <button
-              v-for="book in libraryBooks" :key="book.id"
-              :class="['manage-row', { selected: isBookSelectedForDelete(book.id) }]"
-              @click="toggleBookForDelete(book.id)"
-            >
-              <span class="manage-check">{{ isBookSelectedForDelete(book.id) ? '☑' : '☐' }}</span>
-              <span class="manage-thumb">
-                <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" />
-                <span v-else>📖</span>
-              </span>
-              <span class="manage-title">{{ book.title || 'Untitled' }}</span>
-            </button>
-            <div v-if="!libraryBooks.length" class="library-empty"><div class="empty-text">No books to manage.</div></div>
-          </div>
-          <div class="modal-footer">
-            <button @click="closeManageBooks" class="btn-secondary">Done</button>
-            <button @click="confirmDeleteSelected" :disabled="!booksToDelete.length || managingDelete" class="btn-primary btn-danger">
-              {{ managingDelete ? 'Deleting…' : 'Delete Selected (' + booksToDelete.length + ')' }}
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- ============== CROPPER MODAL ============== -->
       <div v-if="showCropper" class="modal-overlay">
         <div class="modal modal-wide">
@@ -769,12 +793,12 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">💾 Storage</div>
-            <div class="settings-row"><span>Stories</span><strong>{{ formattedStorageSize }}</strong></div>
-            <div class="settings-row"><span>Images</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
+            <div class="settings-section-title">💾 Offline Cache</div>
+            <div class="settings-row"><span>Images on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
+            <p class="settings-fine-print">Clearing is safe — your books live in the cloud and re-download when opened.</p>
             <div class="settings-row-actions">
-              <button @click="handleClearStories" class="btn-secondary btn-small">Clear Stories</button>
-              <button @click="handleClearImages" class="btn-secondary btn-small">Clear Images</button>
+              <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused</button>
+              <button @click="handleClearImages" class="btn-secondary btn-small">Clear Offline Cache</button>
             </div>
           </div>
 
@@ -862,11 +886,11 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.8.2"></script>
-  <script src="js/imageStorage.js?v=0.8.2"></script>
-  <script src="js/api.js?v=0.8.2"></script>
-  <script src="js/sync.js?v=0.8.2"></script>
-  <script src="js/app.js?v=0.8.2"></script>
+  <script src="js/storage.js?v=0.8.3"></script>
+  <script src="js/imageStorage.js?v=0.8.3"></script>
+  <script src="js/api.js?v=0.8.3"></script>
+  <script src="js/sync.js?v=0.8.3"></script>
+  <script src="js/app.js?v=0.8.3"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

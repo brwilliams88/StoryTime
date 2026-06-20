@@ -67,6 +67,7 @@ function storyToRow(story) {
     created_by: story.created_by || '',
     genre: fd.genre || '',
     age_range: fd.ageRange || '',
+    art_style: story.art_style || (fd.artStyle && fd.artStyle !== 'surprise-me' ? fd.artStyle : ''),
     theme: fd.theme || '',
     summary: story.summary || '',
     character_names: characterNames,

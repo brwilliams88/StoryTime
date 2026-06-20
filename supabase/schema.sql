@@ -108,3 +108,18 @@ update public.stories
 update public.characters
   set created_at = (data->>'created_at')::timestamptz
   where data ? 'created_at';
+
+
+-- ============================================================
+-- v0.8.3 migration — run this block once (safe to re-run)
+-- Adds an art_style column for the Library's artwork filter, and
+-- backfills it from each story's saved form data.
+-- ============================================================
+alter table public.stories add column if not exists art_style text;
+update public.stories
+  set art_style = coalesce(
+    data->>'art_style',
+    nullif(data->'formData'->>'artStyle', 'surprise-me'),
+    ''
+  )
+  where art_style is null;

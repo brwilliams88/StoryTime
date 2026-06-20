@@ -151,6 +151,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     lines.push(`- Use this EXACT illustration style for "style_anchor": "${styleAnchorOverride}". Do not deviate or rephrase — output it verbatim.`);
   } else {
     lines.push(`- Choose ONE consistent illustration style for the whole story that fits the genre and mood (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output as "style_anchor".`);
+    lines.push(`- ALSO output "chosen_art_style": the single closest match from this exact list for the style you chose — one of: watercolor, pencil, crayon, comic-book, anime, pixel-art, 3d-animation, claymation, building-blocks, stuffies, paper-cutouts, chalkboard. Output the value verbatim (e.g. "watercolor").`);
   }
 
   lines.push(
@@ -205,8 +206,9 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `Exact structure:`,
     `{`,
     `  "title": "short evocative story title",`,
-    `  "summary": "a brief 2-sentence summary (~30-45 words) of the story — inviting, no spoilers",`,
+    `  "summary": "a brief 2-sentence back-cover blurb (~30-45 words), inviting, names the main character(s), no spoilers. VARY the opening — do NOT start with 'Join'; use a different style each time (a question, a vivid setting, a character moment, or the stakes)",`,
     `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
+    `  "chosen_art_style": "(only if you chose the style yourself) the closest match from the provided list, verbatim",`,
     `  "cover_image_prompt": "vivid scene for the cover — describe characters and setting only, no mention of 'book cover' or text",`,
     `  "pages": [`,
     `    { "page_number": 1, "text": "...", "image_prompt": "scene description with action verb and composition" },`,
@@ -661,6 +663,17 @@ Write a single descriptive paragraph (~100–150 words) of the subject's appeara
   return { description: result.text.trim(), cost: result.cost, tokens: result.tokens };
 }
 
+// The vision guardrail is nondeterministic, so retry a few times on a refusal —
+// the same photo often succeeds on a later attempt.
+async function analyzeCharacterPhotoWithRetry(base64DataUrl, password, attempts = 3) {
+  let last = null;
+  for (let i = 0; i < attempts; i++) {
+    last = await analyzeCharacterPhoto(base64DataUrl, password);
+    if (!isVisionRefusal(last.description)) return Object.assign({}, last, { refused: false });
+  }
+  return Object.assign({}, last, { refused: true });
+}
+
 // Detect when the vision model refused instead of describing (privacy guardrail).
 function isVisionRefusal(text) {
   if (!text) return true;
@@ -677,7 +690,9 @@ function isVisionRefusal(text) {
 // =====================================================================
 async function generateStorySummary(story, password) {
   const text = (story.pages || []).map(p => p.text || '').join('\n\n');
-  const prompt = `Write a brief, inviting 2-sentence summary (about 30-45 words) of this children's story. No spoilers about the ending. Return ONLY the summary text, nothing else.
+  const prompt = `Write a brief, inviting back-cover blurb (2 sentences, about 30-45 words) for this children's story. Mention the main character(s) by name, but no spoilers about the ending. Return ONLY the blurb text.
+
+VARIETY IS IMPORTANT — do NOT start with "Join". Vary the opening style each time; pick whichever fits best: a hook question, a vivid setting ("On a stormy night…"), a character moment ("Pip has never…"), or the stakes ("Something is missing in…"). Avoid a formulaic template.
 
 Title: ${story.title || '(untitled)'}
 
@@ -687,7 +702,7 @@ ${text}`;
   const requestBody = {
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.7,
+    temperature: 0.95,
   };
   const result = await callOpenAIChatRaw(requestBody, password);
   return { summary: result.text.trim(), cost: result.cost };
@@ -706,7 +721,7 @@ COMPOSITION RULES (must follow):
 - Avatar headshot framing — show the character CENTERED with breathing room on all sides so it crops nicely as a circular avatar.
 - ANATOMY: Show ONLY what the description actually includes. If the character has no neck, no body, no torso, or no shoulders (e.g. a floating head, a disembodied face, an orb, a creature without a body), do NOT invent or add a neck, shoulders, or body. Render exactly the form described — nothing more.
 - Character is the ONLY thing in the image — no scene, no background scenery, no other objects, no text.
-- Plain transparent background (or solid simple color if transparency isn't possible).
+- Use a SOLID, simple, soft single-color background (a gentle pastel). Do NOT use a transparent background — the whole image must be fully opaque so that white parts of the character (teeth, eyes, highlights) render normally and never become see-through.
 
 STYLE:
 - Friendly children's book character icon style
