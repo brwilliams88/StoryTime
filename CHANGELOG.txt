@@ -9,6 +9,18 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.2 — 2026-06-20 — Shelf Refinements + Photo Fix + Library Tools
+  • Books smaller & ~3 per row on phone (more visible); dropped onto the shelf lip with an air gap above; horizontal breathing room
+  • Books lean back ~4° like a real shelf; more prominent spines; rebuilt page edges (flush, fine page lines)
+  • Search bar now has a clear (✕) button (library + characters); no results shows an empty bookshelf instead of vanishing
+  • Inner-cover page cleaned up: bigger ✕, divider, age + reading-time + stars on one line, dropped the genre tag
+  • Delete moved OUT of the book page → Settings → "Manage / Delete Books" (multi-select, deliberate — Kai-proof)
+  • New: Settings → "Update All Summaries" — one-time pass to lengthen/add summaries for every book
+  • Story summaries are now ~2 sentences (longer, more inviting)
+  • Story Details + Created By are now required to generate
+  • Photo → character likeness FIX: reworded the photo reader so it stops refusing ("I can't describe people…"); detects a refusal and tells you instead of saving it; added a "🔄 Re-analyze photo" button (reference photos are stored on-device + in the cloud)
+
+--------------------------
 v0.8.1 — 2026-06-18 — Bookshelf Polish + Inner-Cover Page + Photo Likeness
   • Books now sit ON the shelf ledge (no more floating); each book = square cover + a cream title plate, with a more prominent spine, smooth page fore-edge, rounded corners, and a grounding shadow
   • Bigger, more readable books: ~2 per row on phone portrait (3–5 on larger screens), titles up to 3 lines

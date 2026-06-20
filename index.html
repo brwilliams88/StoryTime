@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.1" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.2" />
 </head>
 <body>
 
@@ -84,7 +84,7 @@
           </div>
 
           <div class="form-field">
-            <label>Story Details <span class="help-text">— make it your own with cool details</span> <span class="optional">(optional)</span></label>
+            <label>Story Details <span class="help-text">— make it your own with cool details</span></label>
             <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input textarea-large" rows="6"></textarea>
           </div>
 
@@ -139,7 +139,7 @@
           </div>
 
           <div class="form-field">
-            <label>Created By <span class="optional">(optional)</span></label>
+            <label>Created By</label>
             <div class="created-by-wrapper">
               <input
                 type="text"
@@ -170,7 +170,10 @@
 
           <!-- Clean home bar: search + settings, no big heading -->
           <div class="library-bar">
-            <input type="text" v-model="librarySearch" placeholder="🔍 Search your library…" class="text-input library-search" />
+            <div class="search-wrap">
+              <input type="text" v-model="librarySearch" placeholder="🔍 Search your library…" class="text-input library-search" />
+              <button v-if="librarySearch" @click="librarySearch = ''" class="search-clear" aria-label="Clear search">✕</button>
+            </div>
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
 
@@ -492,7 +495,10 @@
               <button @click="startCreateCharacter" class="btn-primary btn-small">+ Create New</button>
               <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}</button>
             </div>
-            <input v-if="characters.length > 3" type="text" v-model="charSearch" placeholder="🔍 Search characters…" class="text-input char-search" />
+            <div v-if="characters.length > 3" class="search-wrap char-search-wrap">
+              <input type="text" v-model="charSearch" placeholder="🔍 Search characters…" class="text-input char-search" />
+              <button v-if="charSearch" @click="charSearch = ''" class="search-clear" aria-label="Clear search">✕</button>
+            </div>
             <div v-if="error" class="error-text" style="margin: 0.5rem 0;">{{ error }}</div>
             <div class="char-list">
               <div v-if="characters.length === 0" class="char-list-empty">
@@ -576,6 +582,7 @@
                   <button @click="handleRemovePhoto" :disabled="analyzingPhoto" class="photo-delete-x" aria-label="Remove photo">✕</button>
                 </div>
                 <div v-if="analyzingPhoto" class="form-hint" style="margin-top: 0.5rem; color: var(--accent);">Analyzing photo…</div>
+                <button v-if="charForm.photo_id && !analyzingPhoto" @click="handleReanalyzePhoto" class="btn-secondary btn-small" style="margin-top: 0.5rem;">🔄 Re-analyze photo</button>
                 <details v-if="charForm.photo_description" class="photo-description-toggle" style="margin-top: 0.6rem;">
                   <summary>▸ Photo description (auto-generated)</summary>
                   <textarea v-model="charForm.photo_description" rows="4" class="textarea-input" style="margin-top: 0.4rem;"></textarea>
@@ -650,6 +657,8 @@
           <h2 class="inner-cover-title">{{ bookDetail.title || 'Untitled' }}</h2>
           <div v-if="bookDetail.created_by" class="inner-cover-by">by {{ bookDetail.created_by }}</div>
 
+          <div class="inner-cover-rule"></div>
+
           <div class="inner-cover-body">
             <div class="inner-cover-thumb">
               <img v-if="libraryCover(bookDetail)" :src="libraryCover(bookDetail)" :alt="bookDetail.title" draggable="false" />
@@ -659,14 +668,12 @@
             <p v-else class="inner-cover-summary inner-cover-summary-muted">A StoryTime original.</p>
           </div>
 
-          <div class="inner-cover-tags">
+          <div class="inner-cover-meta">
             <span v-if="bookDetailAgeLabel" class="inner-cover-tag">{{ bookDetailAgeLabel }}</span>
             <span v-if="bookDetailReadingTime" class="inner-cover-tag">⏱ ~{{ bookDetailReadingTime }} min</span>
-            <span v-if="bookDetail.genre && bookDetail.genre !== 'surprise-me'" class="inner-cover-tag">{{ bookDetail.genre.replace('-', ' ') }}</span>
-          </div>
-
-          <div v-if="bookDetail.rating" class="inner-cover-rating">
-            <span v-for="n in 5" :key="n" :class="['rating-star', { filled: bookDetail.rating >= n }]">★</span>
+            <span v-if="bookDetail.rating" class="inner-cover-stars">
+              <span v-for="n in 5" :key="n" :class="['rating-star', { filled: bookDetail.rating >= n }]">★</span>
+            </span>
           </div>
 
           <div class="inner-cover-dates">
@@ -675,7 +682,38 @@
           </div>
 
           <button @click="readFromDetail" class="btn-primary inner-cover-read">📖 Read this book</button>
-          <button @click="deleteBook(bookDetail)" class="inner-cover-delete">Delete book</button>
+        </div>
+      </div>
+
+      <!-- ============== MANAGE / DELETE BOOKS ============== -->
+      <div v-if="showManageBooks" class="modal-overlay" @click.self="closeManageBooks">
+        <div class="modal modal-wide">
+          <div class="modal-header">
+            <h2>Manage Books</h2>
+            <button @click="closeManageBooks" class="modal-close modal-close-big" aria-label="Close">✕</button>
+          </div>
+          <p class="modal-hint">Tap books to select, then delete. This removes them from all your devices.</p>
+          <div class="manage-list">
+            <button
+              v-for="book in libraryBooks" :key="book.id"
+              :class="['manage-row', { selected: isBookSelectedForDelete(book.id) }]"
+              @click="toggleBookForDelete(book.id)"
+            >
+              <span class="manage-check">{{ isBookSelectedForDelete(book.id) ? '☑' : '☐' }}</span>
+              <span class="manage-thumb">
+                <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" />
+                <span v-else>📖</span>
+              </span>
+              <span class="manage-title">{{ book.title || 'Untitled' }}</span>
+            </button>
+            <div v-if="!libraryBooks.length" class="library-empty"><div class="empty-text">No books to manage.</div></div>
+          </div>
+          <div class="modal-footer">
+            <button @click="closeManageBooks" class="btn-secondary">Done</button>
+            <button @click="confirmDeleteSelected" :disabled="!booksToDelete.length || managingDelete" class="btn-primary btn-danger">
+              {{ managingDelete ? 'Deleting…' : 'Delete Selected (' + booksToDelete.length + ')' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -752,6 +790,18 @@
           </div>
 
           <div class="settings-section">
+            <div class="settings-section-title">📚 Library Tools</div>
+            <div class="settings-row-actions">
+              <button @click="handleUpdateSummaries" :disabled="summaryUpdating" class="btn-secondary btn-small">
+                {{ summaryUpdating ? 'Updating…' : '✨ Update All Summaries' }}
+              </button>
+              <button @click="openManageBooks" class="btn-secondary btn-small">🗑 Manage / Delete Books</button>
+            </div>
+            <p v-if="summaryProgress" class="settings-fine-print" style="color: var(--accent);">{{ summaryProgress }}</p>
+            <p class="settings-fine-print">Deleting books lives here (not on the book page) so it can't happen by accident.</p>
+          </div>
+
+          <div class="settings-section">
             <div class="settings-section-title">🔐 Account</div>
             <div class="settings-row-actions">
               <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
@@ -812,11 +862,11 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.8.1"></script>
-  <script src="js/imageStorage.js?v=0.8.1"></script>
-  <script src="js/api.js?v=0.8.1"></script>
-  <script src="js/sync.js?v=0.8.1"></script>
-  <script src="js/app.js?v=0.8.1"></script>
+  <script src="js/storage.js?v=0.8.2"></script>
+  <script src="js/imageStorage.js?v=0.8.2"></script>
+  <script src="js/api.js?v=0.8.2"></script>
+  <script src="js/sync.js?v=0.8.2"></script>
+  <script src="js/app.js?v=0.8.2"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

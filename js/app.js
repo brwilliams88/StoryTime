@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.1',
+      version: 'v0.8.2',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -106,6 +106,15 @@ createApp({
       bookDetail: null,          // the book (meta) whose detail popup is open
       bookDetailStory: null,     // its full story (loaded for reading time + instant Read)
       MAX_CACHED_BOOKS: 25,      // keep this many full books on-device for offline
+
+      // Manage / delete books (from Settings)
+      showManageBooks: false,
+      booksToDelete: [],
+      managingDelete: false,
+
+      // One-time "update summaries" pass
+      summaryUpdating: false,
+      summaryProgress: '',
 
       formData: defaultFormData(),
 
@@ -713,6 +722,13 @@ createApp({
     // ============================================================
     async handleGenerate() {
       this.error = '';
+      // Story Details + Created By are now required
+      if (!this.formData.storyDetails || !this.formData.storyDetails.trim()) {
+        this.error = 'Please fill in Story Details before generating.'; return;
+      }
+      if (!this.formData.createdBy || !this.formData.createdBy.trim()) {
+        this.error = 'Please fill in "Created By" before generating.'; return;
+      }
       this.loading = true;
       this.loadingMessage = 'Writing your story…';
       this.loadingHint = loadingHintForLength(this.formData.length);
@@ -1453,30 +1469,73 @@ createApp({
     },
 
     // Delete a book everywhere: cloud row + cloud images + local cache + shelf
-    async deleteBook(meta) {
-      if (!meta) return;
-      if (!confirm(`Delete "${meta.title || 'this book'}"? This removes it from all your devices and can't be undone.`)) return;
-
-      // Get the full story (local or cloud) so we can clean up ALL its images
-      let full = getStoredStories().find(s => s.id === meta.id);
-      if (!full) { try { full = await fetchFullStory(meta.id); } catch (e) {} }
-
-      // Local cleanup
+    // Delete ONE book everywhere (cloud row + images + local cache + shelf). No confirm.
+    async deleteBookById(id) {
+      let full = getStoredStories().find(s => s.id === id);
+      if (!full) { try { full = await fetchFullStory(id); } catch (e) {} }
       if (full) {
         const ids = [full.cover && full.cover.image_id, ...((full.pages || []).map(p => p.image_id))].filter(Boolean);
-        for (const id of ids) { try { await deleteImageBlob(id); } catch (e) {} this.releaseImageURL(id); }
+        for (const im of ids) { try { await deleteImageBlob(im); } catch (e) {} this.releaseImageURL(im); }
       }
-      deleteStoryFromStorage(meta.id);
-
-      // Cloud cleanup (best-effort)
-      syncDeleteStory(full || { id: meta.id, cover: {}, pages: [] }).catch(e => console.warn('Cloud delete failed:', e));
-
-      // UI
-      this.libraryBooks = this.libraryBooks.filter(b => b.id !== meta.id);
+      deleteStoryFromStorage(id);
+      syncDeleteStory(full || { id, cover: {}, pages: [] }).catch(e => console.warn('Cloud delete failed:', e));
+      this.libraryBooks = this.libraryBooks.filter(b => b.id !== id);
       setLibraryIndex(this.libraryBooks);
-      this.bookDetail = null;
+    },
+
+    // ---- Manage / delete books (Settings → deliberate, multi-select) ----
+    openManageBooks() {
+      this.booksToDelete = [];
+      this.showSettings = false;
+      this.showManageBooks = true;
+    },
+    closeManageBooks() { this.showManageBooks = false; this.booksToDelete = []; },
+    isBookSelectedForDelete(id) { return this.booksToDelete.includes(id); },
+    toggleBookForDelete(id) {
+      const i = this.booksToDelete.indexOf(id);
+      if (i === -1) this.booksToDelete.push(id);
+      else this.booksToDelete.splice(i, 1);
+    },
+    async confirmDeleteSelected() {
+      const ids = [...this.booksToDelete];
+      if (!ids.length || this.managingDelete) return;
+      if (!confirm(`Delete ${ids.length} book${ids.length > 1 ? 's' : ''}? This removes them from all your devices and can't be undone.`)) return;
+      this.managingDelete = true;
+      for (const id of ids) { await this.deleteBookById(id); }
+      this.booksToDelete = [];
+      this.managingDelete = false;
       this.refreshStorageSize();
       this.refreshImageStats();
+      if (!this.libraryBooks.length) this.closeManageBooks();
+    },
+
+    // ---- One-time pass: refresh every book's summary (longer + fill missing) ----
+    async handleUpdateSummaries() {
+      if (this.summaryUpdating) return;
+      if (!confirm('Refresh the summary for every book (and add any missing ones)? This may take a minute.')) return;
+      this.summaryUpdating = true;
+      this.summaryProgress = 'Starting…';
+      let ok = 0, fail = 0;
+      const books = [...this.libraryBooks];
+      for (let i = 0; i < books.length; i++) {
+        this.summaryProgress = `Updating summaries… ${i + 1}/${books.length}`;
+        try {
+          let story = getStoredStories().find(s => s.id === books[i].id) || await fetchFullStory(books[i].id);
+          if (!story) { fail++; continue; }
+          const { summary } = await generateStorySummary(story, this.password);
+          if (summary) {
+            story.summary = summary;
+            try { saveStoryToStorage(story); } catch (e) { if (!e.isQuota) throw e; }
+            syncPushStory(story).catch(() => {});
+            const m = this.libraryBooks.find(b => b.id === books[i].id);
+            if (m) m.summary = summary;
+            ok++;
+          } else { fail++; }
+        } catch (e) { console.warn('Summary update failed:', books[i].id, e); fail++; }
+      }
+      setLibraryIndex(this.libraryBooks);
+      this.summaryProgress = `Done! Updated ${ok}${fail ? `, ${fail} failed` : ''}.`;
+      this.summaryUpdating = false;
     },
 
     // Keep only the most-recently-read N books fully on-device; older ones
@@ -1667,11 +1726,43 @@ createApp({
 
         // Call Vision API
         const result = await analyzeCharacterPhoto(dataUrl, this.password);
-        this.charForm.photo_description = result.description;
+        if (isVisionRefusal(result.description)) {
+          // Keep the photo (so they can re-analyze) but don't store the refusal text
+          this.error = 'The photo reader declined to describe this one (it sometimes does). Tap "🔄 Re-analyze photo" to try again, or use a clearer/different photo.';
+        } else {
+          this.charForm.photo_description = result.description;
+        }
         this.refreshImageStats();
       } catch (err) {
         console.error('Photo analysis failed:', err);
         this.error = err.message || 'Could not analyze photo. Try again.';
+      } finally {
+        this.analyzingPhoto = false;
+      }
+    },
+
+    // Re-run photo analysis on the already-uploaded photo (no re-upload needed)
+    async handleReanalyzePhoto() {
+      if (!this.charForm.photo_id || this.analyzingPhoto) return;
+      this.analyzingPhoto = true;
+      this.error = '';
+      try {
+        const blob = await getImageBlob(this.charForm.photo_id);
+        if (!blob) throw new Error('Photo not found on this device.');
+        const dataUrl = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.onerror = () => rej(new Error('Could not read photo'));
+          r.readAsDataURL(blob);
+        });
+        const result = await analyzeCharacterPhoto(dataUrl, this.password);
+        if (isVisionRefusal(result.description)) {
+          this.error = 'Still couldn\'t read the photo. Try a different one — a clear, well-lit, front-facing photo works best.';
+        } else {
+          this.charForm.photo_description = result.description;
+        }
+      } catch (err) {
+        this.error = err.message || 'Could not re-analyze photo.';
       } finally {
         this.analyzingPhoto = false;
       }
@@ -1801,7 +1892,7 @@ createApp({
     updateBodyScroll() {
       const anyOpen = this.showSettings || this.showCharactersModal ||
         this.copyrightModal || this.warningModal || this.inspectingImage ||
-        this.showQuiz || this.bookDetail;
+        this.showQuiz || this.bookDetail || this.showManageBooks;
       document.body.style.overflow = anyOpen ? 'hidden' : '';
     },
 
@@ -1829,6 +1920,7 @@ createApp({
     inspectingImage() { this.updateBodyScroll(); },
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
+    showManageBooks() { this.updateBodyScroll(); },
   },
 
 }).mount('#app')

@@ -205,7 +205,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `Exact structure:`,
     `{`,
     `  "title": "short evocative story title",`,
-    `  "summary": "one-sentence summary of the story (no spoilers)",`,
+    `  "summary": "a brief 2-sentence summary (~30-45 words) of the story — inviting, no spoilers",`,
     `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
     `  "cover_image_prompt": "vivid scene for the cover — describe characters and setting only, no mention of 'book cover' or text",`,
     `  "pages": [`,
@@ -311,7 +311,7 @@ Given the rough input below, return JSON with FOUR things:
 
 1. "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf").
 
-2. "visual_description" — a richly detailed ~100–150 word visual + personality description. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully. CRITICAL: if the input describes a real person's appearance (especially from a photo), preserve their physical and demographic details EXACTLY — apparent ethnicity/heritage, skin tone, hair color and texture, eye color, glasses, and facial hair. Never lighten skin, change hair or eye color, remove glasses or facial hair, or make the character look more generic/European than described. These details are what make the character resemble the real person.
+2. "visual_description" — a richly detailed ~100–150 word visual + personality description. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully. CRITICAL: if the input describes someone's appearance (especially from a photo), keep their visual details EXACTLY — skin tone, hair color and texture, eye color, glasses, and facial hair. Never lighten skin, change hair or eye color, or remove glasses or facial hair. These details are what make the character resemble the real person.
 
 3. "safe_fallback_name" — a generic alternate name for image generation if the original name is copyright-blocked. For copyrighted characters this MUST be clearly different (e.g. "Darth Vader" → "Lord Vorath", "Pikachu" → "Sparkpaw", "Elsa" → "Frosthild"). For original characters, this can be the same as the original name.
 
@@ -624,27 +624,26 @@ function estimateStoryCost(formData, quality) {
 // VISION: analyze a character photo — focus ONLY on the main subject
 // =====================================================================
 async function analyzeCharacterPhoto(base64DataUrl, password) {
-  const prompt = `Look at this photo and write a detailed visual description of the MAIN SUBJECT only. This will be used to draw a cartoon that should clearly RESEMBLE the real subject, so getting their actual appearance right matters a lot.
+  const prompt = `You are helping an artist design an ORIGINAL, fictional cartoon character inspired by a reference photo. Describe the visual appearance of the MAIN SUBJECT so the artist can capture a good resemblance in an original cartoon illustration. Do NOT identify, name, or guess who the person is — simply describe the visual features you can see, the way an artist would note them.
 
-CRITICAL FOCUS RULES:
-- Describe ONLY the main character / person / drawing / toy that is the subject of the photo.
-- IGNORE everything else: background, surroundings, walls, surfaces it's sitting on, other people in the periphery, furniture, decor, other objects in the scene. Do NOT mention them at all.
-- If the photo shows a person centered with stuff around them, describe ONLY the person.
-- If the photo shows a child's drawing on a desk, describe ONLY the drawing (not the desk, paper edge, hand holding it, etc).
-- If the photo shows a stuffed toy on a bed, describe ONLY the toy (not the bed, blanket, room).
+FOCUS:
+- Describe ONLY the main subject (person / drawing / toy). IGNORE the background, surroundings, surfaces, other people, furniture, and decor entirely.
+- If a person is centered with stuff around them, describe only the person.
+- For a drawing or toy, describe only the drawing/toy itself (not the desk, hand, bed, etc).
 
-FOR A PERSON, you MUST begin by stating these key identifying details accurately and respectfully (do NOT default to generic/European features — describe what you actually see):
-- Apparent ethnicity / heritage (e.g. East Asian, South Asian, Black, Latino, White, mixed, etc.)
-- Skin tone (specific and accurate)
-- Hair color, texture, and style
+For a person, capture these appearance details accurately so the cartoon resembles them (describe what you actually see, don't default to generic features):
+- Skin tone
+- Hair: color, texture, and style
 - Eye color and shape
-- Whether they wear GLASSES (and the frame style/shape), and any facial hair (beard, mustache, stubble)
+- Eyeglasses (and frame shape/style) if worn; facial hair (beard / mustache / stubble) if present
 - Approximate age range
-Then continue with: face shape and distinctive features (freckles, dimples, expression), build/posture/energy, and clothing/accessories actually worn (specific colors and style).
+- Face shape and distinctive features (freckles, dimples, expression)
+- Build / posture / energy
+- Clothing and accessories actually worn (specific colors and style)
 
 For drawings/toys: art style, materials, and colors of the subject itself.
 
-Be specific, concrete, and faithful to the real person — never lighten skin, change hair/eye color, or omit glasses or facial hair. Write a single descriptive paragraph (~100–150 words). No commentary or preamble — just the description.`;
+Write a single descriptive paragraph (~100–150 words) of the subject's appearance. Be specific and concrete so the cartoon looks like them. No commentary or preamble — just the description.`;
 
   const requestBody = {
     model: 'gpt-4o',
@@ -660,6 +659,38 @@ Be specific, concrete, and faithful to the real person — never lighten skin, c
 
   const result = await callOpenAIChatRaw(requestBody, password);
   return { description: result.text.trim(), cost: result.cost, tokens: result.tokens };
+}
+
+// Detect when the vision model refused instead of describing (privacy guardrail).
+function isVisionRefusal(text) {
+  if (!text) return true;
+  const t = text.toLowerCase();
+  const refusalish = /(i'?m sorry|i can'?t|i cannot|i am unable|i'?m unable|can'?t help|cannot help|can'?t assist|won'?t be able|not able to (?:help|identify|describe))/;
+  // A refusal is short and matches; a real description is long
+  return refusalish.test(t) && text.trim().length < 240;
+}
+
+
+// =====================================================================
+// STORY SUMMARY — (re)generate a short summary from the story text
+// (used by the one-time "Update Summaries" pass)
+// =====================================================================
+async function generateStorySummary(story, password) {
+  const text = (story.pages || []).map(p => p.text || '').join('\n\n');
+  const prompt = `Write a brief, inviting 2-sentence summary (about 30-45 words) of this children's story. No spoilers about the ending. Return ONLY the summary text, nothing else.
+
+Title: ${story.title || '(untitled)'}
+
+Story:
+${text}`;
+
+  const requestBody = {
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+  };
+  const result = await callOpenAIChatRaw(requestBody, password);
+  return { summary: result.text.trim(), cost: result.cost };
 }
 
 
