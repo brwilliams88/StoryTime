@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.0',
+      version: 'v0.8.1',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -103,7 +103,8 @@ createApp({
       libraryLoading: false,
       librarySearch: '',         // basic client-side filter
       coverUrls: {},             // cover_image_id -> signed URL (for thumbnails)
-      bookDetail: null,          // the book whose detail popup is open
+      bookDetail: null,          // the book (meta) whose detail popup is open
+      bookDetailStory: null,     // its full story (loaded for reading time + instant Read)
       MAX_CACHED_BOOKS: 25,      // keep this many full books on-device for offline
 
       formData: defaultFormData(),
@@ -266,7 +267,21 @@ createApp({
         s.toLowerCase().includes(q) && s.toLowerCase() !== q
       );
     },
-    // Basic client-side search over the loaded book list (full filter/sort = v0.8.1)
+    // Estimated read-aloud minutes for the book in the detail popup
+    bookDetailReadingTime() {
+      const s = this.bookDetailStory;
+      if (!s) return null;
+      const len = s.formData && s.formData.length;
+      if (typeof LENGTH_PRESETS !== 'undefined' && LENGTH_PRESETS[len]) return LENGTH_PRESETS[len].minutes;
+      const words = (s.pages || []).reduce((a, p) => a + (p.text || '').split(/\s+/).filter(Boolean).length, 0);
+      return words ? Math.max(1, Math.round(words / 130)) : null;
+    },
+    bookDetailAgeLabel() {
+      const ar = this.bookDetail && this.bookDetail.age_range;
+      return ar ? `Ages ${ar}` : '';
+    },
+
+    // Basic client-side search over the loaded book list (full filter/sort = v0.8.2)
     filteredLibraryBooks() {
       const q = (this.librarySearch || '').toLowerCase().trim();
       if (!q) return this.libraryBooks;
@@ -1369,24 +1384,41 @@ createApp({
     goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
 
     // ---- Book detail popup ----
-    openBookDetail(meta) { this.bookDetail = meta; },
-    closeBookDetail() { this.bookDetail = null; },
+    async openBookDetail(meta) {
+      this.bookDetail = meta;
+      this.bookDetailStory = null;
+      // Load the full story (cache or cloud) for the reading-time estimate and
+      // so tapping Read is instant. Guard against the popup being closed/changed.
+      try {
+        const story = getStoredStories().find(s => s.id === meta.id) || await fetchFullStory(meta.id);
+        if (this.bookDetail && this.bookDetail.id === meta.id) this.bookDetailStory = story || null;
+      } catch (e) { /* reading time just won't show */ }
+    },
+    closeBookDetail() { this.bookDetail = null; this.bookDetailStory = null; },
     readFromDetail() {
       const m = this.bookDetail;
+      const s = this.bookDetailStory;
       this.bookDetail = null;
-      if (m) this.openBook(m);
+      this.bookDetailStory = null;
+      if (m) this.openBook(m, s);
     },
-    isBookNew(meta) { return meta && !meta.last_read_at; },
+    // NEW = you haven't opened it yet AND it was made in the last 3 days
+    isBookNew(meta) {
+      if (!meta || meta.last_read_at) return false;
+      const created = meta.created_at || meta.createdAt;
+      if (!created) return false;
+      return (Date.now() - new Date(created).getTime()) < 3 * 24 * 60 * 60 * 1000;
+    },
 
     // Open a book from the Library — use the local cache if present, else
     // fetch it from the cloud and pull its images down for offline reading.
-    async openBook(meta) {
+    async openBook(meta, preloadedStory) {
       this.error = '';
       this.loading = true;
       this.loadingMessage = 'Opening book…';
       this.loadingHint = 'just a moment';
       try {
-        let story = getStoredStories().find(s => s.id === meta.id);
+        let story = preloadedStory || getStoredStories().find(s => s.id === meta.id);
         if (!story) {
           story = await fetchFullStory(meta.id);
           if (!story) throw new Error('Could not load this book.');

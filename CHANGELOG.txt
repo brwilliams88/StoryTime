@@ -9,6 +9,17 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.1 — 2026-06-18 — Bookshelf Polish + Inner-Cover Page + Photo Likeness
+  • Books now sit ON the shelf ledge (no more floating); each book = square cover + a cream title plate, with a more prominent spine, smooth page fore-edge, rounded corners, and a grounding shadow
+  • Bigger, more readable books: ~2 per row on phone portrait (3–5 on larger screens), titles up to 3 lines
+  • Full-bleed bookcase with a wood "crown" board on top (no more odd rounded corners)
+  • "New Story" book aligned with the others + a gentle pulsing glow and sparkles
+  • Home screen decluttered: dropped the heading, just a search bar + settings; the app now calls this the Library
+  • Book popup redesigned as an "inner cover" page: parchment look, full (never-truncated) title, "by ___", cover + summary side by side, age + reading-time tags, rating, dates; Read is the main action and Delete is now a quiet link
+  • Fixed the "NEW" badge: now only on unread books made in the last 3 days (your whole backlog no longer shows NEW)
+  • Character photos: the AI now captures real likeness details — ethnicity, skin tone, hair/eye color, glasses, facial hair — and preserves them (fixes cartoon versions coming out generic/wrong)
+
+--------------------------
 v0.8.0 — 2026-06-18 — Bookshelf Library + Navigation
   • The Library is now HOME — you land on a wooden bookshelf of all your books
   • Real bookshelf look: your bookshelf.png wood, books sit face-out on each shelf with a 3D book edge + title underneath

@@ -311,7 +311,7 @@ Given the rough input below, return JSON with FOUR things:
 
 1. "tagline" — 3 to 6 words that identify this character at a glance (e.g. "8-year-old curious boy", "magical purple unicorn", "yellow electric mouse-creature", "grumpy mountain dwarf").
 
-2. "visual_description" — a richly detailed ~100–150 word visual + personality description. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully.
+2. "visual_description" — a richly detailed ~100–150 word visual + personality description. Include: hair, eyes, skin, build, distinctive features, signature outfit or look, posture, energy, personality, voice/mannerisms. Preserve all user inputs faithfully. CRITICAL: if the input describes a real person's appearance (especially from a photo), preserve their physical and demographic details EXACTLY — apparent ethnicity/heritage, skin tone, hair color and texture, eye color, glasses, and facial hair. Never lighten skin, change hair or eye color, remove glasses or facial hair, or make the character look more generic/European than described. These details are what make the character resemble the real person.
 
 3. "safe_fallback_name" — a generic alternate name for image generation if the original name is copyright-blocked. For copyrighted characters this MUST be clearly different (e.g. "Darth Vader" → "Lord Vorath", "Pikachu" → "Sparkpaw", "Elsa" → "Frosthild"). For original characters, this can be the same as the original name.
 
@@ -624,7 +624,7 @@ function estimateStoryCost(formData, quality) {
 // VISION: analyze a character photo — focus ONLY on the main subject
 // =====================================================================
 async function analyzeCharacterPhoto(base64DataUrl, password) {
-  const prompt = `Look at this photo and write a detailed visual description of the MAIN SUBJECT only.
+  const prompt = `Look at this photo and write a detailed visual description of the MAIN SUBJECT only. This will be used to draw a cartoon that should clearly RESEMBLE the real subject, so getting their actual appearance right matters a lot.
 
 CRITICAL FOCUS RULES:
 - Describe ONLY the main character / person / drawing / toy that is the subject of the photo.
@@ -633,17 +633,18 @@ CRITICAL FOCUS RULES:
 - If the photo shows a child's drawing on a desk, describe ONLY the drawing (not the desk, paper edge, hand holding it, etc).
 - If the photo shows a stuffed toy on a bed, describe ONLY the toy (not the bed, blanket, room).
 
-DESCRIBE the main subject in detail:
-- Face shape and distinctive features (freckles, dimples, expression, etc)
-- Hair (color, length, style, texture)
-- Eyes (color, shape, expression)
-- Skin tone and complexion (for people/characters)
-- Build (size relative to frame, posture, energy)
-- Clothing or outfit (specific colors, style, fit, accessories) — only what's worn/attached to the subject
-- Anything visually distinctive (jewelry, glasses, scars, signature features)
-- For drawings/toys: art style, materials, colors of the subject itself
+FOR A PERSON, you MUST begin by stating these key identifying details accurately and respectfully (do NOT default to generic/European features — describe what you actually see):
+- Apparent ethnicity / heritage (e.g. East Asian, South Asian, Black, Latino, White, mixed, etc.)
+- Skin tone (specific and accurate)
+- Hair color, texture, and style
+- Eye color and shape
+- Whether they wear GLASSES (and the frame style/shape), and any facial hair (beard, mustache, stubble)
+- Approximate age range
+Then continue with: face shape and distinctive features (freckles, dimples, expression), build/posture/energy, and clothing/accessories actually worn (specific colors and style).
 
-Write a single descriptive paragraph (~100–150 words) about the subject alone. Be specific and concrete. Do not add commentary or preamble — just the description.`;
+For drawings/toys: art style, materials, and colors of the subject itself.
+
+Be specific, concrete, and faithful to the real person — never lighten skin, change hair/eye color, or omit glasses or facial hair. Write a single descriptive paragraph (~100–150 words). No commentary or preamble — just the description.`;
 
   const requestBody = {
     model: 'gpt-4o',

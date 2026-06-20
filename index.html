@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.0" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.1" />
 </head>
 <body>
 
@@ -64,7 +64,7 @@
             <h2 class="section-title">Create a New Story</h2>
             <div class="form-top-actions">
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
-              <button @click="goLibrary" class="btn-secondary btn-small">← My Books</button>
+              <button @click="goLibrary" class="btn-secondary btn-small">← Library</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
               <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
             </div>
@@ -165,31 +165,34 @@
 
         </div>
 
-        <!-- ============== LIBRARY (MY BOOKS) ============== -->
+        <!-- ============== LIBRARY (home) ============== -->
         <div v-else-if="view === 'library'" class="library-view">
 
-          <div class="library-topbar">
-            <h2 class="library-heading">📚 My Books</h2>
+          <!-- Clean home bar: search + settings, no big heading -->
+          <div class="library-bar">
+            <input type="text" v-model="librarySearch" placeholder="🔍 Search your library…" class="text-input library-search" />
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
-          <input type="text" v-model="librarySearch" placeholder="🔍 Search by title, character, theme…" class="text-input library-search" />
 
           <div v-if="libraryLoading && !libraryBooks.length" class="library-loading">
             <div class="loading-spinner small"></div>
-            <p>Loading your books…</p>
+            <p>Loading your library…</p>
           </div>
 
-          <!-- The bookshelf: wood texture repeats per row; books sit on each ledge -->
+          <!-- The bookshelf: a wood crown caps it; each row tiles a shelf bay -->
           <div v-else class="bookshelf">
+            <div class="shelf-crown"></div>
             <div class="shelf-grid">
 
-              <!-- Create-new tile (always first, hidden while searching) -->
+              <!-- Create-new "book" (always first, hidden while searching) -->
               <div v-if="!librarySearch.trim()" class="book-slot">
                 <button class="book create-book" @click="goCreate" aria-label="Create a new story">
                   <div class="book-cover create-cover">
+                    <span class="create-sparkle create-sparkle-1">✦</span>
+                    <span class="create-sparkle create-sparkle-2">✦</span>
                     <span class="create-plus">+</span>
-                    <span class="create-label">New Story</span>
                   </div>
+                  <div class="book-plate create-plate">New Story</div>
                 </button>
               </div>
 
@@ -201,7 +204,7 @@
                     <div v-else class="book-cover-fallback">📖</div>
                     <span v-if="isBookNew(book)" class="book-new-badge">NEW</span>
                   </div>
-                  <div class="book-title">{{ book.title || 'Untitled' }}</div>
+                  <div class="book-plate">{{ book.title || 'Untitled' }}</div>
                 </button>
               </div>
 
@@ -224,7 +227,7 @@
 
           <!-- Compact single header: Back to shelf · Page label · Settings -->
           <div class="reading-header">
-            <button @click="goLibrary" class="btn-secondary btn-small">← My Books</button>
+            <button @click="goLibrary" class="btn-secondary btn-small">← Library</button>
             <div class="page-counter">{{ pageCounterLabel }}</div>
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
@@ -639,38 +642,40 @@
         </div>
       </div>
 
-      <!-- ============== BOOK DETAIL POPUP ============== -->
+      <!-- ============== BOOK DETAIL — "inner cover" page ============== -->
       <div v-if="bookDetail" class="modal-overlay" @click.self="closeBookDetail">
-        <div class="modal book-detail-modal">
-          <div class="modal-header">
-            <h2>{{ bookDetail.title || 'Untitled' }}</h2>
-            <button @click="closeBookDetail" class="modal-close modal-close-big" aria-label="Close">✕</button>
-          </div>
+        <div class="inner-cover">
+          <button @click="closeBookDetail" class="inner-cover-close" aria-label="Close">✕</button>
 
-          <div class="book-detail-body">
-            <div class="book-detail-cover">
+          <h2 class="inner-cover-title">{{ bookDetail.title || 'Untitled' }}</h2>
+          <div v-if="bookDetail.created_by" class="inner-cover-by">by {{ bookDetail.created_by }}</div>
+
+          <div class="inner-cover-body">
+            <div class="inner-cover-thumb">
               <img v-if="libraryCover(bookDetail)" :src="libraryCover(bookDetail)" :alt="bookDetail.title" draggable="false" />
               <div v-else class="book-cover-fallback">📖</div>
             </div>
-            <div class="book-detail-info">
-              <div v-if="bookDetail.created_by" class="book-detail-by">By {{ bookDetail.created_by }}</div>
-              <div v-if="bookDetail.rating" class="book-detail-rating">
-                <span v-for="n in 5" :key="n" :class="['rating-star', { filled: bookDetail.rating >= n }]">★</span>
-              </div>
-              <div class="book-detail-dates">
-                <div v-if="libraryDate(bookDetail)">Created {{ libraryDate(bookDetail) }}</div>
-                <div v-if="bookDetail.last_read_at">Last read {{ libraryDate({ created_at: bookDetail.last_read_at }) }}</div>
-                <div v-else class="book-detail-unread">Not read yet</div>
-              </div>
-            </div>
+            <p v-if="bookDetail.summary" class="inner-cover-summary">{{ bookDetail.summary }}</p>
+            <p v-else class="inner-cover-summary inner-cover-summary-muted">A StoryTime original.</p>
           </div>
 
-          <p v-if="bookDetail.summary" class="book-detail-summary">“{{ bookDetail.summary }}”</p>
-
-          <div class="modal-footer book-detail-actions">
-            <button @click="deleteBook(bookDetail)" class="btn-secondary btn-danger-text">🗑 Delete</button>
-            <button @click="readFromDetail" class="btn-primary">📖 Read</button>
+          <div class="inner-cover-tags">
+            <span v-if="bookDetailAgeLabel" class="inner-cover-tag">{{ bookDetailAgeLabel }}</span>
+            <span v-if="bookDetailReadingTime" class="inner-cover-tag">⏱ ~{{ bookDetailReadingTime }} min</span>
+            <span v-if="bookDetail.genre && bookDetail.genre !== 'surprise-me'" class="inner-cover-tag">{{ bookDetail.genre.replace('-', ' ') }}</span>
           </div>
+
+          <div v-if="bookDetail.rating" class="inner-cover-rating">
+            <span v-for="n in 5" :key="n" :class="['rating-star', { filled: bookDetail.rating >= n }]">★</span>
+          </div>
+
+          <div class="inner-cover-dates">
+            <span v-if="libraryDate(bookDetail)">Created {{ libraryDate(bookDetail) }}</span>
+            <span v-if="bookDetail.last_read_at"> · Last read {{ libraryDate({ created_at: bookDetail.last_read_at }) }}</span>
+          </div>
+
+          <button @click="readFromDetail" class="btn-primary inner-cover-read">📖 Read this book</button>
+          <button @click="deleteBook(bookDetail)" class="inner-cover-delete">Delete book</button>
         </div>
       </div>
 
@@ -807,11 +812,11 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.8.0"></script>
-  <script src="js/imageStorage.js?v=0.8.0"></script>
-  <script src="js/api.js?v=0.8.0"></script>
-  <script src="js/sync.js?v=0.8.0"></script>
-  <script src="js/app.js?v=0.8.0"></script>
+  <script src="js/storage.js?v=0.8.1"></script>
+  <script src="js/imageStorage.js?v=0.8.1"></script>
+  <script src="js/api.js?v=0.8.1"></script>
+  <script src="js/sync.js?v=0.8.1"></script>
+  <script src="js/app.js?v=0.8.1"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
