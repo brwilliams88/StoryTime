@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.3" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.4" />
 </head>
 <body>
 
@@ -84,8 +84,37 @@
           </div>
 
           <div class="form-field">
+            <label>Genre <span class="help-text">— the type of story</span></label>
+            <select v-model="formData.genre" class="select-input">
+              <option v-for="g in genres" :key="g.value" :value="g.value">{{ g.emoji }} {{ g.label }}</option>
+            </select>
+          </div>
+
+          <div class="form-field">
             <label>Story Details <span class="help-text">— make it your own with cool details</span></label>
-            <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input textarea-large" rows="6"></textarea>
+            <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input textarea-large textarea-resize" rows="6"></textarea>
+          </div>
+
+          <div class="form-field">
+            <label>Story Ingredients <span class="help-text">— how it should feel</span> <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span></label>
+            <div class="ingredients-grid">
+              <button v-for="ing in ingredients" :key="ing.value" @click="toggleIngredient(ing.value)" :disabled="isIngredientDisabled(ing.value)" :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]">
+                <span class="pill-emoji">{{ ing.emoji }}</span>
+                <span class="pill-text">{{ ing.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
+            <input type="text" v-model="formData.theme" placeholder="e.g. 'the moral of the story is to keep trying', family, sharing, being brave..." class="text-input" />
+          </div>
+
+          <div class="form-field">
+            <label>Picture Artwork Style <span class="help-text">— how the pictures will look</span></label>
+            <select v-model="formData.artStyle" class="select-input">
+              <option v-for="s in artStyles" :key="s.value" :value="s.value">{{ s.emoji }} {{ s.label }}</option>
+            </select>
           </div>
 
           <div class="form-field">
@@ -107,35 +136,6 @@
                 <div class="pill-subtitle">{{ option.subtitle }}</div>
               </button>
             </div>
-          </div>
-
-          <div class="form-field">
-            <label>Genre <span class="help-text">— the type of story</span></label>
-            <select v-model="formData.genre" class="select-input">
-              <option v-for="g in genres" :key="g.value" :value="g.value">{{ g.emoji }} {{ g.label }}</option>
-            </select>
-          </div>
-
-          <div class="form-field">
-            <label>Artwork Style <span class="help-text">— how the pictures will look</span></label>
-            <select v-model="formData.artStyle" class="select-input">
-              <option v-for="s in artStyles" :key="s.value" :value="s.value">{{ s.emoji }} {{ s.label }}</option>
-            </select>
-          </div>
-
-          <div class="form-field">
-            <label>Story Ingredients <span class="help-text">— how it should feel</span> <span class="optional">(pick up to 3 — {{ ingredientCount }}/3 selected)</span></label>
-            <div class="ingredients-grid">
-              <button v-for="ing in ingredients" :key="ing.value" @click="toggleIngredient(ing.value)" :disabled="isIngredientDisabled(ing.value)" :class="['pill pill-compact', { active: isIngredientActive(ing.value), disabled: isIngredientDisabled(ing.value) }]">
-                <span class="pill-emoji">{{ ing.emoji }}</span>
-                <span class="pill-text">{{ ing.label }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="form-field">
-            <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
-            <input type="text" v-model="formData.theme" placeholder="e.g. 'the moral of the story is to keep trying', family, sharing, being brave..." class="text-input" />
           </div>
 
           <div class="form-field">
@@ -171,11 +171,16 @@
           <!-- Normal home bar -->
           <div v-if="!manageMode" class="library-bar">
             <div class="search-wrap">
-              <input type="text" v-model="librarySearch" placeholder="🔍 Search your library…" class="text-input library-search" />
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+              <input type="text" v-model="librarySearch" placeholder="Search your library…" class="text-input library-search" />
               <button v-if="librarySearch" @click="librarySearch = ''" class="search-clear" aria-label="Clear search">✕</button>
             </div>
-            <button @click="showFilters = !showFilters" :class="['btn-secondary btn-small', { 'filter-active': showFilters || anyFilterActive }]" title="Filter &amp; sort">⚙︎ Filter</button>
-            <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
+            <button @click="showFilters = !showFilters" :class="['bar-icon-btn', { 'filter-active': showFilters || anyFilterActive }]" title="Filter &amp; sort" aria-label="Filter and sort">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
+            </button>
+            <button @click="openSettings" class="bar-icon-btn" title="Settings" aria-label="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
           </div>
 
           <!-- Manage (delete) bar -->
@@ -184,42 +189,54 @@
             <button @click="exitManageMode" class="btn-secondary btn-small">Cancel</button>
           </div>
 
-          <!-- Filter / sort panel -->
+          <!-- Filter / sort panel (multi-select chips; empty = all) -->
           <div v-if="showFilters && !manageMode" class="filter-panel">
-            <label class="filter-row"><span>Sort by</span>
+            <div class="filter-row"><span>Sort by</span>
               <select v-model="sortBy" class="select-input">
                 <option value="created">Newest created</option>
                 <option value="last_read">Last read</option>
                 <option value="rating">Top rated</option>
                 <option value="title">Title A–Z</option>
               </select>
-            </label>
-            <label class="filter-row"><span>Genre</span>
-              <select v-model="filterGenre" class="select-input">
-                <option value="">All</option>
-                <option v-for="g in distinctGenres" :key="g" :value="g">{{ g.replace('-', ' ') }}</option>
-              </select>
-            </label>
-            <label class="filter-row"><span>Artwork</span>
-              <select v-model="filterArt" class="select-input">
-                <option value="">All</option>
-                <option v-for="a in distinctArtStyles" :key="a" :value="a">{{ a.replace('-', ' ') }}</option>
-              </select>
-            </label>
-            <label class="filter-row"><span>Age</span>
-              <select v-model="filterAge" class="select-input">
-                <option value="">All</option>
-                <option v-for="a in distinctAges" :key="a" :value="a">Ages {{ a }}</option>
-              </select>
-            </label>
-            <label class="filter-row"><span>Created by</span>
-              <select v-model="filterCreator" class="select-input">
-                <option value="">Anyone</option>
-                <option v-for="c in distinctCreators" :key="c" :value="c">{{ c }}</option>
-              </select>
-            </label>
-            <label class="toggle-line"><input type="checkbox" v-model="filterFav" /> <span>⭐ Favorites only (4★ and up)</span></label>
-            <button v-if="anyFilterActive" @click="clearFilters" class="text-link">Clear filters</button>
+            </div>
+
+            <div class="filter-group-label">Genre</div>
+            <div class="filter-chips">
+              <button v-for="g in filterGenreOptions" :key="g.value"
+                @click="toggleArrayFilter('filterGenres', g.value)"
+                :class="['pill pill-compact', { active: isFilterOn('filterGenres', g.value) }]">
+                <span class="pill-emoji">{{ g.emoji }}</span><span class="pill-text">{{ g.label }}</span>
+              </button>
+            </div>
+
+            <div class="filter-group-label">Picture Artwork Style</div>
+            <div class="filter-chips">
+              <button v-for="s in filterArtOptions" :key="s.value"
+                @click="toggleArrayFilter('filterArts', s.value)"
+                :class="['pill pill-compact', { active: isFilterOn('filterArts', s.value) }]">
+                <span class="pill-emoji">{{ s.emoji }}</span><span class="pill-text">{{ s.label }}</span>
+              </button>
+            </div>
+
+            <div class="filter-group-label">Story for Age</div>
+            <div class="filter-chips">
+              <button v-for="stage in ageStages" :key="stage.value"
+                @click="toggleArrayFilter('filterAges', stage.value)"
+                :class="['pill pill-compact', { active: isFilterOn('filterAges', stage.value) }]">
+                <span class="pill-emoji">{{ stage.emoji }}</span><span class="pill-text">{{ stage.label }} ({{ stage.range }})</span>
+              </button>
+            </div>
+
+            <div v-if="distinctCreators.length" class="filter-group-label">Created by</div>
+            <div v-if="distinctCreators.length" class="filter-chips">
+              <button v-for="c in distinctCreators" :key="c"
+                @click="toggleArrayFilter('filterCreators', c)"
+                :class="['pill pill-compact', { active: isFilterOn('filterCreators', c) }]">
+                <span class="pill-text">{{ c }}</span>
+              </button>
+            </div>
+
+            <button v-if="anyFilterActive || sortBy !== 'created'" @click="clearFilters" class="text-link filter-reset">↺ Reset</button>
           </div>
 
           <div v-if="libraryLoading && !libraryBooks.length" class="library-loading">
@@ -247,19 +264,24 @@
 
               <!-- Books -->
               <div v-for="book in displayedBooks" :key="book.id" class="book-slot">
-                <button class="book" :class="{ 'book-selected': manageMode && isBookSelectedForDelete(book.id) }"
+                <button class="book"
+                        :class="{ 'book-selected': manageMode && isBookSelectedForDelete(book.id), 'book-offline': isOffline && !isBookCachedLocal(book.id) }"
+                        :disabled="isOffline && !isBookCachedLocal(book.id)"
                         @click="manageMode ? toggleBookForDelete(book.id) : openBookDetail(book)">
                   <div class="book-cover">
-                    <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" draggable="false" />
+                    <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" loading="lazy" draggable="false" />
                     <div v-else class="book-cover-fallback">📖</div>
                     <span v-if="manageMode" :class="['book-select-check', { on: isBookSelectedForDelete(book.id) }]">{{ isBookSelectedForDelete(book.id) ? '✓' : '' }}</span>
                     <span v-else-if="isBookNew(book)" class="book-new-badge">NEW</span>
+                    <span v-if="isOffline && !isBookCachedLocal(book.id)" class="book-offline-badge">☁︎</span>
                   </div>
                   <div class="book-plate"><span class="book-plate-text">{{ book.title || 'Untitled' }}</span></div>
                 </button>
               </div>
 
             </div>
+
+            <div class="shelf-base"></div>
 
             <!-- Empty states -->
             <div v-if="!displayedBooks.length && (librarySearch.trim() || anyFilterActive)" class="library-empty">
@@ -886,11 +908,12 @@
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="js/storage.js?v=0.8.3"></script>
-  <script src="js/imageStorage.js?v=0.8.3"></script>
-  <script src="js/api.js?v=0.8.3"></script>
-  <script src="js/sync.js?v=0.8.3"></script>
-  <script src="js/app.js?v=0.8.3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="js/storage.js?v=0.8.4"></script>
+  <script src="js/imageStorage.js?v=0.8.4"></script>
+  <script src="js/api.js?v=0.8.4"></script>
+  <script src="js/sync.js?v=0.8.4"></script>
+  <script src="js/app.js?v=0.8.4"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

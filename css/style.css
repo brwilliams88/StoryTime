@@ -2170,8 +2170,24 @@ body:has(.app-main-reading) {
 
 /* ---- Library (home) — bookshelf ---- */
 .library-view { padding-bottom: 2rem; }
-.library-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; }
+.library-bar { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.9rem; }
 .library-bar .library-search { flex: 1; margin-bottom: 0; }
+/* search + filter + settings all the same height */
+.library-bar .search-wrap .text-input,
+.library-bar .bar-icon-btn { height: 44px; box-sizing: border-box; }
+.bar-icon-btn {
+  flex: 0 0 44px; width: 44px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-input); border: 1px solid var(--border-soft); border-radius: 8px;
+  color: var(--text-main); cursor: pointer; padding: 0;
+}
+.bar-icon-btn svg { width: 22px; height: 22px; }
+.bar-icon-btn.filter-active { border-color: var(--accent); color: var(--accent); }
+.search-wrap .search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; color: var(--text-dim); pointer-events: none;
+}
+.search-wrap .library-search { padding-left: 2.2rem; }
 .library-loading { text-align: center; color: var(--text-dim); padding: 2rem 0; }
 .library-loading .loading-spinner { margin: 0 auto 0.6rem; }
 .library-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-dim); }
@@ -2191,36 +2207,50 @@ body:has(.app-main-reading) {
   box-shadow: 0 4px 9px rgba(0,0,0,0.45);
   position: relative; z-index: 2;
 }
+/* Thick base board that caps the bottom of the bookcase */
+.shelf-base {
+  height: 34px;
+  background: linear-gradient(to bottom, #cf9a4b 0%, #b9842f 55%, #8f6526 100%);
+  border-top: 2px solid rgba(255,246,224,0.45);
+  box-shadow: 0 -3px 8px rgba(0,0,0,0.35), 0 3px 8px rgba(0,0,0,0.4);
+  position: relative; z-index: 2;
+}
 
-/* Deterministic shelf: flat wood panel behind + a CSS shelf board drawn at the
-   bottom of EACH row via a repeating gradient keyed to the row height. Books
-   always sit on the board (no guessing the board position in an image). */
+/* Shelf is ALL CSS: vertical wood planks (no horizontal seams) + a shelf board
+   drawn at the bottom of each row via a repeating gradient keyed to row height
+   (so books always sit on the board), with a beveled front lip. */
 .shelf-grid {
   --book-w: 158px;          /* phone portrait → 2 per row */
   --plate-h: 44px;          /* title plate (up to 3 lines) */
   --row-pad-top: 14px;      /* air gap above each book */
-  --ledge: 20px;            /* board thickness the book rests on */
+  --ledge: 26px;            /* shelf board thickness the book rests on */
   --shelf-row-h: calc(var(--book-w) + var(--plate-h) + var(--row-pad-top) + var(--ledge));
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--book-w));
   justify-content: space-evenly;
   column-gap: 12px;
   grid-auto-rows: var(--shelf-row-h);
-  min-height: 70vh;                            /* empty shelf still fills the page */
+  min-height: calc(var(--shelf-row-h) * 4);    /* empty shelf shows ~4 rows */
   background-image:
+    /* shelf board per row, with a beveled lip */
     repeating-linear-gradient(to bottom,
       transparent 0,
       transparent calc(var(--shelf-row-h) - var(--ledge)),
-      rgba(255,248,230,0.55) calc(var(--shelf-row-h) - var(--ledge)),
-      #d4a65d calc(var(--shelf-row-h) - var(--ledge) + 2px),
-      #bb883f calc(var(--shelf-row-h) - 6px),
-      rgba(45,30,10,0.55) calc(var(--shelf-row-h) - 5px),
-      rgba(45,30,10,0) calc(var(--shelf-row-h) - 2px),
+      rgba(255,249,232,0.6) calc(var(--shelf-row-h) - var(--ledge)),
+      #ddac63 calc(var(--shelf-row-h) - var(--ledge) + 2px),
+      #c4924b calc(var(--shelf-row-h) - 9px),
+      rgba(255,246,224,0.55) calc(var(--shelf-row-h) - 7px),
+      #a9783a calc(var(--shelf-row-h) - 5px),
+      rgba(0,0,0,0.32) calc(var(--shelf-row-h) - 3px),
       transparent var(--shelf-row-h)),
-    url(../assets/images/shelf-panel.png?v=0.8.3);
-  background-repeat: repeat, repeat-y;
-  background-size: auto, 100% auto;
-  background-position: top center, top center;
+    /* vertical plank seams */
+    repeating-linear-gradient(to right,
+      transparent 0, transparent 86px,
+      rgba(0,0,0,0.10) 87px, rgba(255,255,255,0.06) 89px, transparent 90px),
+    /* base wood tone */
+    linear-gradient(to bottom, #d9a458, #cf9a4b);
+  background-repeat: repeat, repeat, repeat;
+  background-position: top center, top left, top left;
 }
 @media (min-width: 600px) { .shelf-grid { --book-w: 150px; --plate-h: 46px; } }
 @media (min-width: 900px) { .shelf-grid { --book-w: 168px; --plate-h: 48px; } }
@@ -2232,26 +2262,18 @@ body:has(.app-main-reading) {
   padding-bottom: var(--ledge);
 }
 
-/* A "book" = square cover + a label plate. Spine on the left, leaned back. */
+/* A "book" = square cover + a label plate. Spine on the left, leaned back ~10°. */
 .book {
   position: relative;
   width: var(--book-w);
   background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
   border-radius: 3px 5px 5px 3px;
-  box-shadow: 2px 7px 12px rgba(0,0,0,0.5);
-  transform: perspective(700px) rotateX(8deg);   /* lean back on the shelf */
+  box-shadow: 1px 2px 5px rgba(0,0,0,0.3);
+  transform: perspective(680px) rotateX(10deg);   /* lean back on the shelf */
   transform-origin: center bottom;
   transition: transform 0.15s ease;
 }
-.book:hover { transform: perspective(700px) rotateX(8deg) translateY(-4px); }
-/* contact shadow where the book meets the board */
-.book-slot::after {
-  content: ''; position: absolute; bottom: calc(var(--ledge) - 3px);
-  width: calc(var(--book-w) * 0.86); height: 9px;
-  background: radial-gradient(ellipse, rgba(0,0,0,0.4), rgba(0,0,0,0) 70%);
-  z-index: 0;
-}
-.book-slot { position: relative; }
+.book:hover { transform: perspective(680px) rotateX(10deg) translateY(-4px); }
 /* spine down the left — prominent, with a rounded ridge */
 .book::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 11px; z-index: 3;
@@ -2294,8 +2316,8 @@ body:has(.app-main-reading) {
   background: linear-gradient(#fbf3df, #ecdcbb);
   border-top: 1px solid rgba(0,0,0,0.12);
   border-radius: 0 0 5px 3px;
-  padding: 3px 7px;
-  display: flex; align-items: center; justify-content: center;  /* center title vertically */
+  padding: 3px 9px 3px 16px;   /* extra left padding so titles clear the spine */
+  display: flex; align-items: center; justify-content: center;  /* center title in the visible area */
 }
 .book-plate-text {
   text-align: center;
@@ -2358,7 +2380,7 @@ body:has(.app-main-reading) {
   box-shadow: 1px 2px 6px rgba(0,0,0,0.4); border: 1px solid #d8c79a;
 }
 .inner-cover-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.inner-cover-summary { margin: 0; font-size: 0.95rem; line-height: 1.45; color: #4a3417; }
+.inner-cover-summary { margin: 0; font-size: 0.85rem; line-height: 1.45; color: #4a3417; }
 .inner-cover-summary-muted { color: #9c8a5f; font-style: italic; }
 .inner-cover-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem; }
 .inner-cover-tag {
@@ -2387,15 +2409,29 @@ body:has(.app-main-reading) {
 .btn-danger:disabled { opacity: 0.5; }
 
 /* Filter / sort panel */
-.btn-secondary.filter-active { border-color: var(--accent); color: var(--accent); }
 .filter-panel {
   background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 10px;
   padding: 0.8rem 0.9rem; margin-bottom: 0.9rem;
-  display: flex; flex-direction: column; gap: 0.6rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
 }
 .filter-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
 .filter-row > span { font-size: 0.85rem; color: var(--text-dim); flex-shrink: 0; }
 .filter-row .select-input { width: auto; flex: 1; max-width: 65%; font-size: 1rem; padding: 0.5rem 0.7rem; }
+.filter-group-label { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); margin-top: 0.5rem; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.filter-chips .pill { font-size: 0.8rem; }
+.filter-reset { align-self: flex-start; margin-top: 0.6rem; }
+
+/* Story Details: draggable resize handle */
+.textarea-resize { resize: vertical; }
+
+/* Offline: non-cached books are greyed + not tappable */
+.book-offline { opacity: 0.45; filter: grayscale(0.6); cursor: default; }
+.book-offline-badge {
+  position: absolute; top: -7px; left: -7px; z-index: 4;
+  background: var(--bg-card); color: var(--text-dim); border: 1px solid var(--border-soft);
+  border-radius: 10px; font-size: 0.62rem; padding: 1px 6px;
+}
 
 /* Manage (delete) mode on the bookshelf */
 .manage-bar-top { display: flex; align-items: center; justify-content: space-between; }

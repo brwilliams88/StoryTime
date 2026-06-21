@@ -9,6 +9,23 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.4 — 2026-06-20 — Shelf Realism, Real Filters, Full-Text Search + Fixes
+  • Shelf: all-CSS wood (removed the horizontal seam lines), thicker board with a beveled front lip, a thick base board at the bottom, ~10° book lean, removed the under-book shadow; titles now clear the spine and center properly
+  • Empty bookshelf shows ~4 rows on phone (with the base board)
+  • Filters are now multi-select chips with the same emoji + labels as the create form (Genre, Picture Artwork Style, Story for Age, Created by); no "All" (empty = all); one "Reset" clears filters AND sort
+  • Removed the Favorites-only filter
+  • FULL-TEXT search: the library search now finds words anywhere in a story (titles, characters, AND the page text — e.g. "pizza")
+  • Real SVG icons for search (magnifier) and filter (funnel) instead of emoji; search bar matches the button heights
+  • Delete mode is now ON the bookshelf (tap books → Delete bar), entered from Settings
+  • Offline: books not saved on this device are greyed out (the last 25 read stay available offline)
+  • Cross-device fix: character thumbnails + reference photos now download to other devices
+  • Create form reordered: Characters → Genre → Story Details → Ingredients → Theme → Picture Artwork Style → Story for Age → Length → Created By
+  • Story Details box is drag-to-resize
+  • 🎉 Confetti when you ace the quiz
+  • Fixes: stars now show right after rating; removed the redundant "Try Again" on the character editor; summaries vary (run Settings → Update All Summaries for old ones)
+  • REQUIRES: redeploy the Worker + run the v0.8.4 SQL block in supabase/schema.sql (adds the search_text column)
+
+--------------------------
 v0.8.3 — 2026-06-20 — Library Filters/Sort + Shelf Rebuild + Polish
   • Shelf rebuilt so books reliably SIT on the shelf board (flat wood + a CSS shelf ledge drawn per row); back to 2 books per row on phone; ~8° lean-back; contact shadow + cover gloss; removed the right-side "pages" (cleaner face-on); titles centered in the plate
   • New Story book is now clearly magical: bigger pulsing glow, twinkling sparkles, gentle bob

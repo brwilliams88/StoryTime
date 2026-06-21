@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.3',
+      version: 'v0.8.4',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -101,11 +101,14 @@ createApp({
       // Library (My Books) — cloud-backed list
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
-      librarySearch: '',         // basic client-side filter
+      librarySearch: '',         // full-text search (server-side over story body)
+      searchResults: [],         // server search results when a query is active
+      searchLoading: false,
       showFilters: false,
       sortBy: 'created',
-      filterGenre: '', filterArt: '', filterAge: '', filterCreator: '', filterFav: false,
+      filterGenres: [], filterArts: [], filterAges: [], filterCreators: [],
       coverUrls: {},             // cover_image_id -> signed URL (for thumbnails)
+      isOffline: false,          // greys out non-cached books when offline
       bookDetail: null,          // the book (meta) whose detail popup is open
       bookDetailStory: null,     // its full story (loaded for reading time + instant Read)
       MAX_CACHED_BOOKS: 25,      // keep this many full books on-device for offline
@@ -293,29 +296,22 @@ createApp({
       return ar ? `Ages ${ar}` : '';
     },
 
-    // Client-side search + filter + sort over the loaded book list
+    // Filter + sort (chips, client-side) over the base list (full library, or
+    // server full-text search results when there's a query).
     anyFilterActive() {
-      return !!(this.filterGenre || this.filterArt || this.filterAge || this.filterCreator || this.filterFav);
+      return this.filterGenres.length > 0 || this.filterArts.length > 0 ||
+             this.filterAges.length > 0 || this.filterCreators.length > 0;
     },
-    distinctGenres() { return this._distinct('genre'); },
-    distinctArtStyles() { return this._distinct('art_style'); },
-    distinctAges() { return this._distinct('age_range'); },
     distinctCreators() { return this._distinct('created_by'); },
+    filterGenreOptions() { return this.genresRaw.filter(g => g.value !== 'surprise-me'); },
+    filterArtOptions() { return this.artStylesRaw.filter(s => s.value !== 'surprise-me'); },
     displayedBooks() {
-      const q = (this.librarySearch || '').toLowerCase().trim();
-      let list = this.libraryBooks.filter(b => {
-        if (q && !(
-          (b.title || '').toLowerCase().includes(q) ||
-          (b.created_by || '').toLowerCase().includes(q) ||
-          (b.character_names || '').toLowerCase().includes(q) ||
-          (b.theme || '').toLowerCase().includes(q) ||
-          (b.genre || '').toLowerCase().includes(q)
-        )) return false;
-        if (this.filterGenre && (b.genre || '') !== this.filterGenre) return false;
-        if (this.filterArt && (b.art_style || '') !== this.filterArt) return false;
-        if (this.filterAge && (b.age_range || '') !== this.filterAge) return false;
-        if (this.filterCreator && (b.created_by || '') !== this.filterCreator) return false;
-        if (this.filterFav && (b.rating || 0) < 4) return false;
+      const base = this.librarySearch.trim() ? this.searchResults : this.libraryBooks;
+      let list = base.filter(b => {
+        if (this.filterGenres.length && !this.filterGenres.includes(b.genre)) return false;
+        if (this.filterArts.length && !this.filterArts.includes(b.art_style)) return false;
+        if (this.filterAges.length && !this.filterAges.includes(b.age_range)) return false;
+        if (this.filterCreators.length && !this.filterCreators.includes(b.created_by)) return false;
         return true;
       });
       const arr = list.slice();
@@ -407,12 +403,21 @@ createApp({
     };
     window.addEventListener('keydown', this._keyHandler);
 
+    // Track online/offline so the Library can grey out non-cached books
+    this.isOffline = !navigator.onLine;
+    this._onlineHandler = () => { this.isOffline = false; };
+    this._offlineHandler = () => { this.isOffline = true; };
+    window.addEventListener('online', this._onlineHandler);
+    window.addEventListener('offline', this._offlineHandler);
+
     // If we already have a password, sync with the cloud on open
     if (this.password) this.initCloudData();
   },
 
   beforeUnmount() {
     if (this._keyHandler) window.removeEventListener('keydown', this._keyHandler);
+    if (this._onlineHandler) window.removeEventListener('online', this._onlineHandler);
+    if (this._offlineHandler) window.removeEventListener('offline', this._offlineHandler);
   },
 
   methods: {
@@ -1350,6 +1355,9 @@ createApp({
         // Sync the rating up (images already uploaded, so this is just metadata)
         syncPushStory(this.currentStoryRecord).catch(e => console.warn('Cloud sync (rating) failed:', e));
       }
+      // Keep the in-memory library entry in sync so the popup/sort reflect it now
+      const m = this.libraryBooks.find(b => b.id === this.currentStory.id);
+      if (m) m.rating = stars;
     },
 
     // ============================================================
@@ -1407,7 +1415,13 @@ createApp({
     // that keeps the free-tier Supabase project from sleeping.
     async initCloudData() {
       this.libraryLoading = true;
-      try { this.characters = await pullCharacters(); }
+      try {
+        this.characters = await pullCharacters();
+        // Download character avatars/photos not yet on this device (cross-device)
+        ensureCharacterImagesLocal(this.characters)
+          .then(() => { this.characters = getStoredCharacters(); })
+          .catch(e => console.warn('Character image sync failed:', e));
+      }
       catch (e) { console.warn('Character pull failed:', e); }
 
       try {
@@ -1437,10 +1451,37 @@ createApp({
       this.libraryBooks.forEach(b => { if (b[field]) set.add(b[field]); });
       return [...set].sort();
     },
-    clearFilters() {
-      this.filterGenre = ''; this.filterArt = ''; this.filterAge = '';
-      this.filterCreator = ''; this.filterFav = false;
+    toggleArrayFilter(arr, val) {
+      const list = this[arr];
+      const i = list.indexOf(val);
+      if (i === -1) list.push(val); else list.splice(i, 1);
     },
+    isFilterOn(arr, val) { return this[arr].includes(val); },
+    // "Reset" clears all filters AND returns sort to Newest created
+    clearFilters() {
+      this.filterGenres = []; this.filterArts = []; this.filterAges = [];
+      this.filterCreators = []; this.sortBy = 'created';
+    },
+    // Full-text search runs on the server (over story body text), debounced
+    runLibrarySearch() {
+      clearTimeout(this._searchTimer);
+      const q = this.librarySearch.trim();
+      if (!q) { this.searchResults = []; this.searchLoading = false; return; }
+      this.searchLoading = true;
+      this._searchTimer = setTimeout(async () => {
+        try {
+          const res = await fetchLibraryIndex({ sort: this.sortBy === 'last_read' ? 'last_read' : 'created', limit: 200, search: q });
+          if (this.librarySearch.trim() === q) this.searchResults = res.rows || [];
+        } catch (e) {
+          console.warn('Search failed:', e);
+          this.searchResults = [];
+        } finally {
+          this.searchLoading = false;
+        }
+      }, 300);
+    },
+    // A book is openable offline only if its full data is cached on this device
+    isBookCachedLocal(id) { return getStoredStories().some(s => s.id === id); },
 
     // ---- Book detail popup ----
     async openBookDetail(meta) {
@@ -1943,6 +1984,20 @@ createApp({
     },
     revealQuizAnswers() {
       this.quizRevealed = true;
+      const s = this.quizScore();
+      if (s.total && s.correct === s.total) this.fireConfetti(true);
+      else if (s.total && s.correct >= Math.ceil(s.total * 0.6)) this.fireConfetti(false);
+    },
+    fireConfetti(big) {
+      if (typeof confetti !== 'function') return;
+      const burst = (opts) => confetti(Object.assign({ origin: { y: 0.6 }, zIndex: 100 }, opts));
+      if (big) {
+        burst({ particleCount: 140, spread: 80, startVelocity: 45 });
+        setTimeout(() => burst({ particleCount: 80, spread: 100, angle: 60, origin: { x: 0, y: 0.7 } }), 150);
+        setTimeout(() => burst({ particleCount: 80, spread: 100, angle: 120, origin: { x: 1, y: 0.7 } }), 250);
+      } else {
+        burst({ particleCount: 70, spread: 60 });
+      }
     },
     quizScore() {
       if (!this.currentStory || !this.currentStory.quiz) return { correct: 0, total: 0 };
@@ -1991,6 +2046,7 @@ createApp({
     inspectingImage() { this.updateBodyScroll(); },
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
+    librarySearch() { this.runLibrarySearch(); },
   },
 
 }).mount('#app')

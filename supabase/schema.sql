@@ -123,3 +123,20 @@ update public.stories
     ''
   )
   where art_style is null;
+
+
+-- ============================================================
+-- v0.8.4 migration — run this block once (safe to re-run)
+-- Adds a full-text search column (title + characters + summary + page text)
+-- so the Library search can find words inside the story body.
+-- ============================================================
+alter table public.stories add column if not exists search_text text;
+update public.stories
+  set search_text = lower(
+    coalesce(title,'') || ' ' ||
+    coalesce(summary,'') || ' ' ||
+    coalesce(character_names,'') || ' ' ||
+    coalesce((select string_agg(p->>'text', ' ')
+              from jsonb_array_elements(data->'pages') p), '')
+  );
+create index if not exists stories_searchtext_trgm on public.stories using gin (search_text gin_trgm_ops);

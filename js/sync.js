@@ -61,6 +61,9 @@ function storyToRow(story) {
   const characterNames = (story.selected_characters || [])
     .map(c => c.name).filter(Boolean).join(' ');
   const fd = story.formData || {};
+  const pageText = (story.pages || []).map(p => p.text || '').join(' ');
+  const searchText = [story.title, story.summary, characterNames, fd.theme, pageText]
+    .filter(Boolean).join(' ').toLowerCase();
   return {
     id: story.id,
     title: story.title || '',
@@ -71,6 +74,7 @@ function storyToRow(story) {
     theme: fd.theme || '',
     summary: story.summary || '',
     character_names: characterNames,
+    search_text: searchText,
     rating: story.rating || 0,
     cover_image_id: (story.cover && story.cover.image_id) || null,
     // Send the REAL creation date so the column matches reality (not the
@@ -261,6 +265,29 @@ async function ensureStoryImagesLocal(story) {
     } catch (e) {
       console.warn('Image download failed:', id, e);
     }
+  }
+}
+
+// Download character thumbnails + photos that aren't on this device yet
+// (so characters made on another device show their avatar/photo here too).
+async function ensureCharacterImagesLocal(chars) {
+  const want = [];
+  for (const c of (chars || [])) {
+    for (const id of [c.thumbnail_id, c.photo_id]) {
+      if (!id) continue;
+      try { if (!(await getImageBlob(id))) want.push(id); } catch (e) { want.push(id); }
+    }
+  }
+  if (!want.length) return;
+  const pw = getStoredPassword();
+  let urls = {};
+  try { urls = (await imgSignUrls(want, pw)).urls || {}; }
+  catch (e) { console.warn('Could not sign character images', e); return; }
+  for (const id of want) {
+    const url = urls[id];
+    if (!url) continue;
+    try { const blob = await (await fetch(url)).blob(); await saveImageBlob(id, blob); }
+    catch (e) { console.warn('Character image download failed:', id, e); }
   }
 }
 

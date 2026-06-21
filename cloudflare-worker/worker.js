@@ -162,8 +162,9 @@ async function listStories(env, opts) {
   let q = `stories?select=${cols}&order=${order}&limit=${limit}&offset=${offset}`;
 
   if (opts.search && String(opts.search).trim()) {
-    const pat = '*' + encodeURIComponent(String(opts.search).trim()) + '*';
-    q += `&or=(title.ilike.${pat},character_names.ilike.${pat},theme.ilike.${pat},genre.ilike.${pat},summary.ilike.${pat})`;
+    // Full-text search over the whole story (title + characters + summary + page text)
+    const pat = '*' + encodeURIComponent(String(opts.search).trim().toLowerCase()) + '*';
+    q += `&search_text=ilike.${pat}`;
   }
 
   const res = await fetch(sbRest(env, q), { headers: sbHeaders(env) });
