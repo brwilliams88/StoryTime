@@ -14,7 +14,87 @@ const STORAGE_KEYS = {
   INGREDIENT_MRU: 'storytime_ingredient_mru',
   CREATED_BY_LIST: 'storytime_createdby_list', // array of strings
   LIBRARY_INDEX: 'storytime_library_index',    // cloud book metadata (for offline list)
+  SPEND_LEDGER: 'storytime_spend_ledger',      // running API-spend record (survives story deletes)
 };
+
+// ---- API spend ledger ----------------------------------------------------
+// We record every paid API call (story text, illustrations, character
+// portraits) the moment it happens, in its own ledger. This is deliberately
+// SEPARATE from the stories themselves: deleting a story must NOT erase the
+// fact that we already spent money making it. The ledger seeds with a one-time
+// historical baseline (everything spent BEFORE this feature existed, taken from
+// the OpenAI dashboard) and grows precisely from here on.
+//
+// Shape: { baseline: {total, pictures, text, characters, asOf},
+//          events: [{ ts, cat, amt }],      // cat = 'pictures'|'text'|'characters'
+//          lastStory: { text, pictures, total, ts } | null }
+const SPEND_BASELINE = {
+  // As of the OpenAI usage dashboard on 2026-06-22: $24.45 total spend.
+  // Split is estimated (illustrations dominate; text + character portraits are small).
+  total: 24.45,
+  pictures: 21.00,
+  text: 3.10,
+  characters: 0.35,
+  asOf: '2026-06-22',
+};
+
+function getSpendLedger() {
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.SPEND_LEDGER)); } catch (e) { raw = null; }
+  if (!raw || !raw.baseline) {
+    raw = { baseline: { ...SPEND_BASELINE }, events: [], lastStory: null };
+    safeSetItem(STORAGE_KEYS.SPEND_LEDGER, JSON.stringify(raw));
+  }
+  if (!Array.isArray(raw.events)) raw.events = [];
+  return raw;
+}
+
+function saveSpendLedger(ledger) {
+  try { safeSetItem(STORAGE_KEYS.SPEND_LEDGER, JSON.stringify(ledger)); } catch (e) {}
+}
+
+// Record one paid call. cat = 'pictures' | 'text' | 'characters'.
+function recordSpend(cat, amount) {
+  const amt = Number(amount) || 0;
+  if (amt <= 0) return;
+  const ledger = getSpendLedger();
+  ledger.events.push({ ts: Date.now(), cat, amt });
+  saveSpendLedger(ledger);
+}
+
+// Remember the most recently generated story's cost (for the "Last story" line).
+function setLastStorySpend(textCost, picturesCost) {
+  const ledger = getSpendLedger();
+  const text = Number(textCost) || 0;
+  const pictures = Number(picturesCost) || 0;
+  ledger.lastStory = { text, pictures, total: text + pictures, ts: Date.now() };
+  saveSpendLedger(ledger);
+}
+
+// Roll the ledger up into the numbers the Spend panel shows.
+function getSpendSummary() {
+  const ledger = getSpendLedger();
+  const b = ledger.baseline;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  // "This week" = the last 7 days (rolling), simplest mental model for a parent.
+  const startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
+
+  const cat = { pictures: b.pictures, text: b.text, characters: b.characters };
+  let today = 0, week = 0;
+  for (const e of ledger.events) {
+    cat[e.cat] = (cat[e.cat] || 0) + e.amt;
+    if (e.ts >= startOfToday) today += e.amt;
+    if (e.ts >= startOfWeek) week += e.amt;
+  }
+  const allTime = cat.pictures + cat.text + cat.characters;
+  return {
+    allTime, today, week,
+    pictures: cat.pictures, text: cat.text, characters: cat.characters,
+    lastStory: ledger.lastStory,
+    baselineTotal: b.total, baselineAsOf: b.asOf,
+  };
+}
 
 // ---- Password ----
 function getStoredPassword() { return localStorage.getItem(STORAGE_KEYS.PASSWORD); }

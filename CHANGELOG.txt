@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.0 — 2026-06-22 — Shelf Depth+, Paper Reading View, API Spend Panel (coins removed)
+  • Bookshelf: the lit top surface of each shelf is now deeper, so books clearly sit ON the surface (not balanced on a thin edge); removed the odd line under each shelf
+  • Books no longer shrink when tapped; long-pressing a cover no longer pops up the image
+  • Reading view: pages are now white paper with dark ink (cover, story spreads, last page) + a soft "spine" shadow at the gutter — first step of the new look
+  • Removed all coins / money from the kid-facing UI (story page + create form)
+  • New Settings → "API Spend" panel: Today / This Week / All-time totals, a breakdown by Illustrations / Story writing / Character portraits, and last story cost
+  • Spend is recorded in its own ledger that survives deleting stories; seeded with a one-time historical estimate ($24.45 through 2026-06-22) and tracked precisely from here on
+
+--------------------------
 v0.8.6 — 2026-06-20 — Shelf 3D Depth, Filter Lists, Quiz + Library Polish
   • Shelves now have real depth — a top-down view showing the lit top surface receding back, a front face, shadow under each shelf, ambient shadow at the top of each bay, and recessed side walls
   • Books are properly seated on the shelf (no more hovering); soft contact shadow on the shelf (not the cover)

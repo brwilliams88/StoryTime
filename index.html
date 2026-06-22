@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.6" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.0" />
 </head>
 <body>
 
@@ -158,7 +158,6 @@
             </div>
           </div>
 
-          <div class="cost-estimate">Estimated cost: <strong>~{{ estimatedStoryCostFormatted }}</strong></div>
           <button @click="handleGenerate" class="btn-primary btn-large">Generate Story</button>
 
           <p v-if="error" class="error-text">{{ error }}</p>
@@ -459,17 +458,6 @@
                 <div class="rating-stars">
                   <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
                 </div>
-              </div>
-
-              <div class="toolbox-section toolbox-cost">
-                <div class="coin-row">
-                  <template v-for="(group, idx) in coinBreakdown" :key="idx">
-                    <span v-for="n in group.count" :key="group.type + '-' + n" :class="['coin', 'coin-' + group.type]" :style="group.partial < 1 ? { clipPath: 'inset(0 ' + ((1 - group.partial) * 100) + '% 0 0)' } : {}">
-                      <img :src="'assets/images/coin-' + group.type + '.png'" :alt="group.type" />
-                    </span>
-                  </template>
-                </div>
-                <div class="cost-line">This book cost {{ formattedCost }} · 📝 {{ formatCostFriendly(currentTextCost) }} writing · 🎨 {{ formatCostFriendly(currentImagesCost) }} illustrations</div>
               </div>
 
               <div class="toolbox-actions">
@@ -908,6 +896,47 @@
             <p class="settings-fine-print">Deleting books lives here (not on the book page) so it can't happen by accident.</p>
           </div>
 
+          <div class="settings-section" v-if="spend">
+            <div class="settings-section-title">💸 API Spend</div>
+
+            <div class="spend-cards">
+              <div class="spend-card">
+                <div class="spend-card-label">Today</div>
+                <div class="spend-card-value">{{ fmtUsd(spend.today) }}</div>
+              </div>
+              <div class="spend-card">
+                <div class="spend-card-label">This week</div>
+                <div class="spend-card-value">{{ fmtUsd(spend.week) }}</div>
+              </div>
+              <div class="spend-card spend-card-total">
+                <div class="spend-card-label">All time</div>
+                <div class="spend-card-value">{{ fmtUsd(spend.allTime) }}</div>
+              </div>
+            </div>
+
+            <div class="spend-breakdown">
+              <div class="spend-row">
+                <div class="spend-row-head"><span>🎨 Illustrations</span><strong>{{ fmtUsd(spend.pictures) }}</strong></div>
+                <div class="spend-bar"><span class="spend-bar-fill spend-bar-pics" :style="{ width: spendBarPct(spend.pictures) + '%' }"></span></div>
+              </div>
+              <div class="spend-row">
+                <div class="spend-row-head"><span>📝 Story writing</span><strong>{{ fmtUsd(spend.text) }}</strong></div>
+                <div class="spend-bar"><span class="spend-bar-fill spend-bar-text" :style="{ width: spendBarPct(spend.text) + '%' }"></span></div>
+              </div>
+              <div class="spend-row">
+                <div class="spend-row-head"><span>🧑‍🎨 Character portraits</span><strong>{{ fmtUsd(spend.characters) }}</strong></div>
+                <div class="spend-bar"><span class="spend-bar-fill spend-bar-chars" :style="{ width: spendBarPct(spend.characters) + '%' }"></span></div>
+              </div>
+            </div>
+
+            <div v-if="spend.lastStory" class="spend-last">
+              Last story cost <strong>{{ fmtUsd(spend.lastStory.total) }}</strong>
+              <span class="spend-last-split">({{ fmtUsd(spend.lastStory.text) }} writing · {{ fmtUsd(spend.lastStory.pictures) }} pictures)</span>
+            </div>
+
+            <p class="settings-fine-print">Includes a one-time historical estimate of {{ fmtUsd(spend.baselineTotal) }} through {{ spend.baselineAsOf }} (covers stories since deleted). Tracked precisely from then on. Cross-check totals on your OpenAI usage dashboard.</p>
+          </div>
+
           <div class="settings-section">
             <div class="settings-section-title">🔐 Account</div>
             <div class="settings-row-actions">
@@ -973,11 +1002,11 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="js/storage.js?v=0.8.6"></script>
-  <script src="js/imageStorage.js?v=0.8.6"></script>
-  <script src="js/api.js?v=0.8.6"></script>
-  <script src="js/sync.js?v=0.8.6"></script>
-  <script src="js/app.js?v=0.8.6"></script>
+  <script src="js/storage.js?v=0.9.0"></script>
+  <script src="js/imageStorage.js?v=0.9.0"></script>
+  <script src="js/api.js?v=0.9.0"></script>
+  <script src="js/sync.js?v=0.9.0"></script>
+  <script src="js/app.js?v=0.9.0"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

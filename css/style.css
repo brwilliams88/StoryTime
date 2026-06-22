@@ -2230,7 +2230,7 @@ body:has(.app-main-reading) {
   --book-w: 158px;          /* phone portrait → 2 per row */
   --plate-h: 44px;          /* title plate (up to 3 lines) */
   --row-pad-top: 14px;      /* air gap above each book */
-  --ledge: 30px;            /* shelf board: top surface + front face thickness */
+  --ledge: 44px;            /* shelf board: lit top surface (deep) + thin front face */
   --shelf-row-h: calc(var(--book-w) + var(--plate-h) + var(--row-pad-top) + var(--ledge));
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--book-w));
@@ -2248,12 +2248,16 @@ body:has(.app-main-reading) {
       rgba(0,0,0,0.30) 0,
       rgba(0,0,0,0) 16px,
       rgba(0,0,0,0) calc(var(--shelf-row-h) - var(--ledge)),
-      rgba(70,45,18,0.55) calc(var(--shelf-row-h) - var(--ledge)),           /* back of top surface (shadowed) */
-      #f3cd82 calc(var(--shelf-row-h) - 16px),                               /* front edge of top surface (lit) */
-      #d2a058 calc(var(--shelf-row-h) - 16px),                               /* top of front face */
-      #a9783a calc(var(--shelf-row-h) - 6px),                                /* bottom of front face */
-      rgba(0,0,0,0.42) calc(var(--shelf-row-h) - 4px),                       /* shadow under the plank */
-      rgba(0,0,0,0) calc(var(--shelf-row-h) - 1px),
+      /* TOP SURFACE — a deep receding plane: shadowed at the back (just under the
+         book), brightening as it comes toward the viewer to a lit front edge */
+      rgba(82,53,21,0.85) calc(var(--shelf-row-h) - var(--ledge)),           /* back of surface (in shadow under book) */
+      #c89a55 calc(var(--shelf-row-h) - var(--ledge) + 12px),                /* surface mid */
+      #ecc079 calc(var(--shelf-row-h) - 13px),                               /* surface front */
+      #f7d68b calc(var(--shelf-row-h) - 9px),                                /* bright front edge */
+      /* thin FRONT FACE of the board (vertical, darker), fading softly into the
+         bay below — no hard line */
+      #c8974f calc(var(--shelf-row-h) - 9px),
+      #9c6f34 calc(var(--shelf-row-h) - 2px),
       transparent var(--shelf-row-h)),
     /* vertical plank seams */
     repeating-linear-gradient(to right,
@@ -2296,7 +2300,7 @@ body:has(.app-main-reading) {
   transition: transform 0.12s ease;
 }
 .book:hover { transform: perspective(680px) rotateX(9deg) translateY(-4px); }
-.book:active { transform: perspective(680px) rotateX(9deg) scale(0.95); }   /* press feedback */
+/* no press-shrink on tap (user dislikes it); books stay put when touched */
 /* spine down the left — prominent, with a rounded ridge */
 .book::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 11px; z-index: 3;
@@ -2323,6 +2327,10 @@ body:has(.app-main-reading) {
 .book-cover img {
   width: 100%; height: 100%; object-fit: cover; display: block;
   border-radius: 3px 5px 0 0;
+  /* block the iOS long-press "save image / preview" popup — taps go to the book */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none; user-select: none;
+  pointer-events: none;
 }
 .book-cover-fallback {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
@@ -2535,3 +2543,82 @@ body:has(.app-main-reading) {
   box-shadow: 0 -4px 14px rgba(0,0,0,0.4);
 }
 .manage-action-bar .btn-secondary, .manage-action-bar .btn-primary { flex: 1; }
+
+/* ===================================================================
+   v0.9 — Settings → API Spend panel
+   =================================================================== */
+.spend-cards { display: flex; gap: 0.5rem; margin: 0.3rem 0 1rem; }
+.spend-card {
+  flex: 1; background: var(--bg-input); border: 1px solid var(--border-soft);
+  border-radius: 14px; padding: 0.65rem 0.4rem; text-align: center;
+}
+.spend-card-total {
+  background: linear-gradient(160deg, rgba(244,162,97,0.20), rgba(244,162,97,0.05));
+  border-color: rgba(244,162,97,0.45);
+}
+.spend-card-label {
+  font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-dim); font-weight: 700;
+}
+.spend-card-value { font-size: 1.2rem; font-weight: 800; color: var(--text-main); margin-top: 0.15rem; }
+.spend-card-total .spend-card-value { color: var(--accent); }
+
+.spend-breakdown { display: flex; flex-direction: column; gap: 0.7rem; }
+.spend-row-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 0.86rem; color: var(--text-main); margin-bottom: 0.28rem;
+}
+.spend-row-head strong { color: var(--text-main); font-weight: 700; }
+.spend-bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; }
+.spend-bar-fill { display: block; height: 100%; border-radius: 999px; min-width: 3px; transition: width 0.5s ease; }
+.spend-bar-pics  { background: linear-gradient(90deg, #f4a261, #e76f51); }
+.spend-bar-text  { background: linear-gradient(90deg, #8ecae6, #219ebc); }
+.spend-bar-chars { background: linear-gradient(90deg, #c3d27f, #84a98c); }
+
+.spend-last { margin-top: 1rem; font-size: 0.88rem; color: var(--text-main); }
+.spend-last strong { color: var(--accent); }
+.spend-last-split { color: var(--text-dim); font-size: 0.78rem; display: block; margin-top: 0.1rem; }
+
+/* ===================================================================
+   v0.9 — PAPER reading view: white book pages with dark ink.
+   Scoped to the reader only (.book-page); the header bar stays dark
+   for now — full rebrand comes in a later v0.9.x rev.
+   =================================================================== */
+.book-page {
+  --paper: #fbf7ec;
+  --paper-edge: #efe6d2;
+  --ink: #2c2620;
+  --ink-dim: #6c6354;
+  background: radial-gradient(125% 85% at 50% 0%, #fffdf7, var(--paper));
+  color: var(--ink);
+}
+/* image letterbox area = a slightly darker paper tone */
+.book-page .spread-image { background: var(--paper-edge); }
+
+/* text colours flipped from light → dark ink */
+.book-page .cover-title,
+.book-page .toolbox-title,
+.book-page .toolbox-summary,
+.book-page .spread-text p { color: var(--ink); }
+.book-page .toolbox-meta,
+.book-page .rating-label,
+.book-page .cover-by,
+.book-page .toolbox-by,
+.book-page .placeholder-label,
+.book-page .placeholder-prompt,
+.book-page .image-placeholder { color: var(--ink-dim); }
+.book-page .text-link { color: #9a6a1e; }
+.book-page .text-link:hover { color: var(--ink); }
+.book-page .placeholder-prompt { background: rgba(0,0,0,0.05); }
+
+/* gutter "spine" — a soft shadow where two pages meet (landscape: vertical) */
+.book-page .spread-text {
+  border-left-color: rgba(0,0,0,0.10);
+  box-shadow: inset 16px 0 20px -16px rgba(0,0,0,0.28);
+}
+/* portrait: text sits below image, so the spine shadow runs horizontally */
+.story-spread.portrait .spread-text {
+  border-left: none;
+  box-shadow: inset 0 16px 20px -16px rgba(0,0,0,0.28);
+}
+.story-spread.portrait .spread-image { border-bottom-color: rgba(0,0,0,0.10); }

@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.6',
-      buildDate: '2026-06-18',
+      version: 'v0.9.0',
+      buildDate: '2026-06-22',
 
       showSplash: true,
 
@@ -105,6 +105,7 @@ createApp({
       pullDistance: 0,           // pull-to-refresh
       pullRefreshing: false,
       cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
+      spend: null,               // API-spend summary (populated when Settings opens)
       librarySearch: '',         // full-text search (server-side over story body)
       searchResults: [],         // server search results when a query is active
       searchLoading: false,
@@ -890,6 +891,8 @@ createApp({
         this.currentTextCost = textResult.cost;
         this.currentImagesCost = 0;
         this.currentStoryCost = textResult.cost;
+        recordSpend('text', textResult.cost);
+        setLastStorySpend(textResult.cost, 0);
         this.currentPageIndex = 0;
         this.applyStoryFontSize(storyData);
 
@@ -1095,6 +1098,7 @@ createApp({
           this.currentStoryCost = this.currentTextCost + this.currentImagesCost;
           storyData.images_cost = this.currentImagesCost;
           storyData.cost = this.currentStoryCost;
+          recordSpend('pictures', enrich.cost);
         }
       } catch (err) {
         console.warn('Enrichment failed; using basic prompt', err);
@@ -1132,6 +1136,8 @@ createApp({
         this.currentStoryCost = this.currentTextCost + this.currentImagesCost;
         storyData.images_cost = this.currentImagesCost;
         storyData.cost = this.currentStoryCost;
+        recordSpend('pictures', result.cost);
+        setLastStorySpend(this.currentTextCost, this.currentImagesCost);
 
         // If any character was using fallback, this is a success for them
         if (anyFallback) this.trackFallbackSuccess(charsForPrompt);
@@ -1420,6 +1426,20 @@ createApp({
       this.refreshStorageSize();
       this.refreshImageStats();
       this.fetchCloudUsage();
+      this.spend = getSpendSummary();
+    },
+    // Format a dollar amount for the Spend panel ($1.23, <$0.01 for tiny, $0 for nothing).
+    fmtUsd(n) {
+      const v = Number(n) || 0;
+      if (v <= 0) return '$0';
+      if (v < 0.01) return '<$0.01';
+      return '$' + v.toFixed(2);
+    },
+    // Width % for a breakdown bar, relative to the largest category.
+    spendBarPct(amount) {
+      if (!this.spend) return 0;
+      const max = Math.max(this.spend.pictures, this.spend.text, this.spend.characters, 0.0001);
+      return Math.round((amount / max) * 100);
     },
     closeSettings() { this.showSettings = false; },
     setNextStoryQuality(q) { this.nextStoryQuality = q; },
@@ -2032,6 +2052,7 @@ createApp({
 
       try {
         const result = await generateCharacterThumbnail(visualDescription, this.password);
+        recordSpend('characters', result.cost);
         const blob = base64ToBlob(result.b64, 'image/png');
         const thumbId = `thumb_${charId}_${Date.now()}`;
         await saveImageBlob(thumbId, blob);
