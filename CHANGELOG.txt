@@ -9,6 +9,17 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.6 — 2026-06-20 — Shelf 3D Depth, Filter Lists, Quiz + Library Polish
+  • Shelves now have real depth — a top-down view showing the lit top surface receding back, a front face, shadow under each shelf, ambient shadow at the top of each bay, and recessed side walls
+  • Books are properly seated on the shelf (no more hovering); soft contact shadow on the shelf (not the cover)
+  • Decorative crown molding on top of the bookcase
+  • Filters are now checkable dropdown lists (one per line), ordered most-used first (Story for Age stays in age order)
+  • Removed the "books count / refresh" row; pull DOWN on the library to refresh (like Mail/FB)
+  • Last page: tap to edit the "Created By" author (fix typos after the fact)
+  • Quiz: confetti only on a perfect score; otherwise an encouraging message + "Try Again"
+  • Settings tidied: backup + image cleanup moved into the Developer section
+
+--------------------------
 v0.8.5 — 2026-06-20 — Shelf Depth, Filter Accordion, Library Polish
   • Shelf boards now have real depth: a lit top surface that recedes back + a front face (the plank thickness) + a shadow underneath; books sit ON the surface (lifted slightly, no longer flush to the edge)
   • Book lean dialed to 9°; tap/press feedback added

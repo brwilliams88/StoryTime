@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.5',
+      version: 'v0.8.6',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -102,6 +102,8 @@ createApp({
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
       refreshingLibrary: false,
+      pullDistance: 0,           // pull-to-refresh
+      pullRefreshing: false,
       cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
       librarySearch: '',         // full-text search (server-side over story body)
       searchResults: [],         // server search results when a query is active
@@ -124,6 +126,10 @@ createApp({
       // One-time "update summaries" pass
       summaryUpdating: false,
       summaryProgress: '',
+
+      // Edit "Created By" from the last page
+      editingCreatedBy: false,
+      editCreatedByValue: '',
 
       formData: defaultFormData(),
 
@@ -314,8 +320,24 @@ createApp({
       return Math.min(100, Math.round((this.cloudUsage.bytes / gb) * 100));
     },
     distinctCreators() { return this._distinct('created_by'); },
-    filterGenreOptions() { return this.genresRaw.filter(g => g.value !== 'surprise-me'); },
-    filterArtOptions() { return this.artStylesRaw.filter(s => s.value !== 'surprise-me'); },
+    _genreCounts() { return this._countField('genre'); },
+    _artCounts() { return this._countField('art_style'); },
+    _creatorCounts() { return this._countField('created_by'); },
+    // Filter options ordered by most-used first (Age stays in natural age order)
+    filterGenreOptions() {
+      const c = this._genreCounts;
+      return this.genresRaw.filter(g => g.value !== 'surprise-me')
+        .slice().sort((a, b) => (c[b.value] || 0) - (c[a.value] || 0) || a.label.localeCompare(b.label));
+    },
+    filterArtOptions() {
+      const c = this._artCounts;
+      return this.artStylesRaw.filter(s => s.value !== 'surprise-me')
+        .slice().sort((a, b) => (c[b.value] || 0) - (c[a.value] || 0) || a.label.localeCompare(b.label));
+    },
+    orderedCreators() {
+      const c = this._creatorCounts;
+      return this.distinctCreators.slice().sort((a, b) => (c[b] || 0) - (c[a] || 0) || a.localeCompare(b));
+    },
     displayedBooks() {
       const base = this.librarySearch.trim() ? this.searchResults : this.libraryBooks;
       let list = base.filter(b => {
@@ -1357,6 +1379,25 @@ createApp({
       delete this.imageUrls[imageId];
     },
 
+    startEditCreatedBy() {
+      this.editCreatedByValue = (this.currentStory && this.currentStory.created_by) || '';
+      this.editingCreatedBy = true;
+    },
+    saveCreatedBy() {
+      if (!this.currentStory) return;
+      const v = (this.editCreatedByValue || '').trim();
+      this.currentStory.created_by = v;
+      if (this.currentStoryRecord) {
+        this.currentStoryRecord.created_by = v;
+        try { saveStoryToStorage(this.currentStoryRecord); } catch (e) { if (!e.isQuota) throw e; }
+        syncPushStory(this.currentStoryRecord).catch(e => console.warn('Cloud sync (created_by) failed:', e));
+      }
+      const m = this.libraryBooks.find(b => b.id === this.currentStory.id);
+      if (m) m.created_by = v;
+      if (v) { addCreatedBySuggestion(v); this.createdBySuggestions = getCreatedBySuggestions(); }
+      this.editingCreatedBy = false;
+    },
+
     setRating(stars) {
       if (!this.currentStory) return;
       this.currentStory.rating = stars;
@@ -1473,6 +1514,33 @@ createApp({
     },
 
     fmtBytes(bytes) { return formatStorageSize(bytes || 0); },
+    // Pull-down-to-refresh on the Library (when scrolled to the top)
+    handlePullStart(e) {
+      this._pullStartY = (window.scrollY <= 0 && !this.manageMode) ? e.touches[0].clientY : null;
+      this.pullDistance = 0;
+    },
+    handlePullMove(e) {
+      if (this._pullStartY == null || this.pullRefreshing) return;
+      if (window.scrollY > 0) { this._pullStartY = null; this.pullDistance = 0; return; }
+      const dy = e.touches[0].clientY - this._pullStartY;
+      this.pullDistance = dy > 0 ? Math.min(dy * 0.4, 75) : 0;
+    },
+    async handlePullEnd() {
+      if (this._pullStartY == null) return;
+      const triggered = this.pullDistance > 55;
+      this._pullStartY = null;
+      if (triggered) {
+        this.pullRefreshing = true;
+        this.pullDistance = 42;
+        try { await this.refreshLibrary(); } finally {
+          this.pullRefreshing = false;
+          this.pullDistance = 0;
+        }
+      } else {
+        this.pullDistance = 0;
+      }
+    },
+
     // Cloud image-bucket usage (for the Settings storage bar)
     async fetchCloudUsage() {
       try {
@@ -1486,6 +1554,11 @@ createApp({
       const set = new Set();
       this.libraryBooks.forEach(b => { if (b[field]) set.add(b[field]); });
       return [...set].sort();
+    },
+    _countField(field) {
+      const m = {};
+      this.libraryBooks.forEach(b => { const v = b[field]; if (v) m[v] = (m[v] || 0) + 1; });
+      return m;
     },
     toggleArrayFilter(arr, val) {
       const list = this[arr];
@@ -2033,8 +2106,15 @@ createApp({
     revealQuizAnswers() {
       this.quizRevealed = true;
       const s = this.quizScore();
-      if (s.total && s.correct === s.total) this.fireConfetti(true);
-      else if (s.total && s.correct >= Math.ceil(s.total * 0.6)) this.fireConfetti(false);
+      if (s.total && s.correct === s.total) this.fireConfetti(true);   // only celebrate a perfect score
+    },
+    tryQuizAgain() { this.quizAnswers = {}; this.quizRevealed = false; },
+    quizResultMessage() {
+      const s = this.quizScore();
+      if (!s.total) return '';
+      if (s.correct === s.total) return 'Perfect! 🌟 You got them all!';
+      if (s.correct >= Math.ceil(s.total * 0.6)) return 'So close! 💪 Give it another try?';
+      return 'Good effort! 📚 Want to try again?';
     },
     fireConfetti(big) {
       if (typeof confetti !== 'function') return;

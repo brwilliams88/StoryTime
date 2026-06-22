@@ -2200,19 +2200,26 @@ body:has(.app-main-reading) {
   margin-right: calc(50% - 50vw);
   box-shadow: 0 3px 14px rgba(0,0,0,0.45);
 }
+/* Decorative crown molding (layered profile) */
 .shelf-crown {
-  height: 28px;
-  background: linear-gradient(to bottom, #e3b569 0%, #d09a48 55%, #b9842f 100%);
-  border-bottom: 2px solid rgba(90,60,20,0.55);
-  box-shadow: 0 4px 9px rgba(0,0,0,0.45);
   position: relative; z-index: 2;
+  height: 34px;
+  background: linear-gradient(to bottom,
+    #e9c078 0px, #e9c078 6px,            /* top cap face (lit) */
+    #bd8c44 7px, #bd8c44 8px,            /* shadow reveal */
+    #ddaa5e 10px, #d09c4f 23px,          /* main molding face */
+    #b07e38 24px, #b07e38 25px,          /* lower reveal */
+    #cda45e 27px, #c49a54 32px,          /* bottom lip */
+    rgba(0,0,0,0.4) 34px);
+  border-bottom: none;
+  box-shadow: 0 5px 11px rgba(0,0,0,0.45);
 }
 /* Thick base board that caps the bottom of the bookcase */
 .shelf-base {
-  height: 34px;
-  background: linear-gradient(to bottom, #cf9a4b 0%, #b9842f 55%, #8f6526 100%);
-  border-top: 2px solid rgba(255,246,224,0.45);
-  box-shadow: 0 -3px 8px rgba(0,0,0,0.35), 0 3px 8px rgba(0,0,0,0.4);
+  height: 36px;
+  background: linear-gradient(to bottom,
+    rgba(255,246,224,0.5) 0px, #cf9a4b 3px, #b9842f 60%, #8f6526 100%);
+  box-shadow: 0 -4px 9px rgba(0,0,0,0.4), 0 3px 8px rgba(0,0,0,0.4);
   position: relative; z-index: 2;
 }
 
@@ -2231,18 +2238,21 @@ body:has(.app-main-reading) {
   column-gap: 12px;
   grid-auto-rows: var(--shelf-row-h);
   min-height: calc(var(--shelf-row-h) * 4);    /* empty shelf shows ~4 rows */
+  /* recessed-box depth: soft shadow down the inside left/right walls */
+  box-shadow: inset 13px 0 18px -11px rgba(0,0,0,0.5), inset -13px 0 18px -11px rgba(0,0,0,0.5);
   background-image:
-    /* shelf board per row: a TOP SURFACE that recedes back (dark at the back where
-       it meets the panel → bright at the front edge), then a FRONT FACE (the plank
-       thickness), then an under-shadow. */
+    /* per row: (1) ambient-occlusion shadow at the TOP of the bay (under the shelf
+       above), then (2) the shelf board — a lit TOP SURFACE seen slightly from above
+       (shadowed at the back, bright at the front edge), a FRONT FACE, an under-shadow. */
     repeating-linear-gradient(to bottom,
-      transparent 0,
-      transparent calc(var(--shelf-row-h) - var(--ledge)),
-      rgba(60,40,16,0.45) calc(var(--shelf-row-h) - var(--ledge)),            /* back of surface (shadowed) */
-      #efc77e calc(var(--shelf-row-h) - var(--ledge) + 9px),                  /* front edge of surface (lit) */
-      #cf9c52 calc(var(--shelf-row-h) - var(--ledge) + 11px),                 /* top of front face */
-      #a9783a calc(var(--shelf-row-h) - 6px),                                 /* bottom of front face */
-      rgba(0,0,0,0.4) calc(var(--shelf-row-h) - 4px),                         /* shadow under the plank */
+      rgba(0,0,0,0.30) 0,
+      rgba(0,0,0,0) 16px,
+      rgba(0,0,0,0) calc(var(--shelf-row-h) - var(--ledge)),
+      rgba(70,45,18,0.55) calc(var(--shelf-row-h) - var(--ledge)),           /* back of top surface (shadowed) */
+      #f3cd82 calc(var(--shelf-row-h) - 16px),                               /* front edge of top surface (lit) */
+      #d2a058 calc(var(--shelf-row-h) - 16px),                               /* top of front face */
+      #a9783a calc(var(--shelf-row-h) - 6px),                                /* bottom of front face */
+      rgba(0,0,0,0.42) calc(var(--shelf-row-h) - 4px),                       /* shadow under the plank */
       rgba(0,0,0,0) calc(var(--shelf-row-h) - 1px),
       transparent var(--shelf-row-h)),
     /* vertical plank seams */
@@ -2258,15 +2268,25 @@ body:has(.app-main-reading) {
 @media (min-width: 900px) { .shelf-grid { --book-w: 168px; --plate-h: 48px; } }
 
 .book-slot {
+  position: relative;
   display: flex;
   align-items: flex-end;            /* book rests on the board's top surface */
   justify-content: center;
-  padding-bottom: calc(var(--ledge) + 2px);   /* lifted slightly so it sits ON the surface */
+  padding-bottom: var(--ledge);     /* book base sits on the surface (seated, not floating) */
+}
+/* soft contact shadow ON THE SHELF beneath the book (not on the cover) */
+.book-slot::after {
+  content: ''; position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--ledge) - 3px);
+  width: calc(var(--book-w) * 0.82); height: 7px;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.4), rgba(0,0,0,0) 72%);
+  z-index: 0;
 }
 
 /* A "book" = square cover + a label plate. Spine on the left, leaned back ~10°. */
 .book {
   position: relative;
+  z-index: 1;                       /* above the shelf contact shadow */
   width: var(--book-w);
   background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
   border-radius: 3px 5px 5px 3px;
@@ -2431,9 +2451,36 @@ body:has(.app-main-reading) {
 .facc-summary { flex: 1; text-align: right; color: var(--text-dim); font-size: 0.82rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .facc-caret { color: var(--text-dim); transition: transform 0.15s ease; }
 .facc-bar.open .facc-caret { transform: rotate(180deg); }
-.facc-options { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.65rem 0.75rem; background: var(--bg-card); }
-.facc-options .pill { font-size: 0.8rem; }
+/* checkable multi-select list inside an accordion */
+.facc-list { background: var(--bg-card); border-top: 1px solid var(--border-soft); }
+.facc-row {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  background: none; border: none; border-bottom: 1px solid var(--border-soft);
+  color: var(--text-main); font-family: inherit; font-size: 0.88rem;
+  padding: 0.55rem 0.8rem; cursor: pointer; text-align: left;
+}
+.facc-row:last-child { border-bottom: none; }
+.facc-row.on { background: rgba(255,207,107,0.12); }
+.facc-row-label { display: flex; align-items: center; gap: 0.5rem; text-transform: capitalize; }
+.facc-row-emoji { font-size: 1rem; }
+.facc-row-check { color: var(--accent); font-weight: 800; }
 .filter-reset-btn { width: 100%; margin-top: 0.5rem; }
+
+/* Pull-to-refresh indicator */
+.pull-refresh {
+  display: flex; align-items: flex-end; justify-content: center; overflow: hidden;
+  height: 0; transition: height 0.18s ease;
+}
+.pull-refresh-text { font-size: 0.78rem; color: var(--text-dim); padding-bottom: 6px; }
+.pull-refresh .loading-spinner { margin-bottom: 6px; }
+
+/* Editable "Created By" on the last page */
+.toolbox-by { display: flex; align-items: center; gap: 0.5rem; justify-content: center; margin-top: 0.4rem; flex-wrap: wrap; }
+.toolbox-by .text-input { width: auto; max-width: 220px; }
+
+/* Quiz result message + retry */
+.quiz-result-msg { font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem; }
+.quiz-retry { margin-top: 0.6rem; }
 
 /* Result count + refresh */
 .library-count-row { display: flex; align-items: center; justify-content: space-between; margin: -0.2rem 0 0.5rem; }

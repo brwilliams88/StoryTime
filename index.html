@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.5" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.6" />
 </head>
 <body>
 
@@ -166,7 +166,14 @@
         </div>
 
         <!-- ============== LIBRARY (home) ============== -->
-        <div v-else-if="view === 'library'" class="library-view" :class="{ 'manage-active': manageMode }">
+        <div v-else-if="view === 'library'" class="library-view" :class="{ 'manage-active': manageMode }"
+             @touchstart.passive="handlePullStart" @touchmove.passive="handlePullMove" @touchend="handlePullEnd">
+
+          <!-- Pull-to-refresh indicator -->
+          <div class="pull-refresh" :style="{ height: pullDistance + 'px' }">
+            <div v-if="pullRefreshing" class="loading-spinner small"></div>
+            <span v-else-if="pullDistance > 4" class="pull-refresh-text">{{ pullDistance > 55 ? '↑ release to refresh' : '↓ pull to refresh' }}</span>
+          </div>
 
           <!-- Normal home bar -->
           <div v-if="!manageMode" class="library-bar">
@@ -207,11 +214,12 @@
                 <span class="facc-summary">{{ filterSummaryText('filterGenres', filterGenreOptions) }}</span>
                 <span class="facc-caret">▾</span>
               </button>
-              <div v-if="openFilter === 'genre'" class="facc-options">
+              <div v-if="openFilter === 'genre'" class="facc-list">
                 <button v-for="g in filterGenreOptions" :key="g.value"
                   @click="toggleArrayFilter('filterGenres', g.value)"
-                  :class="['pill pill-compact', { active: isFilterOn('filterGenres', g.value) }]">
-                  <span class="pill-emoji">{{ g.emoji }}</span><span class="pill-text">{{ g.label }}</span>
+                  :class="['facc-row', { on: isFilterOn('filterGenres', g.value) }]">
+                  <span class="facc-row-label"><span class="facc-row-emoji">{{ g.emoji }}</span>{{ g.label }}</span>
+                  <span class="facc-row-check">{{ isFilterOn('filterGenres', g.value) ? '✓' : '' }}</span>
                 </button>
               </div>
             </div>
@@ -223,27 +231,29 @@
                 <span class="facc-summary">{{ filterSummaryText('filterArts', filterArtOptions) }}</span>
                 <span class="facc-caret">▾</span>
               </button>
-              <div v-if="openFilter === 'art'" class="facc-options">
+              <div v-if="openFilter === 'art'" class="facc-list">
                 <button v-for="s in filterArtOptions" :key="s.value"
                   @click="toggleArrayFilter('filterArts', s.value)"
-                  :class="['pill pill-compact', { active: isFilterOn('filterArts', s.value) }]">
-                  <span class="pill-emoji">{{ s.emoji }}</span><span class="pill-text">{{ s.label }}</span>
+                  :class="['facc-row', { on: isFilterOn('filterArts', s.value) }]">
+                  <span class="facc-row-label"><span class="facc-row-emoji">{{ s.emoji }}</span>{{ s.label }}</span>
+                  <span class="facc-row-check">{{ isFilterOn('filterArts', s.value) ? '✓' : '' }}</span>
                 </button>
               </div>
             </div>
 
-            <!-- Story for Age -->
+            <!-- Story for Age (natural age order) -->
             <div class="facc-item">
               <button :class="['facc-bar', { open: openFilter === 'age' }]" @click="toggleFilterOpen('age')">
                 <span class="facc-name">Story for Age</span>
                 <span class="facc-summary">{{ filterSummaryText('filterAges', ageStages) }}</span>
                 <span class="facc-caret">▾</span>
               </button>
-              <div v-if="openFilter === 'age'" class="facc-options">
+              <div v-if="openFilter === 'age'" class="facc-list">
                 <button v-for="stage in ageStages" :key="stage.value"
                   @click="toggleArrayFilter('filterAges', stage.value)"
-                  :class="['pill pill-compact', { active: isFilterOn('filterAges', stage.value) }]">
-                  <span class="pill-emoji">{{ stage.emoji }}</span><span class="pill-text">{{ stage.label }} ({{ stage.range }})</span>
+                  :class="['facc-row', { on: isFilterOn('filterAges', stage.value) }]">
+                  <span class="facc-row-label"><span class="facc-row-emoji">{{ stage.emoji }}</span>{{ stage.label }} ({{ stage.range }})</span>
+                  <span class="facc-row-check">{{ isFilterOn('filterAges', stage.value) ? '✓' : '' }}</span>
                 </button>
               </div>
             </div>
@@ -255,11 +265,12 @@
                 <span class="facc-summary">{{ filterSummaryText('filterCreators', null) }}</span>
                 <span class="facc-caret">▾</span>
               </button>
-              <div v-if="openFilter === 'creator'" class="facc-options">
-                <button v-for="c in distinctCreators" :key="c"
+              <div v-if="openFilter === 'creator'" class="facc-list">
+                <button v-for="c in orderedCreators" :key="c"
                   @click="toggleArrayFilter('filterCreators', c)"
-                  :class="['pill pill-compact', { active: isFilterOn('filterCreators', c) }]">
-                  <span class="pill-text">{{ c }}</span>
+                  :class="['facc-row', { on: isFilterOn('filterCreators', c) }]">
+                  <span class="facc-row-label">{{ c }}</span>
+                  <span class="facc-row-check">{{ isFilterOn('filterCreators', c) ? '✓' : '' }}</span>
                 </button>
               </div>
             </div>
@@ -283,13 +294,6 @@
             <div class="shelf-base"></div>
           </div>
 
-          <!-- Result count + refresh -->
-          <div v-else-if="!manageMode" class="library-count-row">
-            <span class="library-count">{{ displayedBooks.length }} {{ (librarySearch.trim() || anyFilterActive) ? 'result' : 'book' }}{{ displayedBooks.length === 1 ? '' : 's' }}</span>
-            <button @click="refreshLibrary" :disabled="refreshingLibrary" class="library-refresh" aria-label="Refresh">
-              <svg viewBox="0 0 24 24" :class="{ spinning: refreshingLibrary }" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            </button>
-          </div>
 
           <!-- The bookshelf: a wood crown caps it; each row is a shelf bay -->
           <div v-if="!(libraryLoading && !libraryBooks.length)" class="bookshelf">
@@ -438,6 +442,17 @@
               </div>
               <div v-if="currentStory.summary" class="toolbox-summary">"{{ currentStory.summary }}"</div>
               <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
+
+              <div class="toolbox-by">
+                <template v-if="!editingCreatedBy">
+                  <span>{{ currentStory.created_by ? 'By ' + currentStory.created_by : 'No author yet' }}</span>
+                  <button @click="startEditCreatedBy" class="text-link">✎ Edit</button>
+                </template>
+                <template v-else>
+                  <input type="text" v-model="editCreatedByValue" placeholder="e.g. Kai, Kai & Papa" class="text-input" />
+                  <button @click="saveCreatedBy" class="btn-secondary btn-small">Save</button>
+                </template>
+              </div>
 
               <div class="toolbox-section">
                 <div class="rating-label">Rate this story</div>
@@ -589,7 +604,9 @@
               class="btn-primary"
             >Reveal Answers</button>
             <div v-if="quizRevealed" class="quiz-score">
-              You got <strong>{{ quizScore().correct }} / {{ quizScore().total }}</strong> right!
+              <div class="quiz-result-msg">{{ quizResultMessage() }}</div>
+              <div>You got <strong>{{ quizScore().correct }} / {{ quizScore().total }}</strong> right!</div>
+              <button v-if="quizScore().correct < quizScore().total" @click="tryQuizAgain" class="btn-secondary quiz-retry">🔄 Try Again</button>
             </div>
           </div>
 
@@ -875,20 +892,8 @@
             <div class="settings-row"><span>Images on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
             <p class="settings-fine-print">Clearing is safe — your books live in the cloud and re-download when opened.</p>
             <div class="settings-row-actions">
-              <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused</button>
               <button @click="handleClearImages" class="btn-secondary btn-small">Clear Offline Cache</button>
             </div>
-          </div>
-
-          <div class="settings-section">
-            <div class="settings-section-title">☁️ Cloud Backup</div>
-            <p class="settings-fine-print">One-time: copy all your current characters &amp; books to the cloud. New ones save automatically from now on.</p>
-            <div class="settings-row-actions">
-              <button @click="handleMigrateToCloud" :disabled="migrating" class="btn-secondary btn-small">
-                {{ migrating ? 'Backing up…' : '☁️ Back Up Existing Data' }}
-              </button>
-            </div>
-            <p v-if="migrateProgress" class="settings-fine-print" style="color: var(--accent);">{{ migrateProgress }}</p>
           </div>
 
           <div class="settings-section">
@@ -928,7 +933,10 @@
             <div class="settings-row-actions" style="margin-top: 0.8rem;">
               <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
               <button @click="handleForceUpdate" class="btn-secondary btn-small">Refresh from Server</button>
+              <button @click="handleMigrateToCloud" :disabled="migrating" class="btn-secondary btn-small">{{ migrating ? 'Backing up…' : '☁️ Back Up Existing Data' }}</button>
+              <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused Images</button>
             </div>
+            <p v-if="migrateProgress" class="settings-fine-print" style="color: var(--accent);">{{ migrateProgress }}</p>
 
             <details v-if="selectedCharacters.length > 0" class="settings-sub-collapse">
               <summary>Selected characters (for next story)</summary>
@@ -965,11 +973,11 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="js/storage.js?v=0.8.5"></script>
-  <script src="js/imageStorage.js?v=0.8.5"></script>
-  <script src="js/api.js?v=0.8.5"></script>
-  <script src="js/sync.js?v=0.8.5"></script>
-  <script src="js/app.js?v=0.8.5"></script>
+  <script src="js/storage.js?v=0.8.6"></script>
+  <script src="js/imageStorage.js?v=0.8.6"></script>
+  <script src="js/api.js?v=0.8.6"></script>
+  <script src="js/sync.js?v=0.8.6"></script>
+  <script src="js/app.js?v=0.8.6"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
