@@ -70,6 +70,7 @@ export default {
       if (path === '/img/upload') return await imgUpload(env, body);
       if (path === '/img/sign')   return await imgSign(env, body);
       if (path === '/img/delete') return await imgDelete(env, body);
+      if (path === '/img/usage')  return await imgUsage(env);
 
       return jsonResponse({ error: 'Unknown endpoint: ' + path }, 404);
     } catch (err) {
@@ -223,6 +224,26 @@ async function imgSign(env, body) {
     if (item && item.signedURL) urls[item.path] = base + item.signedURL;
   }
   return jsonResponse({ ok: true, urls });
+}
+
+// Sum the size + count of every object in the image bucket (paginated)
+async function imgUsage(env) {
+  let count = 0, bytes = 0, offset = 0;
+  const limit = 1000;
+  for (let i = 0; i < 50; i++) {
+    const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/list/${IMAGE_BUCKET}`, {
+      method: 'POST',
+      headers: sbHeaders(env),
+      body: JSON.stringify({ prefix: '', limit, offset, sortBy: { column: 'name', order: 'asc' } }),
+    });
+    if (!res.ok) return jsonResponse({ error: 'Usage failed', detail: await res.text() }, res.status);
+    const arr = await res.json();
+    if (!Array.isArray(arr) || arr.length === 0) break;
+    for (const o of arr) { count++; bytes += (o.metadata && o.metadata.size) || 0; }
+    if (arr.length < limit) break;
+    offset += arr.length;
+  }
+  return jsonResponse({ ok: true, count, bytes });
 }
 
 async function imgDelete(env, body) {

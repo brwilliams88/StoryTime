@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.8.4',
+      version: 'v0.8.5',
       buildDate: '2026-06-18',
 
       showSplash: true,
@@ -101,10 +101,13 @@ createApp({
       // Library (My Books) — cloud-backed list
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
+      refreshingLibrary: false,
+      cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
       librarySearch: '',         // full-text search (server-side over story body)
       searchResults: [],         // server search results when a query is active
       searchLoading: false,
       showFilters: false,
+      openFilter: null,          // which filter accordion section is expanded
       sortBy: 'created',
       filterGenres: [], filterArts: [], filterAges: [], filterCreators: [],
       coverUrls: {},             // cover_image_id -> signed URL (for thumbnails)
@@ -301,6 +304,14 @@ createApp({
     anyFilterActive() {
       return this.filterGenres.length > 0 || this.filterArts.length > 0 ||
              this.filterAges.length > 0 || this.filterCreators.length > 0;
+    },
+    activeFilterCount() {
+      return [this.filterGenres, this.filterArts, this.filterAges, this.filterCreators]
+        .filter(a => a.length).length;
+    },
+    cloudUsagePercent() {
+      const gb = 1073741824; // 1 GB free-tier storage
+      return Math.min(100, Math.round((this.cloudUsage.bytes / gb) * 100));
     },
     distinctCreators() { return this._distinct('created_by'); },
     filterGenreOptions() { return this.genresRaw.filter(g => g.value !== 'surprise-me'); },
@@ -1367,6 +1378,7 @@ createApp({
       this.showSettings = true;
       this.refreshStorageSize();
       this.refreshImageStats();
+      this.fetchCloudUsage();
     },
     closeSettings() { this.showSettings = false; },
     setNextStoryQuality(q) { this.nextStoryQuality = q; },
@@ -1445,6 +1457,30 @@ createApp({
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
     goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
 
+    // Re-sync the shelf from the cloud (covers the "made on another device" case)
+    async refreshLibrary() {
+      if (this.refreshingLibrary) return;
+      this.refreshingLibrary = true;
+      try {
+        const res = await fetchLibraryIndex({ sort: 'created', limit: 200 });
+        this.libraryBooks = res.rows || [];
+        setLibraryIndex(this.libraryBooks);
+        const covers = await signCoverUrls(this.libraryBooks.map(b => b.cover_image_id));
+        this.coverUrls = { ...this.coverUrls, ...covers };
+        if (this.librarySearch.trim()) this.runLibrarySearch();
+      } catch (e) { console.warn('Refresh failed:', e); }
+      finally { this.refreshingLibrary = false; }
+    },
+
+    fmtBytes(bytes) { return formatStorageSize(bytes || 0); },
+    // Cloud image-bucket usage (for the Settings storage bar)
+    async fetchCloudUsage() {
+      try {
+        const r = await imgUsage(getStoredPassword());
+        this.cloudUsage = { count: r.count || 0, bytes: r.bytes || 0, loaded: true };
+      } catch (e) { console.warn('Usage fetch failed:', e); }
+    },
+
     // ---- Library filter/sort helpers ----
     _distinct(field) {
       const set = new Set();
@@ -1457,6 +1493,18 @@ createApp({
       if (i === -1) list.push(val); else list.splice(i, 1);
     },
     isFilterOn(arr, val) { return this[arr].includes(val); },
+    toggleFilterOpen(key) { this.openFilter = this.openFilter === key ? null : key; },
+    // Summary text shown on a collapsed accordion bar
+    filterSummaryText(arrName, options) {
+      const vals = this[arrName];
+      if (!vals.length) return 'All';
+      if (vals.length > 2) return vals.length + ' selected';
+      return vals.map(v => {
+        if (!options) return v;
+        const o = options.find(x => (x.value !== undefined ? x.value : x) === v);
+        return o ? (o.label || o) : v;
+      }).join(', ');
+    },
     // "Reset" clears all filters AND returns sort to Newest created
     clearFilters() {
       this.filterGenres = []; this.filterArts = []; this.filterAges = [];
@@ -1990,7 +2038,7 @@ createApp({
     },
     fireConfetti(big) {
       if (typeof confetti !== 'function') return;
-      const burst = (opts) => confetti(Object.assign({ origin: { y: 0.6 }, zIndex: 100 }, opts));
+      const burst = (opts) => confetti(Object.assign({ origin: { y: 0.6 }, zIndex: 99999 }, opts));
       if (big) {
         burst({ particleCount: 140, spread: 80, startVelocity: 45 });
         setTimeout(() => burst({ particleCount: 80, spread: 100, angle: 60, origin: { x: 0, y: 0.7 } }), 150);

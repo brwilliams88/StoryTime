@@ -9,6 +9,18 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.8.5 — 2026-06-20 — Shelf Depth, Filter Accordion, Library Polish
+  • Shelf boards now have real depth: a lit top surface that recedes back + a front face (the plank thickness) + a shadow underneath; books sit ON the surface (lifted slightly, no longer flush to the edge)
+  • Book lean dialed to 9°; tap/press feedback added
+  • Filters are now tidy collapsible bars: tap "Genre / Picture Artwork Style / Story for Age / Created by" to open, multi-select, it collapses showing your picks (no "All" — empty = all)
+  • Reset is now a proper full-width button showing how many filters are active
+  • Confetti now bursts ON TOP of the Quiz screen
+  • Library shows a result count ("12 books" / "3 results") + a refresh button to re-sync the shelf
+  • Loading skeletons (placeholder books) while the shelf loads
+  • Settings → "Your Library (in the cloud)": total Books, Characters, and Images counts, plus an image-storage usage bar (X MB / 1 GB)
+  • REQUIRES: redeploy the Worker (adds the storage-usage endpoint). No SQL changes this time.
+
+--------------------------
 v0.8.4 — 2026-06-20 — Shelf Realism, Real Filters, Full-Text Search + Fixes
   • Shelf: all-CSS wood (removed the horizontal seam lines), thicker board with a beveled front lip, a thick base board at the bottom, ~10° book lean, removed the under-book shadow; titles now clear the spine and center properly
   • Empty bookshelf shows ~4 rows on phone (with the base board)

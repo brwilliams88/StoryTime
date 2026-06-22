@@ -808,3 +808,4 @@ function imgUploadToCloud(id, b64, contentType, pw) {
 }
 function imgSignUrls(ids, pw)   { return workerPost('/img/sign', { ids }, pw); }
 function imgDeleteCloud(ids, pw) { return workerPost('/img/delete', { ids }, pw); }
+function imgUsage(pw)           { return workerPost('/img/usage', {}, pw); }

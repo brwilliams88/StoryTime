@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.8.4" />
+  <link rel="stylesheet" href="css/style.css?v=0.8.5" />
 </head>
 <body>
 
@@ -200,52 +200,99 @@
               </select>
             </div>
 
-            <div class="filter-group-label">Genre</div>
-            <div class="filter-chips">
-              <button v-for="g in filterGenreOptions" :key="g.value"
-                @click="toggleArrayFilter('filterGenres', g.value)"
-                :class="['pill pill-compact', { active: isFilterOn('filterGenres', g.value) }]">
-                <span class="pill-emoji">{{ g.emoji }}</span><span class="pill-text">{{ g.label }}</span>
+            <!-- Genre -->
+            <div class="facc-item">
+              <button :class="['facc-bar', { open: openFilter === 'genre' }]" @click="toggleFilterOpen('genre')">
+                <span class="facc-name">Genre</span>
+                <span class="facc-summary">{{ filterSummaryText('filterGenres', filterGenreOptions) }}</span>
+                <span class="facc-caret">▾</span>
               </button>
+              <div v-if="openFilter === 'genre'" class="facc-options">
+                <button v-for="g in filterGenreOptions" :key="g.value"
+                  @click="toggleArrayFilter('filterGenres', g.value)"
+                  :class="['pill pill-compact', { active: isFilterOn('filterGenres', g.value) }]">
+                  <span class="pill-emoji">{{ g.emoji }}</span><span class="pill-text">{{ g.label }}</span>
+                </button>
+              </div>
             </div>
 
-            <div class="filter-group-label">Picture Artwork Style</div>
-            <div class="filter-chips">
-              <button v-for="s in filterArtOptions" :key="s.value"
-                @click="toggleArrayFilter('filterArts', s.value)"
-                :class="['pill pill-compact', { active: isFilterOn('filterArts', s.value) }]">
-                <span class="pill-emoji">{{ s.emoji }}</span><span class="pill-text">{{ s.label }}</span>
+            <!-- Picture Artwork Style -->
+            <div class="facc-item">
+              <button :class="['facc-bar', { open: openFilter === 'art' }]" @click="toggleFilterOpen('art')">
+                <span class="facc-name">Picture Artwork Style</span>
+                <span class="facc-summary">{{ filterSummaryText('filterArts', filterArtOptions) }}</span>
+                <span class="facc-caret">▾</span>
               </button>
+              <div v-if="openFilter === 'art'" class="facc-options">
+                <button v-for="s in filterArtOptions" :key="s.value"
+                  @click="toggleArrayFilter('filterArts', s.value)"
+                  :class="['pill pill-compact', { active: isFilterOn('filterArts', s.value) }]">
+                  <span class="pill-emoji">{{ s.emoji }}</span><span class="pill-text">{{ s.label }}</span>
+                </button>
+              </div>
             </div>
 
-            <div class="filter-group-label">Story for Age</div>
-            <div class="filter-chips">
-              <button v-for="stage in ageStages" :key="stage.value"
-                @click="toggleArrayFilter('filterAges', stage.value)"
-                :class="['pill pill-compact', { active: isFilterOn('filterAges', stage.value) }]">
-                <span class="pill-emoji">{{ stage.emoji }}</span><span class="pill-text">{{ stage.label }} ({{ stage.range }})</span>
+            <!-- Story for Age -->
+            <div class="facc-item">
+              <button :class="['facc-bar', { open: openFilter === 'age' }]" @click="toggleFilterOpen('age')">
+                <span class="facc-name">Story for Age</span>
+                <span class="facc-summary">{{ filterSummaryText('filterAges', ageStages) }}</span>
+                <span class="facc-caret">▾</span>
               </button>
+              <div v-if="openFilter === 'age'" class="facc-options">
+                <button v-for="stage in ageStages" :key="stage.value"
+                  @click="toggleArrayFilter('filterAges', stage.value)"
+                  :class="['pill pill-compact', { active: isFilterOn('filterAges', stage.value) }]">
+                  <span class="pill-emoji">{{ stage.emoji }}</span><span class="pill-text">{{ stage.label }} ({{ stage.range }})</span>
+                </button>
+              </div>
             </div>
 
-            <div v-if="distinctCreators.length" class="filter-group-label">Created by</div>
-            <div v-if="distinctCreators.length" class="filter-chips">
-              <button v-for="c in distinctCreators" :key="c"
-                @click="toggleArrayFilter('filterCreators', c)"
-                :class="['pill pill-compact', { active: isFilterOn('filterCreators', c) }]">
-                <span class="pill-text">{{ c }}</span>
+            <!-- Created by -->
+            <div v-if="distinctCreators.length" class="facc-item">
+              <button :class="['facc-bar', { open: openFilter === 'creator' }]" @click="toggleFilterOpen('creator')">
+                <span class="facc-name">Created by</span>
+                <span class="facc-summary">{{ filterSummaryText('filterCreators', null) }}</span>
+                <span class="facc-caret">▾</span>
               </button>
+              <div v-if="openFilter === 'creator'" class="facc-options">
+                <button v-for="c in distinctCreators" :key="c"
+                  @click="toggleArrayFilter('filterCreators', c)"
+                  :class="['pill pill-compact', { active: isFilterOn('filterCreators', c) }]">
+                  <span class="pill-text">{{ c }}</span>
+                </button>
+              </div>
             </div>
 
-            <button v-if="anyFilterActive || sortBy !== 'created'" @click="clearFilters" class="text-link filter-reset">↺ Reset</button>
+            <button v-if="anyFilterActive || sortBy !== 'created'" @click="clearFilters" class="btn-secondary filter-reset-btn">
+              ↺ Reset{{ activeFilterCount ? ' (' + activeFilterCount + ' filter' + (activeFilterCount > 1 ? 's' : '') + ')' : '' }}
+            </button>
           </div>
 
-          <div v-if="libraryLoading && !libraryBooks.length" class="library-loading">
-            <div class="loading-spinner small"></div>
-            <p>Loading your library…</p>
+          <!-- Loading skeletons: placeholder books on the shelf -->
+          <div v-if="libraryLoading && !libraryBooks.length" class="bookshelf">
+            <div class="shelf-crown"></div>
+            <div class="shelf-grid">
+              <div v-for="n in 6" :key="'sk' + n" class="book-slot">
+                <div class="book book-skeleton">
+                  <div class="book-cover skeleton-shimmer"></div>
+                  <div class="book-plate"></div>
+                </div>
+              </div>
+            </div>
+            <div class="shelf-base"></div>
+          </div>
+
+          <!-- Result count + refresh -->
+          <div v-else-if="!manageMode" class="library-count-row">
+            <span class="library-count">{{ displayedBooks.length }} {{ (librarySearch.trim() || anyFilterActive) ? 'result' : 'book' }}{{ displayedBooks.length === 1 ? '' : 's' }}</span>
+            <button @click="refreshLibrary" :disabled="refreshingLibrary" class="library-refresh" aria-label="Refresh">
+              <svg viewBox="0 0 24 24" :class="{ spinning: refreshingLibrary }" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
           </div>
 
           <!-- The bookshelf: a wood crown caps it; each row is a shelf bay -->
-          <div v-else class="bookshelf">
+          <div v-if="!(libraryLoading && !libraryBooks.length)" class="bookshelf">
             <div class="shelf-crown"></div>
             <div class="shelf-grid">
 
@@ -815,6 +862,15 @@
           </div>
 
           <div class="settings-section">
+            <div class="settings-section-title">📊 Your Library (in the cloud)</div>
+            <div class="settings-row"><span>Books</span><strong>{{ libraryBooks.length }}</strong></div>
+            <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
+            <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? cloudUsage.count : '…' }}</strong></div>
+            <div class="settings-row"><span>Image storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 1 GB' : 'checking…' }}</strong></div>
+            <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: cloudUsagePercent + '%' }"></div></div>
+          </div>
+
+          <div class="settings-section">
             <div class="settings-section-title">💾 Offline Cache</div>
             <div class="settings-row"><span>Images on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
             <p class="settings-fine-print">Clearing is safe — your books live in the cloud and re-download when opened.</p>
@@ -909,11 +965,11 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="js/storage.js?v=0.8.4"></script>
-  <script src="js/imageStorage.js?v=0.8.4"></script>
-  <script src="js/api.js?v=0.8.4"></script>
-  <script src="js/sync.js?v=0.8.4"></script>
-  <script src="js/app.js?v=0.8.4"></script>
+  <script src="js/storage.js?v=0.8.5"></script>
+  <script src="js/imageStorage.js?v=0.8.5"></script>
+  <script src="js/api.js?v=0.8.5"></script>
+  <script src="js/sync.js?v=0.8.5"></script>
+  <script src="js/app.js?v=0.8.5"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
