@@ -9,6 +9,20 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.1 — 2026-06-22 — Animated Reading: Book-Open Zoom, Living Paper Pages + Polish
+  (Animation-heavy rev. The finger-following page-turn curl — the centerpiece — lands next within this same version.)
+  • Tap a book → it zooms and swings open into the inner cover (GSAP), and swings shut on close
+  • Reading pages now look like real paper: warm tone, faint grain, a soft edge vignette, and a proper centre binding crease (both portrait and landscape)
+  • "The End" is now an elegant gold-shimmer serif with a little flourish (no more orange ✨)
+  • Loading screen is an open book with fluttering pages; the time estimate now reflects when you can START reading (cover + first page), not the whole book
+  • Star rating: a gentle gold pop + ring when you tap (not confetti)
+  • New Story book got extra shimmer; covers gently "develop in"; a corner page-peel hint; themed pull-to-refresh
+  • Bookshelf: books no longer lift on hover/press and sit lower on the shelf; titles can't be text-selected; thicker, richer shelf front
+  • Settings → API Spend: "Character creation" now bundles portrait + Bring to Life + photo reading; all-time no longer highlighted; tidied wording
+  • Settings → Pictures: removed the Low/Med/High quality picker; clearer plain-language options
+  • Removed the last stray cost mention (character thumbnail) — cost now lives only in Settings
+
+--------------------------
 v0.9.0 — 2026-06-22 — Shelf Depth+, Paper Reading View, API Spend Panel (coins removed)
   • Bookshelf: the lit top surface of each shelf is now deeper, so books clearly sit ON the surface (not balanced on a thin edge); removed the odd line under each shelf
   • Books no longer shrink when tapped; long-pressing a cover no longer pops up the image

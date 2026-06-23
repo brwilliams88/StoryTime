@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.0',
+      version: 'v0.9.1',
       buildDate: '2026-06-22',
 
       showSplash: true,
@@ -106,6 +106,7 @@ createApp({
       pullRefreshing: false,
       cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
       spend: null,               // API-spend summary (populated when Settings opens)
+      ratingPopping: false,      // transient: star-tap pop animation
       librarySearch: '',         // full-text search (server-side over story body)
       searchResults: [],         // server search results when a query is active
       searchLoading: false,
@@ -653,6 +654,7 @@ createApp({
         this.charForm.visual_description = result.visual_description;
         this.charForm.safe_fallback_name = result.safe_fallback_name || '';
         this.charForm.safe_fallback_visual_description = result.safe_fallback_visual_description || '';
+        recordSpend('characters', result.cost);   // Bring to Life counts as Character creation
 
         // Auto-(re)generate the avatar thumbnail every time Bring to Life runs.
         // Runs in the BACKGROUND so the user can keep editing / close right away.
@@ -671,6 +673,7 @@ createApp({
       this.error = '';
       try {
         const result = await generateRandomCharacter(this.password);
+        recordSpend('characters', result.cost);   // counts as Character creation
         this.charForm = {
           id: null,
           name: result.character.name,
@@ -1406,6 +1409,10 @@ createApp({
 
     setRating(stars) {
       if (!this.currentStory) return;
+      // tasteful pop+glow on the filled stars (NOT confetti)
+      this.ratingPopping = true;
+      clearTimeout(this._ratePopT);
+      this._ratePopT = setTimeout(() => { this.ratingPopping = false; }, 700);
       this.currentStory.rating = stars;
       if (this.currentStoryRecord) {
         this.currentStoryRecord.rating = stars;
@@ -1625,9 +1632,17 @@ createApp({
     isBookCachedLocal(id) { return getStoredStories().some(s => s.id === id); },
 
     // ---- Book detail popup ----
-    async openBookDetail(meta) {
+    async openBookDetail(meta, ev) {
+      // Remember the tapped book's on-screen position so the "inner cover" can
+      // zoom + swing open out of it (GSAP).
+      this._bookOpenRect = null;
+      if (ev && ev.currentTarget) {
+        const srcEl = ev.currentTarget.querySelector('.book-cover') || ev.currentTarget;
+        this._bookOpenRect = srcEl.getBoundingClientRect();
+      }
       this.bookDetail = meta;
       this.bookDetailStory = null;
+      this.$nextTick(() => this.animateBookOpen());
       // Load the full story (cache or cloud) for the reading-time estimate and
       // so tapping Read is instant. Guard against the popup being closed/changed.
       try {
@@ -1635,7 +1650,45 @@ createApp({
         if (this.bookDetail && this.bookDetail.id === meta.id) this.bookDetailStory = story || null;
       } catch (e) { /* reading time just won't show */ }
     },
-    closeBookDetail() { this.bookDetail = null; this.bookDetailStory = null; },
+    // Zoom + swing the inner-cover open out of the tapped book.
+    animateBookOpen() {
+      const el = this.$refs.innerCover, overlay = this.$refs.bookDetailOverlay;
+      if (!el || typeof gsap === 'undefined') return;
+      const src = this._bookOpenRect;
+      gsap.killTweensOf(el);
+      if (overlay) gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power1.out' });
+      if (src) {
+        const t = el.getBoundingClientRect();
+        const scale = Math.max(0.12, Math.min(1, src.width / t.width));
+        const dx = (src.left + src.width / 2) - (t.left + t.width / 2);
+        const dy = (src.top + src.height / 2) - (t.top + t.height / 2);
+        el.style.transformOrigin = 'center center';
+        gsap.fromTo(el,
+          { x: dx, y: dy, scale, rotationY: 38, opacity: 0.5, transformPerspective: 1000 },
+          { x: 0, y: 0, scale: 1, rotationY: 0, opacity: 1, duration: 0.52, ease: 'power3.out',
+            clearProps: 'transform,opacity,transformPerspective,transformOrigin' });
+      } else {
+        gsap.fromTo(el, { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.32, ease: 'power2.out', clearProps: 'transform,opacity' });
+      }
+    },
+    closeBookDetail() {
+      const el = this.$refs.innerCover, overlay = this.$refs.bookDetailOverlay;
+      const done = () => { this.bookDetail = null; this.bookDetailStory = null; this._bookOpenRect = null; };
+      if (!el || typeof gsap === 'undefined') { done(); return; }
+      const src = this._bookOpenRect;
+      gsap.killTweensOf(el);
+      if (overlay) gsap.to(overlay, { opacity: 0, duration: 0.3, ease: 'power1.in' });
+      if (src) {
+        const t = el.getBoundingClientRect();
+        const scale = Math.max(0.12, Math.min(1, src.width / t.width));
+        const dx = (src.left + src.width / 2) - (t.left + t.width / 2);
+        const dy = (src.top + src.height / 2) - (t.top + t.height / 2);
+        el.style.transformOrigin = 'center center';
+        gsap.to(el, { x: dx, y: dy, scale, rotationY: 32, opacity: 0, transformPerspective: 1000, duration: 0.36, ease: 'power3.in', onComplete: done });
+      } else {
+        gsap.to(el, { scale: 0.85, opacity: 0, duration: 0.26, ease: 'power2.in', onComplete: done });
+      }
+    },
     readFromDetail() {
       const m = this.bookDetail;
       const s = this.bookDetailStory;
@@ -1979,6 +2032,7 @@ createApp({
 
         // Call Vision API (auto-retries on the occasional refusal)
         const result = await analyzeCharacterPhotoWithRetry(dataUrl, this.password);
+        recordSpend('characters', result.cost);   // photo vision counts as Character creation
         if (result.refused) {
           // Keep the photo (so they can re-analyze) but don't store the refusal text
           this.error = 'The photo reader declined to describe this one. Tap "🔄 Re-analyze photo" to try again, or use a clearer/different photo.';
@@ -2009,6 +2063,7 @@ createApp({
           r.readAsDataURL(blob);
         });
         const result = await analyzeCharacterPhotoWithRetry(dataUrl, this.password);
+        recordSpend('characters', result.cost);   // photo vision counts as Character creation
         if (result.refused) {
           this.error = 'Still couldn\'t read the photo. Try a different one — a clear, well-lit, front-facing photo works best.';
         } else {

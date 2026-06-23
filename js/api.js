@@ -564,14 +564,17 @@ function generateFakeStory(formData) {
 }
 
 
+// Time until the reader OPENS — i.e. the cover + first page are drawn and the
+// loading screen disappears. The rest of the pictures stream in while reading,
+// so this is roughly constant regardless of book length (only text gen scales).
 function loadingHintForLength(lengthKey) {
   const map = {
-    short:        '~45 seconds',
-    regular:      '~90 seconds',
-    long:         '~120 seconds',
-    'extra-long': '~180 seconds',
+    short:        '~25 seconds',
+    regular:      '~30 seconds',
+    long:         '~35 seconds',
+    'extra-long': '~40 seconds',
   };
-  return map[lengthKey] || '~90 seconds';
+  return map[lengthKey] || '~30 seconds';
 }
 
 

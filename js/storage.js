@@ -30,11 +30,13 @@ const STORAGE_KEYS = {
 //          lastStory: { text, pictures, total, ts } | null }
 const SPEND_BASELINE = {
   // As of the OpenAI usage dashboard on 2026-06-22: $24.45 total spend.
-  // Split is estimated (illustrations dominate; text + character portraits are small).
+  // Split is estimated. Illustrations dominate. "characters" (Character creation)
+  // retroactively bundles ALL per-character calls — thumbnail portrait + Bring to
+  // Life (GPT-4o) + photo vision — across ~31 characters (~$0.04 each ≈ $1.20).
   total: 24.45,
-  pictures: 21.00,
-  text: 3.10,
-  characters: 0.35,
+  pictures: 20.25,
+  text: 3.00,
+  characters: 1.20,
   asOf: '2026-06-22',
 };
 

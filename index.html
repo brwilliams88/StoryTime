@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.0" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.1" />
 </head>
 <body>
 
@@ -52,9 +52,16 @@
 
         <!-- ============== LOADING ============== -->
         <div v-if="loading" class="loading-screen">
-          <div class="loading-spinner"></div>
+          <div class="book-loader" aria-label="Loading">
+            <div class="book-loader-base"></div>
+            <div class="book-loader-page"></div>
+            <div class="book-loader-page"></div>
+            <div class="book-loader-page"></div>
+            <div class="book-loader-page"></div>
+            <div class="book-loader-page"></div>
+          </div>
           <p class="loading-text">{{ loadingMessage }}</p>
-          <p class="loading-hint">This takes about {{ loadingHint }}.</p>
+          <p class="loading-hint">Ready to read in about {{ loadingHint }}.</p>
         </div>
 
         <!-- ============== FORM ============== -->
@@ -170,8 +177,8 @@
 
           <!-- Pull-to-refresh indicator -->
           <div class="pull-refresh" :style="{ height: pullDistance + 'px' }">
-            <div v-if="pullRefreshing" class="loading-spinner small"></div>
-            <span v-else-if="pullDistance > 4" class="pull-refresh-text">{{ pullDistance > 55 ? '↑ release to refresh' : '↓ pull to refresh' }}</span>
+            <div v-if="pullRefreshing" class="pull-book">📖</div>
+            <span v-else-if="pullDistance > 4" class="pull-refresh-text" :style="{ transform: 'scale(' + Math.min(1, 0.6 + pullDistance/120) + ')' }">{{ pullDistance > 55 ? '✨ release to refresh' : '📖 pull to refresh' }}</span>
           </div>
 
           <!-- Normal home bar -->
@@ -317,7 +324,7 @@
                 <button class="book"
                         :class="{ 'book-selected': manageMode && isBookSelectedForDelete(book.id), 'book-offline': isOffline && !isBookCachedLocal(book.id) }"
                         :disabled="isOffline && !isBookCachedLocal(book.id)"
-                        @click="manageMode ? toggleBookForDelete(book.id) : openBookDetail(book)">
+                        @click="manageMode ? toggleBookForDelete(book.id) : openBookDetail(book, $event)">
                   <div class="book-cover">
                     <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" loading="lazy" draggable="false" />
                     <div v-else class="book-cover-fallback">📖</div>
@@ -371,7 +378,7 @@
               <div class="cover-image-wrap">
                 <div class="image-frame">
                   <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
-                    <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="page-image" draggable="false" />
+                    <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="page-image page-image-develop" draggable="false" />
                   </template>
                   <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
                     <div class="image-placeholder">
@@ -395,6 +402,8 @@
                 </div>
               </div>
               <div v-if="currentStory.created_by" class="cover-by">By {{ currentStory.created_by }}</div>
+              <!-- gentle corner peel that hints "swipe to turn the page" -->
+              <div class="page-peel-hint" aria-hidden="true"></div>
             </div>
 
             <!-- ===== STORY SPREAD ===== -->
@@ -427,7 +436,14 @@
               </div>
               <div class="spread-text">
                 <p>{{ currentStoryPage.text }}</p>
-                <div v-if="isOnLastTextPage" class="the-end">✨ The End ✨</div>
+                <div v-if="isOnLastTextPage" class="the-end">
+                  <svg class="the-end-rule" viewBox="0 0 140 12" aria-hidden="true">
+                    <path d="M2 6 H58" /><path d="M82 6 H138" />
+                    <path d="M70 1 L76 6 L70 11 L64 6 Z" class="the-end-gem" />
+                    <circle cx="60" cy="6" r="1.4" class="the-end-gem" /><circle cx="80" cy="6" r="1.4" class="the-end-gem" />
+                  </svg>
+                  <div class="the-end-text">The End</div>
+                </div>
               </div>
             </div>
 
@@ -456,7 +472,7 @@
               <div class="toolbox-section">
                 <div class="rating-label">Rate this story</div>
                 <div class="rating-stars">
-                  <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
+                  <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n, 'rate-pop': ratingPopping && currentStory.rating >= n }]">★</button>
                 </div>
               </div>
 
@@ -743,7 +759,7 @@
                     {{ isThumbGenerating() ? 'Generating…' : (charForm.thumbnail_id ? '🔁 Regenerate' : '✨ Generate Thumbnail') }}
                   </button>
                 </div>
-                <p class="form-hint">Costs ~1¢ to generate. Cartoon portrait, transparent background.</p>
+                <p class="form-hint">A cartoon portrait on a transparent background.</p>
               </div>
 
               <!-- Generic backup fields: hidden by default, expandable -->
@@ -780,8 +796,8 @@
       </div>
 
       <!-- ============== BOOK DETAIL — "inner cover" page ============== -->
-      <div v-if="bookDetail" class="modal-overlay" @click.self="closeBookDetail">
-        <div class="inner-cover">
+      <div v-if="bookDetail" class="modal-overlay book-detail-overlay" ref="bookDetailOverlay" @click.self="closeBookDetail">
+        <div class="inner-cover" ref="innerCover">
           <button @click="closeBookDetail" class="inner-cover-close" aria-label="Close">✕</button>
 
           <h2 class="inner-cover-title">{{ bookDetail.title || 'Untitled' }}</h2>
@@ -842,27 +858,19 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">🎨 Image Settings</div>
+            <div class="settings-section-title">🎨 Pictures</div>
 
-            <div class="settings-sub">Picture quality (next story)</div>
-            <div class="settings-segment">
-              <button :class="{ active: nextStoryQuality === 'low' }" @click="setNextStoryQuality('low')">Low</button>
-              <button :class="{ active: nextStoryQuality === 'medium' }" @click="setNextStoryQuality('medium')">Medium</button>
-              <button :class="{ active: nextStoryQuality === 'high' }" @click="setNextStoryQuality('high')">High</button>
-            </div>
-            <p class="settings-fine-print">Resets to Medium after one story.</p>
-
-            <div class="settings-sub">Image generation (next story)</div>
+            <div class="settings-sub">Pictures for the next story</div>
             <div class="settings-segment settings-segment-stacked">
-              <button :class="{ active: imageGenMode === 'all' }" @click="setImageGenMode('all')">Generate all images</button>
-              <button :class="{ active: imageGenMode === 'first-two' }" @click="setImageGenMode('first-two')">Only first 2 images (cover + page 1)</button>
-              <button :class="{ active: imageGenMode === 'skip' }" @click="setImageGenMode('skip')">Skip all images</button>
+              <button :class="{ active: imageGenMode === 'all' }" @click="setImageGenMode('all')">Draw all the pictures</button>
+              <button :class="{ active: imageGenMode === 'first-two' }" @click="setImageGenMode('first-two')">Just the cover + first page</button>
+              <button :class="{ active: imageGenMode === 'skip' }" @click="setImageGenMode('skip')">No pictures (text only)</button>
             </div>
-            <p class="settings-fine-print">Resets to "Generate all" after one story.</p>
+            <p class="settings-fine-print">Fewer pictures means a faster, cheaper story. Resets to "Draw all" after one story.</p>
 
             <label class="toggle-line">
               <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
-              <span>Show ⓘ button on images</span>
+              <span>Show the ⓘ info button on pictures</span>
             </label>
           </div>
 
@@ -908,7 +916,7 @@
                 <div class="spend-card-label">This week</div>
                 <div class="spend-card-value">{{ fmtUsd(spend.week) }}</div>
               </div>
-              <div class="spend-card spend-card-total">
+              <div class="spend-card">
                 <div class="spend-card-label">All time</div>
                 <div class="spend-card-value">{{ fmtUsd(spend.allTime) }}</div>
               </div>
@@ -924,7 +932,7 @@
                 <div class="spend-bar"><span class="spend-bar-fill spend-bar-text" :style="{ width: spendBarPct(spend.text) + '%' }"></span></div>
               </div>
               <div class="spend-row">
-                <div class="spend-row-head"><span>🧑‍🎨 Character portraits</span><strong>{{ fmtUsd(spend.characters) }}</strong></div>
+                <div class="spend-row-head"><span>🧑‍🎨 Character creation</span><strong>{{ fmtUsd(spend.characters) }}</strong></div>
                 <div class="spend-bar"><span class="spend-bar-fill spend-bar-chars" :style="{ width: spendBarPct(spend.characters) + '%' }"></span></div>
               </div>
             </div>
@@ -933,8 +941,6 @@
               Last story cost <strong>{{ fmtUsd(spend.lastStory.total) }}</strong>
               <span class="spend-last-split">({{ fmtUsd(spend.lastStory.text) }} writing · {{ fmtUsd(spend.lastStory.pictures) }} pictures)</span>
             </div>
-
-            <p class="settings-fine-print">Includes a one-time historical estimate of {{ fmtUsd(spend.baselineTotal) }} through {{ spend.baselineAsOf }} (covers stories since deleted). Tracked precisely from then on. Cross-check totals on your OpenAI usage dashboard.</p>
           </div>
 
           <div class="settings-section">
@@ -1002,11 +1008,12 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="js/storage.js?v=0.9.0"></script>
-  <script src="js/imageStorage.js?v=0.9.0"></script>
-  <script src="js/api.js?v=0.9.0"></script>
-  <script src="js/sync.js?v=0.9.0"></script>
-  <script src="js/app.js?v=0.9.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="js/storage.js?v=0.9.1"></script>
+  <script src="js/imageStorage.js?v=0.9.1"></script>
+  <script src="js/api.js?v=0.9.1"></script>
+  <script src="js/sync.js?v=0.9.1"></script>
+  <script src="js/app.js?v=0.9.1"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
