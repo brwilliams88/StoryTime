@@ -9,6 +9,16 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.3 — 2026-06-23 — Page-Turn Rebuilt (works now) + Shelf & Polish Fixes
+  • Page turns now WORK and follow your finger — rebuilt so the real page (its text AND images) flips over to reveal the next page beneath. Landscape turns left/right, portrait up/down; release past the middle (or a flick) to turn, otherwise it springs back.
+  • "The End" is bigger
+  • Star rating: hovering a star now previews — it fills that star and every star before it (reverts on mouse-out; only a click sticks)
+  • Bookshelf: taller front face, books rest higher on the shelf, and much less wasted space above each book
+  • Resting books no longer cast a shadow; only the New Story book (which hovers) casts one — and it breathes with the bob (higher = bigger + softer, lower = smaller + darker)
+  • Library now hard-stops scrolling at the bottom of the bookcase — no dark area showing below the shelf
+  • (No Worker or database changes this version — just push.)
+
+--------------------------
 v0.9.2 — 2026-06-23 — Page-Turn Curl, Shelf Depth Redo, Cross-Device Spend
   • Page turns now FOLLOW YOUR FINGER — drag and the page peels/curls away to reveal the next page; release past the middle (or a flick) to turn, otherwise it springs back. Side-to-side in landscape, up/down in portrait. (Falls back to a simple swipe if needed.)
   • Bookshelf seating redone: books now sit DOWN ON a deeper top surface, bottom edge BELOW the back-wall line, with a soft contact shadow — real depth

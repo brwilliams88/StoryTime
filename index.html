@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.2" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.3" />
 </head>
 <body>
 
@@ -307,7 +307,7 @@
             <div class="shelf-grid">
 
               <!-- Create-new "book" (first; hidden while searching/filtering/managing) -->
-              <div v-if="!manageMode && !librarySearch.trim() && !anyFilterActive" class="book-slot">
+              <div v-if="!manageMode && !librarySearch.trim() && !anyFilterActive" class="book-slot create-slot">
                 <button class="book create-book" @click="goCreate" aria-label="Create a new story">
                   <div class="book-cover create-cover">
                     <span class="create-sparkle create-sparkle-1">✦</span>
@@ -370,7 +370,9 @@
             <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
           </div>
 
-          <div class="page-area">
+          <div class="page-area"
+               @touchstart.passive="curlStart" @touchmove="curlMove" @touchend="curlEnd" @touchcancel="curlEnd"
+               @mousedown="curlStart">
 
             <!-- ===== COVER ===== -->
             <div v-if="isOnCover" class="book-page cover-page" :class="{ portrait: isPortrait }">
@@ -1002,13 +1004,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="js/storage.js?v=0.9.2"></script>
-  <script src="js/imageStorage.js?v=0.9.2"></script>
-  <script src="js/api.js?v=0.9.2"></script>
-  <script src="js/sync.js?v=0.9.2"></script>
-  <script src="js/pageCurl.js?v=0.9.2"></script>
-  <script src="js/app.js?v=0.9.2"></script>
+  <script src="js/storage.js?v=0.9.3"></script>
+  <script src="js/imageStorage.js?v=0.9.3"></script>
+  <script src="js/api.js?v=0.9.3"></script>
+  <script src="js/sync.js?v=0.9.3"></script>
+  <script src="js/pageCurl.js?v=0.9.3"></script>
+  <script src="js/app.js?v=0.9.3"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

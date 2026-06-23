@@ -1,249 +1,145 @@
 // =====================================================================
-// pageCurl.js — finger-following page-turn for the reading view.
+// pageCurl.js — finger-following page turn for the reading view.
 //
-// How it works:
-//   • When a reading page settles, we snapshot it to a canvas (html2canvas).
-//   • On a drag, we lay a canvas overlay over the page area showing that
-//     snapshot, flip the live page underneath to the DESTINATION page (hidden
-//     behind the overlay), then peel/curl the snapshot away following the
-//     finger — revealing the destination beneath. Release past a threshold (or
-//     a flick) commits; otherwise it springs back.
-//   • Landscape peels left/right; portrait peels up/down — same feel, swapped
-//     axis. The page CONTENT moves with the curl because it's the real bitmap.
+// Approach (robust, no rasterizing):
+//   • On drag, we CLONE the current page's real DOM (its text + images) into a
+//     fixed overlay — the "leaf" — and flip the live page underneath to the
+//     destination. As the finger moves, the leaf rotates about the spine edge,
+//     so the page (and all its content) turns with your finger, revealing the
+//     next page beneath. Release past the middle (or a flick) commits; else it
+//     springs back. Landscape turns left/right, portrait up/down.
 //
-// Degrades gracefully: if html2canvas is missing or a snapshot isn't ready,
-// the same drag just does a threshold page-flip with no curl. Navigation
-// always works.
+//   • Driven by touch/mouse handlers the Vue template binds straight onto the
+//     page area (no attach timing to get wrong). Falls back to nothing harmful.
 // =====================================================================
 window.PageCurl = (function () {
-  let cfg = null;            // wiring from the Vue app
-  let areaEl = null;         // the .page-area element
-  let leaf = null;           // { canvas, w, h, index } — snapshot of current page
-  let priming = false;
-  let overlay = null, octx = null, odpr = 1;
-  let g = null;              // active gesture state
-  let animating = false;
-
-  const START = 12;          // px before a drag is considered a turn
-  const COMMIT = 0.4;        // fraction of the page to commit a turn
-  const FLICK = 0.45;        // px/ms release speed that commits regardless
+  let cfg = null, animating = false, g = null;
+  const MAX = 158, COMMIT = 0.38, FLICK = 0.4, START = 10;
 
   function init(c) { cfg = c; }
 
-  function attach(el) {
-    if (areaEl) detach();
-    areaEl = el;
-    if (!areaEl) return;
-    areaEl.style.touchAction = 'none';    // we own the drag in both orientations
-    areaEl.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    prime();
+  function point(e) {
+    const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+    return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY };
   }
 
-  function detach() {
-    if (!areaEl) return;
-    areaEl.removeEventListener('pointerdown', onDown);
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-    window.removeEventListener('pointercancel', onUp);
-    removeOverlay();
-    areaEl = null; leaf = null; g = null;
-  }
-
-  // Snapshot the current page so a turn can start instantly.
-  async function prime() {
-    if (!areaEl || priming || typeof html2canvas === 'undefined') return;
-    const page = areaEl.querySelector('.book-page');
-    if (!page) return;
-    priming = true;
-    try {
-      const rect = page.getBoundingClientRect();
-      const scale = Math.min(2, window.devicePixelRatio || 1);
-      const canvas = await html2canvas(page, { backgroundColor: null, scale, logging: false, useCORS: true });
-      leaf = { canvas, w: rect.width, h: rect.height, index: cfg.index() };
-    } catch (e) {
-      leaf = null;
+  function start(e, areaEl) {
+    if (animating || g || !areaEl || !cfg) return;
+    if (e.target.closest && e.target.closest('button, a, input, textarea, .inspect-btn')) return;
+    const p = point(e);
+    g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false };
+    if (e.type === 'mousedown') {   // desktop: follow the cursor on the document
+      g.mm = (ev) => move(ev); g.mu = (ev) => end(ev);
+      document.addEventListener('mousemove', g.mm);
+      document.addEventListener('mouseup', g.mu);
     }
-    priming = false;
   }
 
-  function onDown(e) {
-    if (animating || g || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    // ignore drags that start on a button/link (let them be tapped)
-    if (e.target.closest('button, a, .inspect-btn')) return;
-    g = {
-      x0: e.clientX, y0: e.clientY, t0: Date.now(),
-      axis: cfg.isPortrait() ? 'y' : 'x',
-      started: false, fallback: false, forward: false, prog: 0, last: 0, lastT: Date.now(),
-    };
-  }
-
-  function onMove(e) {
+  function move(e) {
     if (!g) return;
-    const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    const p = point(e);
+    const dx = p.x - g.x0, dy = p.y - g.y0;
     const primary = g.axis === 'x' ? dx : dy;
-    const cross = g.axis === 'x' ? dy : dx;
+    const cross   = g.axis === 'x' ? dy : dx;
 
     if (!g.started) {
       if (Math.abs(primary) < START || Math.abs(cross) > Math.abs(primary)) return;
-      g.forward = primary < 0;                    // drag left/up = next
-      const canGo = g.forward ? cfg.canNext() : cfg.canPrev();
-      if (!canGo) { g = null; return; }
+      g.forward = primary < 0;                       // drag left/up = next page
+      if (!(g.forward ? cfg.canNext() : cfg.canPrev())) { cleanup(); return; }
       g.started = true;
-      if (!leaf || leaf.index !== cfg.index() || typeof html2canvas === 'undefined') {
-        g.fallback = true;                        // no curl this time, just track
-      } else {
-        beginCurl();
-      }
+      g.dim = g.axis === 'x' ? g.area.clientWidth : g.area.clientHeight;
+      begin();
     }
-    if (g.fallback) { g.primary = primary; return; }
-    e.preventDefault();
-    const dim = g.axis === 'x' ? g.W : g.H;
+    if (e.cancelable) e.preventDefault();
     const now = Date.now();
-    g.speed = (Math.abs(primary) - g.last) / Math.max(1, now - g.lastT);
+    g.speed = (Math.abs(primary) - (g.last || 0)) / Math.max(1, now - (g.lastT || g.t0));
     g.last = Math.abs(primary); g.lastT = now;
-    g.prog = Math.max(0, Math.min(1, Math.abs(primary) / dim));
-    renderCurl(g.prog);
+    g.prog = Math.max(0, Math.min(1, Math.abs(primary) / g.dim));
+    apply(g.prog);
   }
 
-  function onUp() {
+  function end() {
     if (!g) return;
-    if (g.fallback) {
-      const dim = g.axis === 'x' ? (areaEl ? areaEl.clientWidth : 300) : (areaEl ? areaEl.clientHeight : 500);
-      if (Math.abs(g.primary || 0) > Math.min(110, dim * 0.28)) {
-        g.forward ? cfg.goNext() : cfg.goPrev();
-      }
-      g = null;
-      return;
-    }
-    if (!g.started) { g = null; return; }
+    if (!g.started) { cleanup(); return; }
     const commit = g.prog > COMMIT || (g.speed || 0) > FLICK;
-    finishCurl(commit);
+    finish(commit);
   }
 
-  // ---- the curl overlay ----
-  function beginCurl() {
+  // Build the turning leaf (a clone of the live page) and reveal the
+  // destination page underneath it.
+  function begin() {
     g.origIndex = cfg.index();
     g.destIndex = g.origIndex + (g.forward ? 1 : -1);
-    makeOverlay();
-    renderCurl(0);
-    cfg.setIndex(g.destIndex);   // destination renders live underneath the overlay
-  }
+    const r = g.area.getBoundingClientRect();
+    const src = g.area.querySelector('.book-page');
 
-  function makeOverlay() {
-    const r = areaEl.getBoundingClientRect();
-    g.W = r.width; g.H = r.height;
-    odpr = Math.min(2, window.devicePixelRatio || 1);
-    overlay = document.createElement('canvas');
-    overlay.width = Math.round(r.width * odpr);
-    overlay.height = Math.round(r.height * odpr);
-    Object.assign(overlay.style, {
+    g.wrap = document.createElement('div');
+    Object.assign(g.wrap.style, {
       position: 'fixed', left: r.left + 'px', top: r.top + 'px',
       width: r.width + 'px', height: r.height + 'px',
-      zIndex: 45, pointerEvents: 'none',
+      zIndex: 45, pointerEvents: 'none', perspective: '1700px', overflow: 'hidden',
     });
-    // appended to <body> so Vue re-rendering the page underneath can't disturb it
-    document.body.appendChild(overlay);
-    octx = overlay.getContext('2d');
-    octx.scale(odpr, odpr);
+
+    g.leaf = src ? src.cloneNode(true) : document.createElement('div');
+    Object.assign(g.leaf.style, {
+      position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', margin: 0,
+      transformStyle: 'preserve-3d', willChange: 'transform, opacity', backfaceVisibility: 'hidden',
+    });
+
+    g.shade = document.createElement('div');   // darkens the leaf as it lifts
+    Object.assign(g.shade.style, {
+      position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0,
+      background: 'linear-gradient(0deg, rgba(0,0,0,0.28), rgba(0,0,0,0) 60%)',
+    });
+    g.leaf.appendChild(g.shade);
+    g.wrap.appendChild(g.leaf);
+    document.body.appendChild(g.wrap);
+
+    cfg.setIndex(g.destIndex);   // destination renders live, under the leaf
+    apply(0);
   }
 
-  function removeOverlay() {
-    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    overlay = null; octx = null;
-  }
-
-  // Draw the peeling page: the still-flat part of the snapshot, a curl shadow
-  // gradient near the fold (page bending up), a bright fold highlight, and a
-  // soft cast shadow on the revealed destination just past the fold.
-  function renderCurl(prog) {
-    if (!octx || !leaf) return;
-    const W = g.W, H = g.H, c = leaf.canvas;
-    const sx = c.width / W, sy = c.height / H;
-    octx.clearRect(0, 0, W, H);
-    const horizontal = g.axis === 'x';
-    const len = horizontal ? W : H;
-    const fold = g.forward ? len * (1 - prog) : len * prog;   // position of the fold line
-
-    octx.save();
-    if (horizontal) {
-      if (g.forward) {
-        // flat part = [0, fold]; reveal to the right
-        if (fold > 0) octx.drawImage(c, 0, 0, fold * sx, c.height, 0, 0, fold, H);
-        paintFold(fold, H, true, true);
-      } else {
-        // flat part = [fold, W]; reveal to the left
-        if (fold < W) octx.drawImage(c, fold * sx, 0, (W - fold) * sx, c.height, fold, 0, W - fold, H);
-        paintFold(fold, H, true, false);
-      }
+  function apply(p) {
+    if (!g || !g.leaf) return;
+    const a = p * MAX;
+    let t, origin;
+    if (g.axis === 'x') {
+      if (g.forward) { origin = '0% 50%';  t = 'rotateY(' + (-a) + 'deg)'; }
+      else           { origin = '100% 50%'; t = 'rotateY(' + a + 'deg)'; }
     } else {
-      if (g.forward) {
-        if (fold > 0) octx.drawImage(c, 0, 0, c.width, fold * sy, 0, 0, W, fold);
-        paintFold(fold, W, false, true);
-      } else {
-        if (fold < H) octx.drawImage(c, 0, fold * sy, c.width, (H - fold) * sy, 0, fold, W, H - fold);
-        paintFold(fold, W, false, false);
-      }
+      if (g.forward) { origin = '50% 0%';  t = 'rotateX(' + a + 'deg)'; }
+      else           { origin = '50% 100%'; t = 'rotateX(' + (-a) + 'deg)'; }
     }
-    octx.restore();
+    g.leaf.style.transformOrigin = origin;
+    g.leaf.style.transform = t;
+    g.leaf.style.boxShadow = '0 0 ' + (8 + p * 28) + 'px rgba(0,0,0,' + (0.12 + p * 0.28) + ')';
+    g.shade.style.opacity = Math.min(0.5, p * 0.6);
+    // fade the leaf out as it passes vertical so we never see its mirrored back
+    g.leaf.style.opacity = p < 0.5 ? 1 : Math.max(0, 1 - (p - 0.5) / 0.42);
   }
 
-  // fold = position along the turn axis; span = the other dimension;
-  // horizontal = axis is x; toward = forward (true) peels toward the start edge.
-  function paintFold(fold, span, horizontal, forward) {
-    const lipW = 26, shadowW = 34;
-    const dirIn = forward ? -1 : 1;     // from the fold, the flat page lies this way
-    const dirOut = -dirIn;              // and the revealed side lies this way
-
-    octx.save();
-    // 1) curl shadow on the flat page, darkening toward the fold (it's bending up)
-    let g1;
-    if (horizontal) g1 = octx.createLinearGradient(fold + dirIn * lipW, 0, fold, 0);
-    else g1 = octx.createLinearGradient(0, fold + dirIn * lipW, 0, fold);
-    g1.addColorStop(0, 'rgba(0,0,0,0)');
-    g1.addColorStop(1, 'rgba(0,0,0,0.22)');
-    octx.fillStyle = g1;
-    if (horizontal) octx.fillRect(Math.min(fold, fold + dirIn * lipW), 0, lipW, span);
-    else octx.fillRect(0, Math.min(fold, fold + dirIn * lipW), span, lipW);
-
-    // 2) bright highlight right at the fold (paper catching light as it bends)
-    octx.fillStyle = 'rgba(255,255,255,0.55)';
-    if (horizontal) octx.fillRect(fold - 1, 0, 2, span);
-    else octx.fillRect(0, fold - 1, span, 2);
-
-    // 3) soft cast shadow on the revealed destination just past the fold
-    let g2;
-    if (horizontal) g2 = octx.createLinearGradient(fold, 0, fold + dirOut * shadowW, 0);
-    else g2 = octx.createLinearGradient(0, fold, 0, fold + dirOut * shadowW);
-    g2.addColorStop(0, 'rgba(0,0,0,0.28)');
-    g2.addColorStop(1, 'rgba(0,0,0,0)');
-    octx.fillStyle = g2;
-    if (horizontal) octx.fillRect(Math.min(fold, fold + dirOut * shadowW), 0, shadowW, span);
-    else octx.fillRect(0, Math.min(fold, fold + dirOut * shadowW), span, shadowW);
-    octx.restore();
-  }
-
-  function finishCurl(commit) {
+  function finish(commit) {
     animating = true;
-    const from = g.prog;
-    const to = commit ? 1 : 0;
-    const dur = 240;
-    const t0 = performance.now();
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 260, t0 = performance.now();
     const ease = (t) => 1 - Math.pow(1 - t, 3);
     const step = (now) => {
       const k = Math.min(1, (now - t0) / dur);
-      const p = from + (to - from) * ease(k);
-      renderCurl(p);
+      apply(from + (to - from) * ease(k));
       if (k < 1) { requestAnimationFrame(step); return; }
-      if (!commit) cfg.setIndex(g.origIndex);   // spring back: restore original page
-      removeOverlay();
-      animating = false; g = null;
-      prime();   // snapshot the now-current page for the next turn
+      if (!commit) cfg.setIndex(g.origIndex);   // spring back to the original page
+      cleanup();
+      animating = false;
     };
     requestAnimationFrame(step);
   }
 
-  return { init, attach, detach, prime, isAttached: () => !!areaEl };
+  function cleanup() {
+    if (g) {
+      if (g.wrap && g.wrap.parentNode) g.wrap.parentNode.removeChild(g.wrap);
+      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+    }
+    g = null;
+  }
+
+  return { init, start, move, end };
 })();

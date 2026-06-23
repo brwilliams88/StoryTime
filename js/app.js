@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.2',
+      version: 'v0.9.3',
       buildDate: '2026-06-23',
 
       showSplash: true,
@@ -1311,6 +1311,11 @@ createApp({
     },
     canGoNext() { return this.currentStory && this.currentPageIndex < this.totalReadingPages - 1; },
     canGoPrev() { return this.currentPageIndex > 0; },
+
+    // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area)
+    curlStart(e) { if (window.PageCurl) window.PageCurl.start(e, e.currentTarget); },
+    curlMove(e)  { if (window.PageCurl) window.PageCurl.move(e); },
+    curlEnd(e)   { if (window.PageCurl) window.PageCurl.end(e); },
     readAgain() {
       this.currentPageIndex = 0;
       window.scrollTo(0, 0);
@@ -2281,24 +2286,6 @@ createApp({
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },
-    // Attach/detach the finger-following page-curl as we enter/leave the reader.
-    view(v) {
-      if (typeof window.PageCurl === 'undefined') return;
-      this.$nextTick(() => {
-        if (v === 'story') {
-          const area = this.$el.querySelector('.page-area');
-          if (area) window.PageCurl.attach(area);
-        } else {
-          window.PageCurl.detach();
-        }
-      });
-    },
-    // Re-snapshot the current page after arrow-key / programmatic page changes.
-    currentPageIndex() {
-      if (typeof window.PageCurl === 'undefined') return;
-      clearTimeout(this._curlPrimeT);
-      this._curlPrimeT = setTimeout(() => window.PageCurl.prime(), 300);
-    },
   },
 
 }).mount('#app')

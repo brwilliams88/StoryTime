@@ -28,6 +28,7 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   line-height: 1.5;
+  overscroll-behavior: none;   /* no rubber-band that reveals empty space past the shelf */
 }
 
 #app {
@@ -1423,6 +1424,7 @@ body:has(.app-main-reading) {
   position: relative;
   display: flex;
   overflow: hidden;
+  touch-action: none;   /* we own the drag for page turns (both orientations) */
 }
 
 .book-page {
@@ -1632,7 +1634,7 @@ body:has(.app-main-reading) {
 }
 .the-end-text {
   font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
-  font-size: 1.05rem; font-weight: 600; letter-spacing: 0.4em; text-indent: 0.4em;
+  font-size: 1.5rem; font-weight: 600; letter-spacing: 0.4em; text-indent: 0.4em;
   text-transform: uppercase; color: var(--ink, currentColor);
 }
 .the-end-text::after {
@@ -1805,8 +1807,10 @@ body:has(.app-main-reading) {
 }
 
 .rating-star.filled { opacity: 1; }
-.rating-star:hover { opacity: 0.8; }
-.rating-star.filled:hover { opacity: 1; }
+/* Hover preview: hovering a star fills it AND every star before it (the ones
+   after it dim back). Pure CSS, reverts on mouse-out; only the click persists. */
+.rating-stars:hover .rating-star { opacity: 1; }
+.rating-stars .rating-star:hover ~ .rating-star { opacity: 0.3; }
 
 .toolbox-actions {
   display: flex;
@@ -2176,7 +2180,9 @@ body:has(.app-main-reading) {
 }
 
 /* ---- Library (home) — bookshelf ---- */
-.library-view { padding-bottom: 2rem; }
+/* No bottom padding: the shelf base is the last thing on screen, so scrolling
+   hard-stops at the bottom of the bookcase (no empty/blue area below it). */
+.library-view { padding-bottom: 0; }
 .library-bar { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.9rem; }
 .library-bar .library-search { flex: 1; margin-bottom: 0; }
 /* search + filter + settings all the same height */
@@ -2205,6 +2211,8 @@ body:has(.app-main-reading) {
 .bookshelf {
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
+  margin-bottom: 0;
+  background: #b9842f;   /* wood backstop — never let the dark app bg show through */
   box-shadow: 0 3px 14px rgba(0,0,0,0.45);
 }
 /* Crown molding with real depth: a lit top surface receding back, then a
@@ -2244,11 +2252,11 @@ body:has(.app-main-reading) {
 .shelf-grid {
   --book-w: 158px;          /* phone portrait → 2 per row */
   --plate-h: 44px;          /* title plate (up to 3 lines) */
-  --row-pad-top: 8px;       /* slim air gap above each book */
-  --face: 14px;             /* dark FRONT FACE of the shelf board */
-  --surface: 48px;          /* lit TOP SURFACE depth (the bigger horizontal plane) */
+  --row-pad-top: 2px;       /* minimal air gap above each book (less wasted space) */
+  --face: 26px;             /* dark FRONT FACE of the shelf board (taller) */
+  --surface: 34px;          /* lit TOP SURFACE depth (the horizontal plane books rest on) */
   --ledge: calc(var(--face) + var(--surface));   /* back-wall line = where wall meets surface */
-  --book-seat: 34px;        /* book BOTTOM sits below the back line, mid-surface (depth) */
+  --book-seat: 46px;        /* book BOTTOM rests higher on the surface, below the back line */
   --shelf-row-h: calc(var(--book-w) + var(--plate-h) + var(--row-pad-top) + var(--ledge));
   user-select: none; -webkit-user-select: none;   /* no selecting titles on long-press */
   display: grid;
@@ -2264,8 +2272,8 @@ body:has(.app-main-reading) {
        above), then (2) the shelf board — a lit TOP SURFACE seen slightly from above
        (shadowed at the back, bright at the front edge), a FRONT FACE, an under-shadow. */
     repeating-linear-gradient(to bottom,
-      rgba(0,0,0,0.30) 0,
-      rgba(0,0,0,0) 16px,
+      rgba(0,0,0,0.28) 0,
+      rgba(0,0,0,0) 8px,
       rgba(0,0,0,0) calc(var(--shelf-row-h) - var(--ledge)),                 /* back wall (bay) above the line */
       /* TOP SURFACE — a deep receding plane: gentle shadow at the back wall,
          brightening forward to a lit front edge. Books sit ON this plane. */
@@ -2295,15 +2303,23 @@ body:has(.app-main-reading) {
   justify-content: center;
   padding-bottom: var(--book-seat); /* book bottom sits mid-surface, below the back-wall line */
 }
-/* soft contact drop-shadow ON THE SHELF, pooling under the book's base */
-.book-slot::after {
-  content: ''; position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: calc(var(--book-seat) - 7px);
-  width: calc(var(--book-w) * 0.92); height: 14px;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5), rgba(0,0,0,0.18) 45%, rgba(0,0,0,0) 72%);
-  filter: blur(1px);
-  z-index: 0;
+/* Resting books cast NO shadow (they're flush on the shelf). Only the New Story
+   book hovers, so only IT gets a shadow — and the shadow breathes with the bob:
+   higher hover → larger + lighter; closer to the shelf → smaller + darker. */
+.create-slot::after {
+  content: ''; position: absolute; left: 50%;
+  bottom: calc(var(--book-seat) - 6px);
+  width: calc(var(--book-w) * 0.8); height: 12px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.45), rgba(0,0,0,0) 70%);
+  z-index: 0; filter: blur(1px);
+  transform: translateX(-50%) scaleX(0.8);
+  animation: createShadow 3.2s ease-in-out infinite;
 }
+@keyframes createShadow {
+  0%, 100% { transform: translateX(-50%) scaleX(0.78); opacity: 0.55; }   /* book low → tight + dark */
+  50%      { transform: translateX(-50%) scaleX(1.08); opacity: 0.3; }    /* book high → wide + soft */
+}
+@media (prefers-reduced-motion: reduce) { .create-slot::after { animation: none; } }
 
 /* A "book" = square cover + a label plate. Spine on the left, leaned back ~10°. */
 .book {
