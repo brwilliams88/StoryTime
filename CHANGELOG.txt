@@ -9,6 +9,17 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.4 — 2026-06-23 — Real Book Reading: Center-Spine Turns, Blurred Pages, Floating Controls
+  • Page turns now pivot at the CENTRAL spine (like a real book leaf) instead of the far edge, with a softer shading "curl"; the other half is held until the turn commits. Arrow keys play the same animation on laptop.
+  • Picture pages: a blurred copy of the image now fills the margins — no more white space around the art
+  • Reading controls reworked: Settings removed; a floating ‹ back button (top-left) + page count (bottom-center) that fade while you read — tap the page to bring them back. No page count on the cover.
+  • Real book feel: deeper centre-crease (binding) shadow + page-stack edges suggesting more pages underneath (top/bottom in portrait, left/right in landscape)
+  • Long-press to save/copy/enlarge is now off on all book images
+  • Library: fixed the blue/dark area showing below and around the bookshelf — wood now anchors all the way to the screen edge with no over-pull
+  • (No Worker or database changes this version — just push.)
+  • Coming next rev: the cover becomes a real openable book (spine + "open the book" animation).
+
+--------------------------
 v0.9.3 — 2026-06-23 — Page-Turn Rebuilt (works now) + Shelf & Polish Fixes
   • Page turns now WORK and follow your finger — rebuilt so the real page (its text AND images) flips over to reveal the next page beneath. Landscape turns left/right, portrait up/down; release past the middle (or a flick) to turn, otherwise it springs back.
   • "The End" is bigger

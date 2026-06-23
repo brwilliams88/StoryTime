@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.3',
+      version: 'v0.9.4',
       buildDate: '2026-06-23',
 
       showSplash: true,
@@ -106,6 +106,7 @@ createApp({
       pullRefreshing: false,
       cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
       spend: null,               // API-spend summary (populated when Settings opens)
+      readerUiShow: true,        // floating reader controls visible (auto-fade while reading)
       librarySearch: '',         // full-text search (server-side over story body)
       searchResults: [],         // server search results when a query is active
       searchLoading: false,
@@ -412,6 +413,7 @@ createApp({
         goNext: () => self.nextPage(),
         goPrev: () => self.prevPage(),
         isPortrait: () => self.isPortrait,
+        onTap: () => self.pokeReaderUi(),
       });
     }
 
@@ -446,8 +448,14 @@ createApp({
       // Don't navigate while a modal is open over the story
       if (this.showSettings || this.showQuiz || this.inspectingImage ||
           this.copyrightModal || this.warningModal || this.showCharactersModal) return;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); this.nextPage(); }
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); this.prevPage(); }
+      // Arrow keys play the same turn animation (fall back to instant nav).
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(false); else this.prevPage();
+      }
     };
     window.addEventListener('keydown', this._keyHandler);
 
@@ -1316,6 +1324,12 @@ createApp({
     curlStart(e) { if (window.PageCurl) window.PageCurl.start(e, e.currentTarget); },
     curlMove(e)  { if (window.PageCurl) window.PageCurl.move(e); },
     curlEnd(e)   { if (window.PageCurl) window.PageCurl.end(e); },
+    // Show the floating reader controls, then auto-fade after a few seconds.
+    pokeReaderUi() {
+      this.readerUiShow = true;
+      clearTimeout(this._readerUiT);
+      this._readerUiT = setTimeout(() => { this.readerUiShow = false; }, 3200);
+    },
     readAgain() {
       this.currentPageIndex = 0;
       window.scrollTo(0, 0);
@@ -2286,6 +2300,8 @@ createApp({
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },
+    view(v) { if (v === 'story') this.pokeReaderUi(); },
+    currentPageIndex() { if (this.view === 'story') this.pokeReaderUi(); },
   },
 
 }).mount('#app')

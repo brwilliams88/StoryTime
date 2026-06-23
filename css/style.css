@@ -22,6 +22,11 @@
   --error: #ff8b8b;
 }
 
+html { background: var(--bg-deep); }
+/* In the Library, the bounce/overscroll area behind everything is WOOD, never
+   navy — so you can never see blue around or below the bookshelf. */
+html:has(.library-view) { background: #8f6526; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--bg-deep);
@@ -30,6 +35,7 @@ body {
   line-height: 1.5;
   overscroll-behavior: none;   /* no rubber-band that reveals empty space past the shelf */
 }
+body:has(.library-view) { background: #8f6526; }
 
 #app {
   min-height: 100vh;
@@ -1426,6 +1432,13 @@ body:has(.app-main-reading) {
   overflow: hidden;
   touch-action: none;   /* we own the drag for page turns (both orientations) */
 }
+/* No iOS long-press "save/copy/enlarge" on any book image; taps pass through to
+   the page so turning still works. */
+.page-image {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none; user-select: none;
+  pointer-events: none;
+}
 
 .book-page {
   flex: 1;
@@ -2211,8 +2224,8 @@ body:has(.app-main-reading) {
 .bookshelf {
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
-  margin-bottom: 0;
-  background: #b9842f;   /* wood backstop — never let the dark app bg show through */
+  margin-bottom: -1rem;   /* bleed past the app's bottom padding so the shelf reaches the screen edge */
+  background: #b9842f;     /* wood backstop — never let the dark app bg show through */
   box-shadow: 0 3px 14px rgba(0,0,0,0.45);
 }
 /* Crown molding with real depth: a lit top surface receding back, then a
@@ -2661,29 +2674,33 @@ body:has(.app-main-reading) {
    centre of an open book. Vertical in landscape, horizontal in portrait. */
 .book-page.story-spread::after {
   content: ''; position: absolute; z-index: 6; pointer-events: none;
-  left: 50%; top: 0; bottom: 0; width: 40px; transform: translateX(-50%);
+  left: 50%; top: 0; bottom: 0; width: 58px; transform: translateX(-50%);
   background:
     linear-gradient(to right,
-      rgba(255,255,255,0) 0%,
-      rgba(255,255,255,0.55) 44%,    /* left highlight ridge */
-      rgba(74,54,24,0.05) 47%,
-      rgba(74,54,24,0.22) 50%,       /* valley */
-      rgba(74,54,24,0.05) 53%,
-      rgba(255,255,255,0.55) 56%,    /* right highlight ridge */
-      rgba(255,255,255,0) 100%);
+      rgba(74,54,24,0) 0%,
+      rgba(74,54,24,0.10) 28%,       /* page surface darkening toward the spine */
+      rgba(255,255,255,0.5) 45%,      /* highlight ridge */
+      rgba(40,28,12,0.14) 48%,
+      rgba(40,28,12,0.42) 50%,        /* deep binding valley */
+      rgba(40,28,12,0.14) 52%,
+      rgba(255,255,255,0.5) 55%,      /* highlight ridge */
+      rgba(74,54,24,0.10) 72%,
+      rgba(74,54,24,0) 100%);
 }
 .book-page.story-spread.portrait::after {
-  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 40px;
+  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 58px;
   transform: translateY(-50%);
   background:
     linear-gradient(to bottom,
-      rgba(255,255,255,0) 0%,
-      rgba(255,255,255,0.55) 44%,
-      rgba(74,54,24,0.05) 47%,
-      rgba(74,54,24,0.22) 50%,
-      rgba(74,54,24,0.05) 53%,
-      rgba(255,255,255,0.55) 56%,
-      rgba(255,255,255,0) 100%);
+      rgba(74,54,24,0) 0%,
+      rgba(74,54,24,0.10) 28%,
+      rgba(255,255,255,0.5) 45%,
+      rgba(40,28,12,0.14) 48%,
+      rgba(40,28,12,0.42) 50%,
+      rgba(40,28,12,0.14) 52%,
+      rgba(255,255,255,0.5) 55%,
+      rgba(74,54,24,0.10) 72%,
+      rgba(74,54,24,0) 100%);
 }
 
 /* ===================================================================
@@ -2749,4 +2766,63 @@ body:has(.app-main-reading) {
 @keyframes createShimmer {
   0%   { background-position: 160% 0; }
   100% { background-position: -160% 0; }
+}
+
+/* ===================================================================
+   v0.9.4 — Reading mode polish
+   =================================================================== */
+/* Floating reader controls (replace the old top bar; no Settings here) */
+.reader-back {
+  position: absolute; z-index: 30;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: calc(env(safe-area-inset-left) + 8px);
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(30,24,18,0.42); color: #fff; border: none;
+  font-size: 1.7rem; line-height: 1; padding: 0 0 3px; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  transition: opacity 0.5s ease;
+}
+.reader-pagenum {
+  position: absolute; z-index: 30;
+  bottom: calc(env(safe-area-inset-bottom) + 10px); left: 50%; transform: translateX(-50%);
+  padding: 4px 13px; border-radius: 999px; pointer-events: none;
+  background: rgba(30,24,18,0.42); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  transition: opacity 0.5s ease;
+}
+.reader-ui-dim  { opacity: 0.22; }   /* back stays faintly visible + tappable */
+.reader-ui-hide { opacity: 0; }      /* page number fades fully */
+
+/* Picture pages: a blurred copy of the image fills the margins (no white) */
+.image-blur {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-size: cover; background-position: center;
+  filter: blur(26px) saturate(1.25); transform: scale(1.18);
+}
+.spread-image, .cover-image-wrap { overflow: hidden; }
+.spread-image .image-frame, .cover-image-wrap .image-frame { position: relative; z-index: 1; }
+
+/* Book edges + "more pages underneath" lines on the OUTER edges
+   (landscape → left/right; portrait → top/bottom). */
+.book-page.story-spread::before {
+  content: ''; position: absolute; z-index: 6; pointer-events: none;
+  /* landscape default: thin page-stack down the left & right outer edges */
+  top: 0; bottom: 0; left: 0; right: 0;
+  background:
+    repeating-linear-gradient(to right, rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px) ,
+    repeating-linear-gradient(to left,  rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px);
+  background-size: 7px 100%, 7px 100%;
+  background-position: left center, right center;
+  background-repeat: no-repeat, no-repeat;
+}
+.book-page.story-spread.portrait::before {
+  background:
+    repeating-linear-gradient(to bottom, rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px),
+    repeating-linear-gradient(to top,    rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px);
+  background-size: 100% 7px, 100% 7px;
+  background-position: center top, center bottom;
+  background-repeat: no-repeat, no-repeat;
 }

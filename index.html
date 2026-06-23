@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.3" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.4" />
 </head>
 <body>
 
@@ -363,12 +363,10 @@
         <!-- ============== READING VIEW ============== -->
         <div v-else-if="view === 'story' && currentStory" class="reading-view" :class="{ 'portrait-mode': isPortrait }">
 
-          <!-- Compact single header: Back to shelf · Page label · Settings -->
-          <div class="reading-header">
-            <button @click="goLibrary" class="btn-secondary btn-small">← Library</button>
-            <div class="page-counter">{{ pageCounterLabel }}</div>
-            <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
-          </div>
+          <!-- Floating controls: a back button (top-left) + page count (bottom),
+               both fade while reading; tap the page to bring them back. -->
+          <button @click="goLibrary" :class="['reader-back', { 'reader-ui-dim': !readerUiShow }]" aria-label="Back to library">‹</button>
+          <div v-if="currentStoryPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageCounterLabel }}</div>
 
           <div class="page-area"
                @touchstart.passive="curlStart" @touchmove="curlMove" @touchend="curlEnd" @touchcancel="curlEnd"
@@ -378,6 +376,7 @@
             <div v-if="isOnCover" class="book-page cover-page" :class="{ portrait: isPortrait }">
               <h1 class="cover-title">{{ currentStory.title }}</h1>
               <div class="cover-image-wrap">
+                <div v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)" class="image-blur" :style="{ backgroundImage: 'url(' + getImageURL(currentStory.cover.image_id) + ')' }"></div>
                 <div class="image-frame">
                   <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
                     <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="page-image" draggable="false" />
@@ -409,6 +408,7 @@
             <!-- ===== STORY SPREAD ===== -->
             <div v-else-if="currentStoryPage" class="book-page story-spread" :class="{ portrait: isPortrait }">
               <div class="spread-image">
+                <div v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)" class="image-blur" :style="{ backgroundImage: 'url(' + getImageURL(currentStoryPage.image_id) + ')' }"></div>
                 <div class="image-frame">
                   <template v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)">
                     <img :src="getImageURL(currentStoryPage.image_id)" :alt="currentStoryPage.image_prompt" class="page-image" draggable="false" />
@@ -1004,12 +1004,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.3"></script>
-  <script src="js/imageStorage.js?v=0.9.3"></script>
-  <script src="js/api.js?v=0.9.3"></script>
-  <script src="js/sync.js?v=0.9.3"></script>
-  <script src="js/pageCurl.js?v=0.9.3"></script>
-  <script src="js/app.js?v=0.9.3"></script>
+  <script src="js/storage.js?v=0.9.4"></script>
+  <script src="js/imageStorage.js?v=0.9.4"></script>
+  <script src="js/api.js?v=0.9.4"></script>
+  <script src="js/sync.js?v=0.9.4"></script>
+  <script src="js/pageCurl.js?v=0.9.4"></script>
+  <script src="js/app.js?v=0.9.4"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
