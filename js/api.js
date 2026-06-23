@@ -812,3 +812,7 @@ function imgUploadToCloud(id, b64, contentType, pw) {
 function imgSignUrls(ids, pw)   { return workerPost('/img/sign', { ids }, pw); }
 function imgDeleteCloud(ids, pw) { return workerPost('/img/delete', { ids }, pw); }
 function imgUsage(pw)           { return workerPost('/img/usage', {}, pw); }
+
+// ---- API-spend ledger (cross-device) ----
+function spendAddCloud(events, pw) { return workerPost('/spend/add', { events }, pw); }
+function spendListCloud(pw)        { return workerPost('/spend/list', {}, pw); }

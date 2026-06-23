@@ -140,3 +140,20 @@ update public.stories
               from jsonb_array_elements(data->'pages') p), '')
   );
 create index if not exists stories_searchtext_trgm on public.stories using gin (search_text gin_trgm_ops);
+
+
+-- ============================================================
+-- v0.9.2 migration — run this block once (safe to re-run)
+-- API-spend ledger: one append-only row per paid OpenAI call, so the
+-- Settings → API Spend panel can total spend ACROSS devices. Accessed
+-- only via the Worker's secret (service) key, so no RLS policies needed.
+-- The one-time historical baseline ($24.45 through 2026-06-22) stays a
+-- client-side constant; this table holds new spend going forward.
+-- ============================================================
+create table if not exists public.spend_events (
+  id        bigint generated always as identity primary key,
+  ts        timestamptz not null default now(),
+  category  text        not null,   -- 'pictures' | 'text' | 'characters'
+  amount    numeric(10,4) not null
+);
+create index if not exists spend_events_ts_idx on public.spend_events (ts);

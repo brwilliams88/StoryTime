@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.1',
-      buildDate: '2026-06-22',
+      version: 'v0.9.2',
+      buildDate: '2026-06-23',
 
       showSplash: true,
 
@@ -106,7 +106,6 @@ createApp({
       pullRefreshing: false,
       cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
       spend: null,               // API-spend summary (populated when Settings opens)
-      ratingPopping: false,      // transient: star-tap pop animation
       librarySearch: '',         // full-text search (server-side over story body)
       searchResults: [],         // server search results when a query is active
       searchLoading: false,
@@ -401,6 +400,20 @@ createApp({
   mounted() {
     console.log(`${this.appName} ${this.version} loaded ✓`);
     setTimeout(() => this.dismissSplash(), 1500);
+
+    // Wire the finger-following page-curl to the reader (snapshots + nav).
+    if (typeof window.PageCurl !== 'undefined') {
+      const self = this;
+      window.PageCurl.init({
+        index: () => self.currentPageIndex,
+        setIndex: (i) => { self.currentPageIndex = i; },
+        canNext: () => self.canGoNext(),
+        canPrev: () => self.canGoPrev(),
+        goNext: () => self.nextPage(),
+        goPrev: () => self.prevPage(),
+        isPortrait: () => self.isPortrait,
+      });
+    }
 
     const stored = getStoredPassword();
     if (stored) this.password = stored;
@@ -1409,10 +1422,6 @@ createApp({
 
     setRating(stars) {
       if (!this.currentStory) return;
-      // tasteful pop+glow on the filled stars (NOT confetti)
-      this.ratingPopping = true;
-      clearTimeout(this._ratePopT);
-      this._ratePopT = setTimeout(() => { this.ratingPopping = false; }, 700);
       this.currentStory.rating = stars;
       if (this.currentStoryRecord) {
         this.currentStoryRecord.rating = stars;
@@ -1433,7 +1442,27 @@ createApp({
       this.refreshStorageSize();
       this.refreshImageStats();
       this.fetchCloudUsage();
-      this.spend = getSpendSummary();
+      this.spend = getSpendSummary();            // instant local paint
+      this.flushSpendUp().then(() => this.pullSpendDown());   // then sync with cloud
+    },
+    // Push any locally-recorded spend events that haven't reached the cloud yet.
+    async flushSpendUp() {
+      try {
+        const unsynced = getUnsyncedSpend();
+        if (!unsynced.length) return;
+        const events = unsynced.map(e => ({ ts: e.ts, category: e.cat, amount: e.amt }));
+        await spendAddCloud(events, getStoredPassword());
+        markSpendSynced();
+      } catch (e) { /* leave unsynced; we retry next time */ }
+    },
+    // Pull the full cross-device ledger and recompute the panel (offline → local).
+    async pullSpendDown() {
+      try {
+        const r = await spendListCloud(getStoredPassword());
+        this.spend = summarizeSpend((r && r.events) || [], getLastStorySpend());
+      } catch (e) {
+        this.spend = getSpendSummary();
+      }
     },
     // Format a dollar amount for the Spend panel ($1.23, <$0.01 for tiny, $0 for nothing).
     fmtUsd(n) {
@@ -1495,6 +1524,7 @@ createApp({
     // that keeps the free-tier Supabase project from sleeping.
     async initCloudData() {
       this.libraryLoading = true;
+      this.flushSpendUp();   // push any spend recorded offline / on this device
       try {
         this.characters = await pullCharacters();
         // Download character avatars/photos not yet on this device (cross-device)
@@ -2251,6 +2281,24 @@ createApp({
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },
+    // Attach/detach the finger-following page-curl as we enter/leave the reader.
+    view(v) {
+      if (typeof window.PageCurl === 'undefined') return;
+      this.$nextTick(() => {
+        if (v === 'story') {
+          const area = this.$el.querySelector('.page-area');
+          if (area) window.PageCurl.attach(area);
+        } else {
+          window.PageCurl.detach();
+        }
+      });
+    },
+    // Re-snapshot the current page after arrow-key / programmatic page changes.
+    currentPageIndex() {
+      if (typeof window.PageCurl === 'undefined') return;
+      clearTimeout(this._curlPrimeT);
+      this._curlPrimeT = setTimeout(() => window.PageCurl.prime(), 300);
+    },
   },
 
 }).mount('#app')

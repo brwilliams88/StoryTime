@@ -1,4 +1,10 @@
 // =====================================================================
+//  ███  WORKER REV: v0.9.2  (2026-06-23)  ███
+//  Changes since last deploy: added /spend/add + /spend/list (API-spend ledger).
+//  ^^ BUMP THIS LINE EVERY TIME THE WORKER CHANGES. When pasting a new version
+//     into the Cloudflare dashboard, check this rev against the deployed one so
+//     it's obvious whether you're up to date.
+// =====================================================================
 // StoryTime — Cloudflare Worker API Proxy
 // =====================================================================
 // PURPOSE:
@@ -72,12 +78,46 @@ export default {
       if (path === '/img/delete') return await imgDelete(env, body);
       if (path === '/img/usage')  return await imgUsage(env);
 
+      // ---- Supabase: API-spend ledger (cross-device) ----
+      if (path === '/spend/add')  return await spendAdd(env, body);
+      if (path === '/spend/list') return await spendList(env);
+
       return jsonResponse({ error: 'Unknown endpoint: ' + path }, 404);
     } catch (err) {
       return jsonResponse({ error: 'Worker error', detail: err.message }, 500);
     }
   },
 };
+
+// =====================================================================
+// Supabase — API-spend ledger (append-only events, aggregated client-side)
+// =====================================================================
+async function spendAdd(env, body) {
+  const events = (body && body.events) || [];
+  if (!Array.isArray(events) || !events.length) return jsonResponse({ ok: true, inserted: 0 });
+  const rows = events.map(e => ({
+    ts: e.ts ? new Date(e.ts).toISOString() : new Date().toISOString(),
+    category: String(e.category || 'other'),
+    amount: Number(e.amount) || 0,
+  })).filter(r => r.amount > 0);
+  if (!rows.length) return jsonResponse({ ok: true, inserted: 0 });
+  const res = await fetch(sbRest(env, 'spend_events'), {
+    method: 'POST',
+    headers: sbHeaders(env, { 'Prefer': 'return=minimal' }),
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) return jsonResponse({ error: 'Spend add failed', detail: await res.text() }, res.status);
+  return jsonResponse({ ok: true, inserted: rows.length });
+}
+
+async function spendList(env) {
+  // Return every event (personal-use table stays small); client aggregates.
+  const res = await fetch(sbRest(env, 'spend_events?select=ts,category,amount&order=ts.asc'), {
+    headers: sbHeaders(env),
+  });
+  if (!res.ok) return jsonResponse({ error: 'Spend list failed', detail: await res.text() }, res.status);
+  return jsonResponse({ ok: true, events: await res.json() });
+}
 
 // =====================================================================
 // OpenAI

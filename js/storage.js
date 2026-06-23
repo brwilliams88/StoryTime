@@ -33,10 +33,13 @@ const SPEND_BASELINE = {
   // Split is estimated. Illustrations dominate. "characters" (Character creation)
   // retroactively bundles ALL per-character calls — thumbnail portrait + Bring to
   // Life (GPT-4o) + photo vision — across ~31 characters (~$0.04 each ≈ $1.20).
+  // ~31 characters; Character creation = thumbnail portrait(s) + Bring to Life +
+  // photo vision. Includes ~15 extra thumbnail regenerations (~$0.15) the user
+  // recalls doing. Total stays anchored to the $24.45 dashboard figure.
   total: 24.45,
-  pictures: 20.25,
+  pictures: 20.10,
   text: 3.00,
-  characters: 1.20,
+  characters: 1.35,
   asOf: '2026-06-22',
 };
 
@@ -56,11 +59,22 @@ function saveSpendLedger(ledger) {
 }
 
 // Record one paid call. cat = 'pictures' | 'text' | 'characters'.
+// Stored locally first (offline-safe), flagged unsynced until pushed to cloud.
 function recordSpend(cat, amount) {
   const amt = Number(amount) || 0;
   if (amt <= 0) return;
   const ledger = getSpendLedger();
-  ledger.events.push({ ts: Date.now(), cat, amt });
+  ledger.events.push({ ts: Date.now(), cat, amt, synced: false });
+  saveSpendLedger(ledger);
+}
+
+// Events not yet pushed to the cloud (includes pre-sync events with no flag).
+function getUnsyncedSpend() {
+  return getSpendLedger().events.filter(e => !e.synced);
+}
+function markSpendSynced() {
+  const ledger = getSpendLedger();
+  ledger.events.forEach(e => { e.synced = true; });
   saveSpendLedger(ledger);
 }
 
@@ -73,30 +87,40 @@ function setLastStorySpend(textCost, picturesCost) {
   saveSpendLedger(ledger);
 }
 
-// Roll the ledger up into the numbers the Spend panel shows.
-function getSpendSummary() {
-  const ledger = getSpendLedger();
-  const b = ledger.baseline;
+// Roll an event list up into the numbers the Spend panel shows. Works for
+// either local events ({ts:ms, cat, amt}) or cloud events ({ts:ISO, category,
+// amount}). The historical baseline is the same constant on every device.
+function summarizeSpend(events, lastStory) {
+  const b = SPEND_BASELINE;
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  // "This week" = the last 7 days (rolling), simplest mental model for a parent.
-  const startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
+  const startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;   // last 7 days (rolling)
 
   const cat = { pictures: b.pictures, text: b.text, characters: b.characters };
   let today = 0, week = 0;
-  for (const e of ledger.events) {
-    cat[e.cat] = (cat[e.cat] || 0) + e.amt;
-    if (e.ts >= startOfToday) today += e.amt;
-    if (e.ts >= startOfWeek) week += e.amt;
+  for (const e of (events || [])) {
+    const ts = typeof e.ts === 'number' ? e.ts : new Date(e.ts).getTime();
+    const c = e.cat || e.category;
+    const a = Number(e.amt != null ? e.amt : e.amount) || 0;
+    cat[c] = (cat[c] || 0) + a;
+    if (ts >= startOfToday) today += a;
+    if (ts >= startOfWeek) week += a;
   }
   const allTime = cat.pictures + cat.text + cat.characters;
   return {
     allTime, today, week,
     pictures: cat.pictures, text: cat.text, characters: cat.characters,
-    lastStory: ledger.lastStory,
+    lastStory: lastStory || null,
     baselineTotal: b.total, baselineAsOf: b.asOf,
   };
 }
+
+// Local-only summary (offline fallback / instant paint before the cloud pull).
+function getSpendSummary() {
+  const ledger = getSpendLedger();
+  return summarizeSpend(ledger.events, ledger.lastStory);
+}
+function getLastStorySpend() { return getSpendLedger().lastStory; }
 
 // ---- Password ----
 function getStoredPassword() { return localStorage.getItem(STORAGE_KEYS.PASSWORD); }

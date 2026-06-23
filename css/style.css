@@ -1624,31 +1624,21 @@ body:has(.app-main-reading) {
   margin: 0;
 }
 
-/* "The End" — magical gold-shimmer serif with a filigree flourish */
+/* "The End" — quiet, same ink as the body text: widely letter-spaced caps
+   with a short centred underline. No colour, no animation. */
 .the-end {
-  margin-top: 1.4rem;
-  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  margin-top: 1.6rem;
+  display: flex; flex-direction: column; align-items: center;
 }
-.the-end-rule { width: 150px; max-width: 60%; height: 12px; overflow: visible; }
-.the-end-rule path:not(.the-end-gem) { stroke: #c8a24a; stroke-width: 1.2; }
-.the-end-gem { fill: #c8a24a; stroke: none; }
 .the-end-text {
   font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
-  font-size: 2.1rem; font-weight: 700; letter-spacing: 0.06em; line-height: 1;
-  background: linear-gradient(110deg,
-    #9c7b1e 0%, #c8a24a 22%, #f5d873 40%, #fff7d0 50%,
-    #f5d873 60%, #c8a24a 78%, #9c7b1e 100%);
-  background-size: 250% 100%;
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-  filter: drop-shadow(0 1px 1px rgba(120,90,20,0.25));
-  animation: goldSheen 4s ease-in-out infinite;
+  font-size: 1.05rem; font-weight: 600; letter-spacing: 0.4em; text-indent: 0.4em;
+  text-transform: uppercase; color: var(--ink, currentColor);
 }
-@keyframes goldSheen {
-  0%, 100% { background-position: 0% 50%; }
-  50%      { background-position: 100% 50%; }
+.the-end-text::after {
+  content: ''; display: block; width: 48px; height: 1px;
+  margin: 0.45rem auto 0; background: currentColor; opacity: 0.4;
 }
-@media (prefers-reduced-motion: reduce) { .the-end-text { animation: none; } }
 
 /* ---- Story spread in portrait (image top, text bottom) ---- */
 .story-spread.portrait {
@@ -2217,19 +2207,27 @@ body:has(.app-main-reading) {
   margin-right: calc(50% - 50vw);
   box-shadow: 0 3px 14px rgba(0,0,0,0.45);
 }
-/* Decorative crown molding (layered profile) */
+/* Crown molding with real depth: a lit top surface receding back, then a
+   smoothly-shaded rounded face curving down into a shadow (no flat two-tone). */
 .shelf-crown {
   position: relative; z-index: 2;
-  height: 34px;
+  height: 42px;
   background: linear-gradient(to bottom,
-    #e9c078 0px, #e9c078 6px,            /* top cap face (lit) */
-    #bd8c44 7px, #bd8c44 8px,            /* shadow reveal */
-    #ddaa5e 10px, #d09c4f 23px,          /* main molding face */
-    #b07e38 24px, #b07e38 25px,          /* lower reveal */
-    #cda45e 27px, #c49a54 32px,          /* bottom lip */
-    rgba(0,0,0,0.4) 34px);
-  border-bottom: none;
-  box-shadow: 0 5px 11px rgba(0,0,0,0.45);
+    #f5d28c 0px,        /* bright top lip catching light */
+    #e8bd6e 8px,        /* top surface receding back */
+    #d8a857 13px,       /* crest of the rounded face */
+    #c2924a 24px,       /* face curving into shadow */
+    #a37636 34px,
+    #835c2b 40px,       /* deep underside */
+    rgba(0,0,0,0.5) 42px);
+  box-shadow: 0 7px 13px rgba(0,0,0,0.45);
+}
+/* a soft vertical sheen so the molding reads as carved, not flat */
+.shelf-crown::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to right,
+    rgba(0,0,0,0.16) 0%, rgba(255,255,255,0.10) 20%,
+    rgba(0,0,0,0) 50%, rgba(255,255,255,0.10) 80%, rgba(0,0,0,0.16) 100%);
 }
 /* Thick base board that caps the bottom of the bookcase */
 .shelf-base {
@@ -2246,8 +2244,11 @@ body:has(.app-main-reading) {
 .shelf-grid {
   --book-w: 158px;          /* phone portrait → 2 per row */
   --plate-h: 44px;          /* title plate (up to 3 lines) */
-  --row-pad-top: 8px;       /* slim air gap above each book (books sit lower now) */
-  --ledge: 34px;            /* shelf board total: thin lit top surface + thicker dark front face */
+  --row-pad-top: 8px;       /* slim air gap above each book */
+  --face: 14px;             /* dark FRONT FACE of the shelf board */
+  --surface: 48px;          /* lit TOP SURFACE depth (the bigger horizontal plane) */
+  --ledge: calc(var(--face) + var(--surface));   /* back-wall line = where wall meets surface */
+  --book-seat: 34px;        /* book BOTTOM sits below the back line, mid-surface (depth) */
   --shelf-row-h: calc(var(--book-w) + var(--plate-h) + var(--row-pad-top) + var(--ledge));
   user-select: none; -webkit-user-select: none;   /* no selecting titles on long-press */
   display: grid;
@@ -2265,17 +2266,15 @@ body:has(.app-main-reading) {
     repeating-linear-gradient(to bottom,
       rgba(0,0,0,0.30) 0,
       rgba(0,0,0,0) 16px,
-      rgba(0,0,0,0) calc(var(--shelf-row-h) - var(--ledge)),
-      /* TOP SURFACE — a thin receding lit plane: shadowed at the back (just under
-         the book), brightening to a lit front edge */
-      rgba(82,53,21,0.85) calc(var(--shelf-row-h) - var(--ledge)),           /* back of surface (in shadow under book) */
-      #e3b66c calc(var(--shelf-row-h) - var(--ledge) + 7px),                 /* surface mid */
-      #f7d68b calc(var(--shelf-row-h) - 22px),                               /* bright front edge of the top surface */
-      /* FRONT FACE of the board — the thicker, darker vertical band, fading softly
-         into the bay below (no hard line) */
-      #b5863f calc(var(--shelf-row-h) - 22px),                               /* top of front face (lit lip) */
-      #9c6f34 calc(var(--shelf-row-h) - 14px),
-      #7d5526 calc(var(--shelf-row-h) - 3px),                                /* deep bottom of the face */
+      rgba(0,0,0,0) calc(var(--shelf-row-h) - var(--ledge)),                 /* back wall (bay) above the line */
+      /* TOP SURFACE — a deep receding plane: gentle shadow at the back wall,
+         brightening forward to a lit front edge. Books sit ON this plane. */
+      rgba(74,48,18,0.45) calc(var(--shelf-row-h) - var(--ledge)),           /* back-wall line (slight shadow) */
+      #c79e58 calc(var(--shelf-row-h) - var(--ledge) + 20px),                /* surface receding (mid) */
+      #f3d086 calc(var(--shelf-row-h) - var(--face)),                        /* bright front edge of the surface */
+      /* FRONT FACE of the board — short, darker vertical band */
+      #b5863f calc(var(--shelf-row-h) - var(--face)),                        /* top of front face (lit lip) */
+      #8a5f2c calc(var(--shelf-row-h) - 2px),                                /* deep bottom of the face */
       transparent var(--shelf-row-h)),
     /* vertical plank seams */
     repeating-linear-gradient(to right,
@@ -2294,14 +2293,15 @@ body:has(.app-main-reading) {
   display: flex;
   align-items: flex-end;            /* book rests on the board's top surface */
   justify-content: center;
-  padding-bottom: var(--ledge);     /* book base sits on the surface (seated, not floating) */
+  padding-bottom: var(--book-seat); /* book bottom sits mid-surface, below the back-wall line */
 }
-/* soft contact shadow ON THE SHELF beneath the book (not on the cover) */
+/* soft contact drop-shadow ON THE SHELF, pooling under the book's base */
 .book-slot::after {
   content: ''; position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: calc(var(--ledge) - 3px);
-  width: calc(var(--book-w) * 0.82); height: 7px;
-  background: radial-gradient(ellipse, rgba(0,0,0,0.4), rgba(0,0,0,0) 72%);
+  bottom: calc(var(--book-seat) - 7px);
+  width: calc(var(--book-w) * 0.92); height: 14px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5), rgba(0,0,0,0.18) 45%, rgba(0,0,0,0) 72%);
+  filter: blur(1px);
   z-index: 0;
 }
 
@@ -2718,55 +2718,11 @@ body:has(.app-main-reading) {
 }
 
 /* ===================================================================
-   v0.9.1 — small delights: star pop, page-peel hint, cover develop-in,
-   themed pull-to-refresh, New Story shimmer.
+   v0.9.1 — New Story book extra magic: a slow shimmer sweep.
+   (Star pop, peel hint, cover develop-in, and the themed pull-to-refresh
+   were removed at the user's request; peel affordance moves into the
+   page-curl, and the pull-to-refresh theme is deferred to the branding rev.)
    =================================================================== */
-/* star-rating tap → a gold pop + radiating ring (NOT confetti) */
-.rating-star { position: relative; }
-.rating-star.rate-pop { animation: starPop 0.5s ease; }
-@keyframes starPop {
-  0%   { transform: scale(1); }
-  35%  { transform: scale(1.5); filter: drop-shadow(0 0 9px rgba(255,200,70,0.95)); }
-  100% { transform: scale(1); filter: none; }
-}
-.rating-star.rate-pop::after {
-  content: ''; position: absolute; inset: 2px; border-radius: 50%;
-  border: 2px solid rgba(255,205,80,0.85); pointer-events: none;
-  animation: starRing 0.6s ease-out forwards;
-}
-@keyframes starRing { from { transform: scale(0.4); opacity: 0.9; } to { transform: scale(1.9); opacity: 0; } }
-
-/* corner page-peel hint on the cover (a little dog-ear that lifts) */
-.page-peel-hint {
-  position: absolute; right: 0; bottom: 0; z-index: 7; pointer-events: none;
-  width: 0; height: 0; border-style: solid;
-  border-width: 0 0 18px 18px;
-  border-color: transparent transparent rgba(120,95,45,0.22) transparent;
-  filter: drop-shadow(-2px -2px 3px rgba(0,0,0,0.18));
-  animation: peelHint 3s ease-in-out infinite;
-}
-@keyframes peelHint {
-  0%, 68%, 100% { border-width: 0 0 16px 16px; }
-  84%           { border-width: 0 0 30px 30px; }
-}
-@media (prefers-reduced-motion: reduce) { .page-peel-hint { animation: none; } }
-
-/* cover image "develops in" the first time it shows */
-.page-image-develop { animation: developIn 0.7s ease both; }
-@keyframes developIn {
-  0%   { opacity: 0; transform: scale(1.04); filter: saturate(0.6) brightness(1.12); }
-  100% { opacity: 1; transform: scale(1); filter: none; }
-}
-
-/* themed pull-to-refresh */
-.pull-book { font-size: 1.4rem; animation: pullBob 0.9s ease-in-out infinite; }
-@keyframes pullBob {
-  0%, 100% { transform: translateY(0) rotate(-5deg); }
-  50%      { transform: translateY(-4px) rotate(5deg); }
-}
-.pull-refresh-text { display: inline-block; transition: transform 0.08s ease; }
-
-/* New Story book — extra magic: a slow shimmer sweep across the cover */
 .book-cover.create-cover::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: linear-gradient(120deg, transparent 32%, rgba(255,255,255,0.6) 50%, transparent 68%);
