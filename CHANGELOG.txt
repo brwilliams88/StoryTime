@@ -9,6 +9,17 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.5 — 2026-06-23 — Page Turns That Lay Down: Two-Faced Flip + Polish
+  • Page turns now flip ALL THE WAY OVER — the page you're turning lifts up, then the NEXT page lays down over the other half (with an ease-out "gravity" landing), like a real book leaf. Soft-curl shading, a leading-edge sheen, a cast shadow along the spine, and a little page thickness.
+  • Turns are more responsive — a full flip takes about 60% of a drag instead of a whole page-width
+  • Page-edge "stack" lines now stay PUT when you turn a page (they no longer travel with it), are white like the pages, and there are a few more of them
+  • Landscape: the image's blurred fill now stops exactly at the centre crease (no longer bleeds onto the text page)
+  • Controls: page number moved lower; in landscape the back arrow sits further left; the back arrow now fades out completely with the page number (tap the page to bring them back)
+  • The page number no longer covers "The End" on the last page
+  • (No Worker or database changes — just push.)
+  • Coming next: the cover becomes a real openable book.
+
+--------------------------
 v0.9.4 — 2026-06-23 — Real Book Reading: Center-Spine Turns, Blurred Pages, Floating Controls
   • Page turns now pivot at the CENTRAL spine (like a real book leaf) instead of the far edge, with a softer shading "curl"; the other half is held until the turn commits. Arrow keys play the same animation on laptop.
   • Picture pages: a blurred copy of the image now fills the margins — no more white space around the art

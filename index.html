@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.4" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.5" />
 </head>
 <body>
 
@@ -365,8 +365,8 @@
 
           <!-- Floating controls: a back button (top-left) + page count (bottom),
                both fade while reading; tap the page to bring them back. -->
-          <button @click="goLibrary" :class="['reader-back', { 'reader-ui-dim': !readerUiShow }]" aria-label="Back to library">‹</button>
-          <div v-if="currentStoryPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageCounterLabel }}</div>
+          <button @click="goLibrary" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
+          <div v-if="currentStoryPage && !isOnLastTextPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageCounterLabel }}</div>
 
           <div class="page-area"
                @touchstart.passive="curlStart" @touchmove="curlMove" @touchend="curlEnd" @touchcancel="curlEnd"
@@ -1004,12 +1004,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.4"></script>
-  <script src="js/imageStorage.js?v=0.9.4"></script>
-  <script src="js/api.js?v=0.9.4"></script>
-  <script src="js/sync.js?v=0.9.4"></script>
-  <script src="js/pageCurl.js?v=0.9.4"></script>
-  <script src="js/app.js?v=0.9.4"></script>
+  <script src="js/storage.js?v=0.9.5"></script>
+  <script src="js/imageStorage.js?v=0.9.5"></script>
+  <script src="js/api.js?v=0.9.5"></script>
+  <script src="js/sync.js?v=0.9.5"></script>
+  <script src="js/pageCurl.js?v=0.9.5"></script>
+  <script src="js/app.js?v=0.9.5"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

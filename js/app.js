@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.4',
+      version: 'v0.9.5',
       buildDate: '2026-06-23',
 
       showSplash: true,
@@ -414,6 +414,7 @@ createApp({
         goPrev: () => self.prevPage(),
         isPortrait: () => self.isPortrait,
         onTap: () => self.pokeReaderUi(),
+        afterRender: (fn) => self.$nextTick(fn),
       });
     }
 

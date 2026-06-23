@@ -1535,7 +1535,7 @@ body:has(.app-main-reading) {
 
 .spread-image {
   position: relative;
-  flex: 1.2;
+  flex: 1;              /* exactly half — so the blurred fill stops at the crease */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2786,15 +2786,16 @@ body:has(.app-main-reading) {
 }
 .reader-pagenum {
   position: absolute; z-index: 30;
-  bottom: calc(env(safe-area-inset-bottom) + 10px); left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom) + 2px); left: 50%; transform: translateX(-50%);
   padding: 4px 13px; border-radius: 999px; pointer-events: none;
   background: rgba(30,24,18,0.42); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   transition: opacity 0.5s ease;
 }
-.reader-ui-dim  { opacity: 0.22; }   /* back stays faintly visible + tappable */
-.reader-ui-hide { opacity: 0; }      /* page number fades fully */
+.reader-ui-hide { opacity: 0; pointer-events: none; }   /* fully fades + not tappable; tap the page to reveal */
+/* landscape: tuck the back button further toward the left edge */
+.reading-view:not(.portrait-mode) .reader-back { left: calc(env(safe-area-inset-left) + 2px); }
 
 /* Picture pages: a blurred copy of the image fills the margins (no white) */
 .image-blur {
@@ -2805,24 +2806,31 @@ body:has(.app-main-reading) {
 .spread-image, .cover-image-wrap { overflow: hidden; }
 .spread-image .image-frame, .cover-image-wrap .image-frame { position: relative; z-index: 1; }
 
-/* Book edges + "more pages underneath" lines on the OUTER edges
-   (landscape → left/right; portrait → top/bottom). */
+/* Page-stack on the OUTER edges: a WHITE/cream band of page edges (covers the
+   blur) with several hairlines + a soft inner shadow. STATIC — suppressed on the
+   turning leaf (.pc-clone) so it doesn't travel with the page.
+   landscape → left/right ; portrait → top/bottom. */
 .book-page.story-spread::before {
-  content: ''; position: absolute; z-index: 6; pointer-events: none;
-  /* landscape default: thin page-stack down the left & right outer edges */
-  top: 0; bottom: 0; left: 0; right: 0;
+  content: ''; position: absolute; z-index: 6; pointer-events: none; inset: 0;
   background:
-    repeating-linear-gradient(to right, rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px) ,
-    repeating-linear-gradient(to left,  rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px);
-  background-size: 7px 100%, 7px 100%;
-  background-position: left center, right center;
-  background-repeat: no-repeat, no-repeat;
+    repeating-linear-gradient(to right, #f1ead7 0 2px, #c7b994 2px 2.8px),   /* left page lines */
+    repeating-linear-gradient(to left,  #f1ead7 0 2px, #c7b994 2px 2.8px),   /* right page lines */
+    linear-gradient(to right, rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px),  /* left inner shadow */
+    linear-gradient(to left,  rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px);  /* right inner shadow */
+  background-size: 15px 100%, 15px 100%, 100% 100%, 100% 100%;
+  background-position: left, right, left, right;
+  background-repeat: no-repeat;
 }
 .book-page.story-spread.portrait::before {
   background:
-    repeating-linear-gradient(to bottom, rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px),
-    repeating-linear-gradient(to top,    rgba(0,0,0,0.16) 0, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 2px, rgba(255,255,255,0.5) 3px, rgba(0,0,0,0) 4px);
-  background-size: 100% 7px, 100% 7px;
-  background-position: center top, center bottom;
-  background-repeat: no-repeat, no-repeat;
+    repeating-linear-gradient(to bottom, #f1ead7 0 2px, #c7b994 2px 2.8px),
+    repeating-linear-gradient(to top,    #f1ead7 0 2px, #c7b994 2px 2.8px),
+    linear-gradient(to bottom, rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px),
+    linear-gradient(to top,    rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px);
+  background-size: 100% 15px, 100% 15px, 100% 100%, 100% 100%;
+  background-position: top, bottom, top, bottom;
+  background-repeat: no-repeat;
 }
+/* the moving leaf is a clone — drop its page-edge lines + crease so they don't
+   travel with the turning page (they stay on the live page beneath). */
+.pc-clone::before, .pc-clone::after { display: none !important; }

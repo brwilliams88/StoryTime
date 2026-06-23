@@ -1,23 +1,25 @@
 // =====================================================================
-// pageCurl.js — finger-following page turn, hinged at the CENTRAL spine.
+// pageCurl.js — finger-following page turn, hinged at the CENTRAL spine,
+// that lifts the current page up to vertical then lays the NEXT page down
+// over the other half — like a real book leaf turning all the way over.
 //
-// The reading view is an open-book spread (image | crease | text). A turn
-// behaves like a real book leaf: the page on the side you swipe FROM pivots
-// about the centre spine and lifts away, revealing the next spread beneath.
-// The other half is held showing the current page until the turn commits,
-// then cross-fades to the next page. Content is a live DOM clone, so the
-// text + image turn with the page. A shading "curl" softens the cardboard feel.
+// Done with TWO single-faced half-leaves (no mirrored back-faces):
+//   • leaf1 = the current half you're turning. Lifts 0°→90° (p: 0→0.5).
+//   • leaf2 = the next page's half it lays onto. Falls 90°→0° (p: 0.5→1),
+//     with an ease-out "gravity" landing, covering the held current half.
+//   • underneath = the next spread (revealed as leaf1 lifts off).
+// Plus a soft-curl shade, a leading-edge sheen, page-edge shadow, and a
+// cast shadow along the spine. Content is a live DOM clone (text + image
+// turn with the page). Falls back to an instant flip if anything fails.
 //
-// Driven by touch/mouse handlers the Vue template binds onto .page-area, plus
-// PageCurl.animate(forward) for arrow keys. Falls back to an instant page flip
-// if anything goes wrong, so navigation never breaks.
+// Driven by touch/mouse handlers bound on .page-area, plus animate() for
+// arrow keys.
 // =====================================================================
 window.PageCurl = (function () {
   let cfg = null, animating = false, g = null;
-  const MAX = 92, COMMIT = 0.38, FLICK = 0.4, START = 10;
+  const COMMIT = 0.35, FLICK = 0.4, START = 8, SENS = 0.6;   // SENS<1 = more responsive
 
   function init(c) { cfg = c; }
-
   function point(e) {
     const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
     return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY };
@@ -30,8 +32,7 @@ window.PageCurl = (function () {
     g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false };
     if (e.type === 'mousedown') {
       g.mm = (ev) => move(ev); g.mu = (ev) => end(ev);
-      document.addEventListener('mousemove', g.mm);
-      document.addEventListener('mouseup', g.mu);
+      document.addEventListener('mousemove', g.mm); document.addEventListener('mouseup', g.mu);
     }
   }
 
@@ -39,8 +40,7 @@ window.PageCurl = (function () {
     if (!g) return;
     const p = point(e);
     const dx = p.x - g.x0, dy = p.y - g.y0;
-    const primary = g.axis === 'x' ? dx : dy;
-    const cross   = g.axis === 'x' ? dy : dx;
+    const primary = g.axis === 'x' ? dx : dy, cross = g.axis === 'x' ? dy : dx;
     if (!g.started) {
       if (Math.abs(primary) < START || Math.abs(cross) > Math.abs(primary)) return;
       g.forward = primary < 0;
@@ -53,18 +53,17 @@ window.PageCurl = (function () {
     const now = Date.now();
     g.speed = (Math.abs(primary) - (g.last || 0)) / Math.max(1, now - (g.lastT || g.t0));
     g.last = Math.abs(primary); g.lastT = now;
-    g.prog = Math.max(0, Math.min(1, Math.abs(primary) / g.dim));
+    g.prog = Math.max(0, Math.min(1, Math.abs(primary) / (g.dim * SENS)));
     apply(g.prog);
   }
 
   function end() {
     if (!g) return;
     if (!g.started) { if (cfg && cfg.onTap) cfg.onTap(); cleanup(); return; }
-    if (!g.wrapT) { cleanup(); return; }   // instant path already handled
+    if (!g.wrap) { cleanup(); return; }
     finish(g.prog > COMMIT || (g.speed || 0) > FLICK);
   }
 
-  // Programmatic turn (arrow keys): play the same animation, then commit.
   function animate(forward) {
     if (animating || g || !cfg) return;
     const area = document.querySelector('.page-area');
@@ -75,112 +74,121 @@ window.PageCurl = (function () {
     finish(true);
   }
 
-  function safeBegin() { try { begin(); return true; } catch (e) { return false; } }
+  function safeBegin() { try { begin(); return true; } catch (e) { console.warn('curl begin failed', e); return false; } }
   function commitInstant() { cfg.setIndex(cfg.index() + (g.forward ? 1 : -1)); cleanup(); }
 
-  // ---- build the two half-overlays (turning leaf + held static half) ----
-  function begin() {
-    g.origIndex = cfg.index();
-    g.destIndex = g.origIndex + (g.forward ? 1 : -1);
-    const r = g.area.getBoundingClientRect();
-    const W = r.width, H = r.height;
-    const horiz = g.axis === 'x';
-    g.side = horiz ? (g.forward ? 'right' : 'left') : (g.forward ? 'bottom' : 'top');
-    const src = g.area.querySelector('.book-page');
-    if (!src) throw new Error('no page');
+  // geometry for one half (wrap-relative): box, clone offset, spine origin, rotation
+  function halfGeom(side, W, H) {
+    if (side === 'right')  return { box: [W / 2, 0, W / 2, H], off: [-W / 2, 0], origin: '0% 50%',   rot: a => 'rotateY(' + (-a) + 'deg)', outer: 'right' };
+    if (side === 'left')   return { box: [0, 0, W / 2, H],     off: [0, 0],      origin: '100% 50%', rot: a => 'rotateY(' + a + 'deg)',    outer: 'left' };
+    if (side === 'bottom') return { box: [0, H / 2, W, H / 2], off: [0, -H / 2], origin: '50% 0%',   rot: a => 'rotateX(' + a + 'deg)',    outer: 'bottom' };
+    return                        { box: [0, 0, W, H / 2],     off: [0, 0],      origin: '50% 100%', rot: a => 'rotateX(' + (-a) + 'deg)', outer: 'top' };
+  }
 
-    // geometry per turning side: [wrapLeft, wrapTop, wrapW, wrapH, cloneLeft, cloneTop]
-    // for the turning half, the static half, and the rotation transform.
-    let tw, sw, cloneTOff, cloneSOff, rotate;
-    if (g.side === 'right') {
-      tw = [r.left + W / 2, r.top, W / 2, H]; cloneTOff = [-W / 2, 0];
-      sw = [r.left, r.top, W / 2, H];        cloneSOff = [0, 0];
-      rotate = (a) => 'rotateY(' + (-a) + 'deg)';
-    } else if (g.side === 'left') {
-      tw = [r.left, r.top, W / 2, H];        cloneTOff = [0, 0];
-      sw = [r.left + W / 2, r.top, W / 2, H]; cloneSOff = [-W / 2, 0];
-      rotate = (a) => 'rotateY(' + a + 'deg)';
-    } else if (g.side === 'bottom') {
-      tw = [r.left, r.top + H / 2, W, H / 2]; cloneTOff = [0, -H / 2];
-      sw = [r.left, r.top, W, H / 2];         cloneSOff = [0, 0];
-      rotate = (a) => 'rotateX(' + a + 'deg)';
-    } else {
-      tw = [r.left, r.top, W, H / 2];         cloneTOff = [0, 0];
-      sw = [r.left, r.top + H / 2, W, H / 2]; cloneSOff = [0, -H / 2];
-      rotate = (a) => 'rotateX(' + (-a) + 'deg)';
+  function makeHalf(side, src, W, H, rotating) {
+    const gm = halfGeom(side, W, H);
+    const el = document.createElement('div');
+    Object.assign(el.style, {
+      position: 'absolute', left: gm.box[0] + 'px', top: gm.box[1] + 'px', width: gm.box[2] + 'px', height: gm.box[3] + 'px',
+      overflow: 'hidden', backfaceVisibility: 'hidden', transformOrigin: gm.origin, willChange: 'transform',
+    });
+    const clone = src.cloneNode(true);
+    clone.classList.add('pc-clone');   // suppresses the page-edge lines + crease on the moving leaf
+    Object.assign(clone.style, { position: 'absolute', left: gm.off[0] + 'px', top: gm.off[1] + 'px', width: W + 'px', height: H + 'px', margin: 0 });
+    el.appendChild(clone);
+    let shade = null, sheen = null;
+    if (rotating) {
+      const d = gm.outer === 'right' ? 'to right' : gm.outer === 'left' ? 'to left' : gm.outer === 'bottom' ? 'to bottom' : 'to top';
+      shade = document.createElement('div');
+      Object.assign(shade.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(0,0,0,0) 52%, rgba(0,0,0,0.46))' });
+      sheen = document.createElement('div');
+      Object.assign(sheen.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(255,255,255,0) 80%, rgba(255,255,255,0.55))' });
+      el.appendChild(shade); el.appendChild(sheen);
     }
-    g.rotate = rotate;
+    return { el, gm, shade, sheen, setAngle(a) { el.style.transform = gm.rot(a); } };
+  }
 
-    g.wrapS = makeWrap(sw, src, cloneSOff, W, H, false);
-    g.wrapT = makeWrap(tw, src, cloneTOff, W, H, true);
-    g.cloneT = g.wrapT.firstChild;
-    g.shadeT = g.cloneT.lastChild;   // the shade overlay (rotates with the leaf)
-    document.body.appendChild(g.wrapS);
-    document.body.appendChild(g.wrapT);
+  function begin() {
+    g.origIndex = cfg.index(); g.destIndex = g.origIndex + (g.forward ? 1 : -1);
+    const r = g.area.getBoundingClientRect(); const W = r.width, H = r.height;
+    const horiz = g.axis === 'x';
+    g.turnSide = horiz ? (g.forward ? 'right' : 'left') : (g.forward ? 'bottom' : 'top');
+    g.laySide  = horiz ? (g.forward ? 'left' : 'right') : (g.forward ? 'top' : 'bottom');
+    const srcCur = g.area.querySelector('.book-page'); if (!srcCur) throw new Error('no page');
+
+    g.wrap = document.createElement('div');
+    Object.assign(g.wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', perspective: '1900px', pointerEvents: 'none', zIndex: 46 });
+    document.body.appendChild(g.wrap);
+
+    // held current page on the side we lay onto (under leaf2)
+    g.static = makeHalf(g.laySide, srcCur, W, H, false);
+    g.static.el.style.zIndex = '1';
+    g.wrap.appendChild(g.static.el);
+
+    // cast shadow along the spine (peaks mid-flip)
+    g.cast = document.createElement('div');
+    if (horiz) Object.assign(g.cast.style, { position: 'absolute', top: 0, bottom: 0, left: (W / 2 - 38) + 'px', width: '76px', background: 'linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.4) 50%, rgba(0,0,0,0))' });
+    else       Object.assign(g.cast.style, { position: 'absolute', left: 0, right: 0, top: (H / 2 - 38) + 'px', height: '76px', background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.4) 50%, rgba(0,0,0,0))' });
+    Object.assign(g.cast.style, { pointerEvents: 'none', opacity: 0, zIndex: '2' });
+    g.wrap.appendChild(g.cast);
+
+    // leaf1 = the current half we lift away
+    g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);
+    g.leaf1.el.style.zIndex = '4';
+    g.wrap.appendChild(g.leaf1.el);
 
     cfg.setIndex(g.destIndex);   // next spread renders live underneath
+    cfg.afterRender(() => {
+      if (!g) return;
+      const srcNext = g.area.querySelector('.book-page'); if (!srcNext) return;
+      g.leaf2 = makeHalf(g.laySide, srcNext, W, H, true);   // next page's half, lays down
+      g.leaf2.el.style.zIndex = '3'; g.leaf2.el.style.opacity = '0';
+      g.wrap.appendChild(g.leaf2.el);
+      apply(g.prog || 0);
+    });
     apply(0);
   }
 
-  function makeWrap(box, src, off, W, H, turning) {
-    const wrap = document.createElement('div');
-    Object.assign(wrap.style, {
-      position: 'fixed', left: box[0] + 'px', top: box[1] + 'px',
-      width: box[2] + 'px', height: box[3] + 'px',
-      overflow: 'hidden', pointerEvents: 'none',
-      zIndex: turning ? 46 : 45, perspective: turning ? '1600px' : 'none',
-    });
-    const clone = src.cloneNode(true);
-    Object.assign(clone.style, {
-      position: 'absolute', left: off[0] + 'px', top: off[1] + 'px',
-      width: W + 'px', height: H + 'px', margin: 0,
-      transformOrigin: '50% 50%', backfaceVisibility: 'hidden', willChange: 'transform',
-    });
-    wrap.appendChild(clone);
-    if (turning) {
-      const shade = document.createElement('div');
-      const dir = g.side === 'right' ? 'to right' : g.side === 'left' ? 'to left'
-                : g.side === 'bottom' ? 'to bottom' : 'to top';
-      Object.assign(shade.style, {
-        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0,
-        background: 'linear-gradient(' + dir + ', rgba(255,255,255,0.18), rgba(0,0,0,0) 30%, rgba(0,0,0,0.12) 70%, rgba(0,0,0,0.5))',
-      });
-      // shade lives OVER the clone but rotates with the wrap's child? keep it on the clone
-      clone.appendChild(shade);
-    }
-    return wrap;
-  }
+  function easeOut(t) { return 1 - Math.pow(1 - t, 2.2); }
 
   function apply(p) {
-    if (!g || !g.cloneT) return;
-    const a = p * MAX;
-    g.cloneT.style.transform = g.rotate(a);
-    g.cloneT.style.boxShadow = '0 0 ' + (6 + p * 26) + 'px rgba(0,0,0,' + (0.1 + p * 0.3) + ')';
-    if (g.shadeT) g.shadeT.style.opacity = Math.min(0.7, p * 0.85);
-    g.cloneT.style.opacity = p < 0.82 ? 1 : Math.max(0, 1 - (p - 0.82) / 0.18);
+    if (!g || !g.leaf1) return;
+    // leaf1 lifts 0→90 over the first half
+    const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
+    g.leaf1.setAngle(a1);
+    g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
+    g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
+    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * 0.9);
+    if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(p1 * 0.8);
+    // leaf2 lays 90→0 over the second half (ease-out gravity)
+    if (g.leaf2) {
+      const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2), a2 = (1 - p2e) * 90;
+      g.leaf2.setAngle(a2);
+      g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
+      g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 22) + 'px rgba(0,0,0,' + (0.08 + (1 - p2e) * 0.22) + ')';
+      if (g.leaf2.shade) g.leaf2.shade.style.opacity = String((1 - p2e) * 0.9);
+      if (g.leaf2.sheen) g.leaf2.sheen.style.opacity = String((1 - p2e) * 0.8);
+    }
+    if (g.cast) g.cast.style.opacity = String(Math.sin(Math.min(1, p) * Math.PI) * 0.4);
   }
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = 250, t0 = performance.now();
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 300, t0 = performance.now();
     const ease = (t) => 1 - Math.pow(1 - t, 3);
     const step = (now) => {
       const k = Math.min(1, (now - t0) / dur);
-      const p = from + (to - from) * ease(k);
-      apply(p);
-      if (commit && g.wrapS) g.wrapS.style.opacity = String(Math.max(0, 1 - ease(k) * 1.1));
+      apply(from + (to - from) * ease(k));
       if (k < 1) { requestAnimationFrame(step); return; }
-      if (!commit) cfg.setIndex(g.origIndex);   // spring back to original page
-      cleanup();
-      animating = false;
+      if (!commit) cfg.setIndex(g.origIndex);
+      cleanup(); animating = false;
     };
     requestAnimationFrame(step);
   }
 
   function cleanup() {
     if (g) {
-      if (g.wrapT && g.wrapT.parentNode) g.wrapT.parentNode.removeChild(g.wrapT);
-      if (g.wrapS && g.wrapS.parentNode) g.wrapS.parentNode.removeChild(g.wrapS);
+      if (g.wrap && g.wrap.parentNode) g.wrap.parentNode.removeChild(g.wrap);
       if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
     }
     g = null;
