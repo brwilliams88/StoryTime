@@ -1626,14 +1626,13 @@ body:has(.app-main-reading) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 1.4rem 1.4rem 2.8rem;   /* extra LEFT padding = breathing room from the centre crease (landscape) */
+  padding: 1rem 1.4rem 1.4rem 4rem;   /* extra LEFT padding = breathing room from the centre crease (landscape) */
   border-left: 1px solid var(--border-soft);
   overflow-y: auto;
   min-width: 0;
 }
-/* portrait: crease runs horizontally above the text — top-align it just under the
-   crease (less gap), with a little less top padding */
-.story-spread.portrait .spread-text { justify-content: flex-start; padding: 0.7rem 1.3rem 1.3rem; }
+/* portrait: text body centred within its (lower) half */
+.story-spread.portrait .spread-text { justify-content: center; padding: 1rem 1.3rem 1.3rem; }
 /* last page (with "The End"): nudge the whole block down a touch in landscape */
 .story-spread:not(.portrait).last-spread .spread-text { padding-top: 3rem; }
 
@@ -1823,8 +1822,12 @@ body:has(.app-main-reading) {
 .rating-star.filled { opacity: 1; }
 /* Hover preview: hovering a star fills it AND every star before it (the ones
    after it dim back). Pure CSS, reverts on mouse-out; only the click persists. */
-.rating-stars:hover .rating-star { opacity: 1; }
-.rating-stars .rating-star:hover ~ .rating-star { opacity: 0.3; }
+/* Hover-preview ONLY on real mouse pointers. On touch, iOS keeps a tapped star
+   in :hover, which made the stars look filled even after clearing the rating. */
+@media (hover: hover) and (pointer: fine) {
+  .rating-stars:hover .rating-star { opacity: 1; }
+  .rating-stars .rating-star:hover ~ .rating-star { opacity: 0.3; }
+}
 
 .toolbox-actions {
   display: flex;
@@ -2647,7 +2650,9 @@ body:has(.app-main-reading) {
   background-size: 120px 120px, cover, cover;
 }
 /* BOTH halves use the same paper — no more two-tone left/right */
-.book-page .spread-image { background: transparent; }
+/* image page: NEVER show white/paper behind the picture. Dark fallback so any
+   gap reads as a dark frame, and the blurred fill covers the rest. */
+.book-page .spread-image { background: #15110c; }
 
 /* text colours flipped from light → dark ink */
 .book-page .cover-title,
@@ -2670,11 +2675,12 @@ body:has(.app-main-reading) {
 .story-spread.portrait .spread-text { border-left: none; box-shadow: none; }
 .story-spread.portrait .spread-image { border-bottom: none; }
 
-/* ---- The binding CREASE — now a PERSISTENT element of the open book (a child
-   of .reading-view), pinned to the exact centre, so pages just turn over it and
-   it never "pops in" after a turn. Soft valley, no white ridges. ---- */
+/* ---- The binding CREASE — a single element FIXED to the screen centre at a
+   z-index ABOVE the page-turn overlay (46) but below modals (900). It is the
+   SAME element static and during a turn, so it can never change or pop in.
+   Pages turn underneath it. Soft valley, no white ridges. ---- */
 .book-crease {
-  position: absolute; z-index: 7; pointer-events: none;
+  position: fixed; z-index: 50; pointer-events: none;
   left: 50%; top: 0; bottom: 0; width: 50px; transform: translateX(-50%);
   background:
     linear-gradient(to right,
@@ -2797,11 +2803,20 @@ body:has(.app-main-reading) {
 
 /* Picture pages: a blurred copy of the image fills the margins (no white) */
 .image-blur {
-  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  position: absolute; inset: -6%; z-index: 0; pointer-events: none;   /* overscan = guaranteed full cover */
   background-size: cover; background-position: center;
-  filter: blur(26px) saturate(1.25); transform: scale(1.18);
+  filter: blur(26px) saturate(1.25); transform: scale(1.12);
 }
 .spread-image, .cover-image-wrap { overflow: hidden; }
-.spread-image .image-frame, .cover-image-wrap .image-frame { position: relative; z-index: 1; }
+.cover-image-wrap .image-frame { position: relative; z-index: 1; }
+/* On a story page, the frame FILLS the whole image half; the square picture is
+   contain-centred inside it (object-fit), and the blurred fill shows through the
+   transparent letterbox around it. This is reliable in landscape (the old
+   aspect-ratio square mis-sized inside flexbox). */
+.spread-image .image-frame {
+  position: absolute; inset: 0; z-index: 1;
+  aspect-ratio: auto; max-width: none; max-height: none;
+}
+.spread-image .page-image { width: 100%; height: 100%; object-fit: contain; }
 
 /* (Page-stack edge lines removed at the user's request.) */

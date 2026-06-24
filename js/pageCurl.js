@@ -125,12 +125,8 @@ window.PageCurl = (function () {
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
-    // the binding crease, drawn IN the turn overlay too, identical to the static
-    // one, so it stays put through the whole turn (no pop after the flip)
-    g.crease = document.createElement('div');
-    g.crease.className = 'book-crease' + (horiz ? '' : ' portrait');
-    g.crease.style.zIndex = '10';
-    g.wrap.appendChild(g.crease);
+    // (No crease here — the static .book-crease is fixed ABOVE this overlay, so
+    // it stays consistent through the whole turn on its own.)
 
     // leaf1 = the current half we lift away
     g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);

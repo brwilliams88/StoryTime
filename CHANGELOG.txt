@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.7 — 2026-06-23 — Real Fixes: Star Clear, Consistent Crease, No White on Image Pages
+  • FIXED star removal — the bug was hover styling sticking on touch (made the stars LOOK rated after clearing). Hover-preview is now mouse-only; tapping a set star clears it for real.
+  • The centre crease is now a single element fixed above the whole turn, so it is identical static and while turning — no more fading/popping
+  • Image pages can no longer show white — dark fallback behind the picture and the blurred fill overscans to guarantee full coverage
+  • Landscape: the picture is now reliably centred on the image page with the blurred fill around it (the old square frame mis-sized inside flexbox); more breathing room between the text and the crease
+  • Portrait: the text body is centred in its half (no longer pinned high)
+  • Updates apply more reliably — the app now checks for a new version on open and when you return to it
+
+--------------------------
 v0.9.6 — 2026-06-23 — Reading Polish: Preloaded Turn Images, Persistent Binding, Cleaner Controls
   • Next-page images are now preloaded so they're ready DURING the page turn (no more image popping in after the flip finishes)
   • The centre binding is now a permanent part of the open book, so the crease no longer "appears" a beat after the turn
