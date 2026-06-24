@@ -9,6 +9,21 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.6 — 2026-06-23 — Reading Polish: Preloaded Turn Images, Persistent Binding, Cleaner Controls
+  • Next-page images are now preloaded so they're ready DURING the page turn (no more image popping in after the flip finishes)
+  • The centre binding is now a permanent part of the open book, so the crease no longer "appears" a beat after the turn
+  • Removed the page-edge stack lines
+  • Page indicator moved to the top-right (opposite Back), shortened to "X/N", and now only appears when you tap the screen (never while turning); it also shows on the last page now
+  • Removed the line under "The End"
+  • Landscape: the centre split is exactly down the middle, the text has breathing room from the crease, and the blurred fill stays on the image side
+  • Manage Characters search now uses the same clean magnifier icon as the Library
+  • Toolbox: tap a star you've already set to clear the rating; removed the author "Edit" (just shows the author)
+  • The centre crease + its shadows now stay PUT through the whole turn (drawn into the turn too) — no longer fade out mid-flip and pop back after
+  • Landscape: the image page is fully filled with the picture + its colour blur (no white), and the text has more breathing room from the crease; "The End" page sits a bit lower
+  • Portrait: less gap between the crease and the first line of text
+  • (No Worker or database changes — just push.)
+
+--------------------------
 v0.9.5 — 2026-06-23 — Page Turns That Lay Down: Two-Faced Flip + Polish
   • Page turns now flip ALL THE WAY OVER — the page you're turning lifts up, then the NEXT page lays down over the other half (with an ease-out "gravity" landing), like a real book leaf. Soft-curl shading, a leading-edge sheen, a cast shadow along the spine, and a little page thickness.
   • Turns are more responsive — a full flip takes about 60% of a drag instead of a whole page-width

@@ -1540,7 +1540,7 @@ body:has(.app-main-reading) {
   align-items: center;
   justify-content: center;
   background: var(--bg-card);
-  padding: 0.1rem;
+  padding: 0;           /* image + blurred fill reach the page edges (no white) */
   touch-action: pinch-zoom;
   min-width: 0;
   min-height: 0;
@@ -1626,11 +1626,16 @@ body:has(.app-main-reading) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 1.2rem 1.4rem;
+  padding: 1rem 1.4rem 1.4rem 2.8rem;   /* extra LEFT padding = breathing room from the centre crease (landscape) */
   border-left: 1px solid var(--border-soft);
   overflow-y: auto;
   min-width: 0;
 }
+/* portrait: crease runs horizontally above the text — top-align it just under the
+   crease (less gap), with a little less top padding */
+.story-spread.portrait .spread-text { justify-content: flex-start; padding: 0.7rem 1.3rem 1.3rem; }
+/* last page (with "The End"): nudge the whole block down a touch in landscape */
+.story-spread:not(.portrait).last-spread .spread-text { padding-top: 3rem; }
 
 .spread-text p {
   font-size: var(--story-text-size, 1.1rem);
@@ -1649,10 +1654,6 @@ body:has(.app-main-reading) {
   font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
   font-size: 1.5rem; font-weight: 600; letter-spacing: 0.4em; text-indent: 0.4em;
   text-transform: uppercase; color: var(--ink, currentColor);
-}
-.the-end-text::after {
-  content: ''; display: block; width: 48px; height: 1px;
-  margin: 0.45rem auto 0; background: currentColor; opacity: 0.4;
 }
 
 /* ---- Story spread in portrait (image top, text bottom) ---- */
@@ -2669,37 +2670,33 @@ body:has(.app-main-reading) {
 .story-spread.portrait .spread-text { border-left: none; box-shadow: none; }
 .story-spread.portrait .spread-image { border-bottom: none; }
 
-/* ---- The binding CREASE — a real gutter where the two pages meet ----
-   A soft valley (shadow) flanked by faint highlight ridges, like the
-   centre of an open book. Vertical in landscape, horizontal in portrait. */
-.book-page.story-spread::after {
-  content: ''; position: absolute; z-index: 6; pointer-events: none;
-  left: 50%; top: 0; bottom: 0; width: 58px; transform: translateX(-50%);
+/* ---- The binding CREASE — now a PERSISTENT element of the open book (a child
+   of .reading-view), pinned to the exact centre, so pages just turn over it and
+   it never "pops in" after a turn. Soft valley, no white ridges. ---- */
+.book-crease {
+  position: absolute; z-index: 7; pointer-events: none;
+  left: 50%; top: 0; bottom: 0; width: 50px; transform: translateX(-50%);
   background:
     linear-gradient(to right,
       rgba(74,54,24,0) 0%,
-      rgba(74,54,24,0.10) 28%,       /* page surface darkening toward the spine */
-      rgba(255,255,255,0.5) 45%,      /* highlight ridge */
-      rgba(40,28,12,0.14) 48%,
-      rgba(40,28,12,0.42) 50%,        /* deep binding valley */
-      rgba(40,28,12,0.14) 52%,
-      rgba(255,255,255,0.5) 55%,      /* highlight ridge */
-      rgba(74,54,24,0.10) 72%,
+      rgba(74,54,24,0.12) 34%,        /* pages darken toward the binding */
+      rgba(40,28,12,0.12) 46%,
+      rgba(30,20,8,0.42) 50%,         /* deep binding valley */
+      rgba(40,28,12,0.12) 54%,
+      rgba(74,54,24,0.12) 66%,
       rgba(74,54,24,0) 100%);
 }
-.book-page.story-spread.portrait::after {
-  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 58px;
+.book-crease.portrait {
+  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 50px;
   transform: translateY(-50%);
   background:
     linear-gradient(to bottom,
       rgba(74,54,24,0) 0%,
-      rgba(74,54,24,0.10) 28%,
-      rgba(255,255,255,0.5) 45%,
-      rgba(40,28,12,0.14) 48%,
-      rgba(40,28,12,0.42) 50%,
-      rgba(40,28,12,0.14) 52%,
-      rgba(255,255,255,0.5) 55%,
-      rgba(74,54,24,0.10) 72%,
+      rgba(74,54,24,0.12) 34%,
+      rgba(40,28,12,0.12) 46%,
+      rgba(30,20,8,0.42) 50%,
+      rgba(40,28,12,0.12) 54%,
+      rgba(74,54,24,0.12) 66%,
       rgba(74,54,24,0) 100%);
 }
 
@@ -2786,8 +2783,9 @@ body:has(.app-main-reading) {
 }
 .reader-pagenum {
   position: absolute; z-index: 30;
-  bottom: calc(env(safe-area-inset-bottom) + 2px); left: 50%; transform: translateX(-50%);
-  padding: 4px 13px; border-radius: 999px; pointer-events: none;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: calc(env(safe-area-inset-right) + 8px);
+  padding: 4px 11px; border-radius: 999px; pointer-events: none;
   background: rgba(30,24,18,0.42); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
@@ -2806,31 +2804,4 @@ body:has(.app-main-reading) {
 .spread-image, .cover-image-wrap { overflow: hidden; }
 .spread-image .image-frame, .cover-image-wrap .image-frame { position: relative; z-index: 1; }
 
-/* Page-stack on the OUTER edges: a WHITE/cream band of page edges (covers the
-   blur) with several hairlines + a soft inner shadow. STATIC — suppressed on the
-   turning leaf (.pc-clone) so it doesn't travel with the page.
-   landscape → left/right ; portrait → top/bottom. */
-.book-page.story-spread::before {
-  content: ''; position: absolute; z-index: 6; pointer-events: none; inset: 0;
-  background:
-    repeating-linear-gradient(to right, #f1ead7 0 2px, #c7b994 2px 2.8px),   /* left page lines */
-    repeating-linear-gradient(to left,  #f1ead7 0 2px, #c7b994 2px 2.8px),   /* right page lines */
-    linear-gradient(to right, rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px),  /* left inner shadow */
-    linear-gradient(to left,  rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px);  /* right inner shadow */
-  background-size: 15px 100%, 15px 100%, 100% 100%, 100% 100%;
-  background-position: left, right, left, right;
-  background-repeat: no-repeat;
-}
-.book-page.story-spread.portrait::before {
-  background:
-    repeating-linear-gradient(to bottom, #f1ead7 0 2px, #c7b994 2px 2.8px),
-    repeating-linear-gradient(to top,    #f1ead7 0 2px, #c7b994 2px 2.8px),
-    linear-gradient(to bottom, rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px),
-    linear-gradient(to top,    rgba(0,0,0,0) 14px, rgba(0,0,0,0.18) 15px, rgba(0,0,0,0) 26px);
-  background-size: 100% 15px, 100% 15px, 100% 100%, 100% 100%;
-  background-position: top, bottom, top, bottom;
-  background-repeat: no-repeat;
-}
-/* the moving leaf is a clone — drop its page-edge lines + crease so they don't
-   travel with the turning page (they stay on the live page beneath). */
-.pc-clone::before, .pc-clone::after { display: none !important; }
+/* (Page-stack edge lines removed at the user's request.) */

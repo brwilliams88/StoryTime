@@ -125,12 +125,12 @@ window.PageCurl = (function () {
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
-    // cast shadow along the spine (peaks mid-flip)
-    g.cast = document.createElement('div');
-    if (horiz) Object.assign(g.cast.style, { position: 'absolute', top: 0, bottom: 0, left: (W / 2 - 38) + 'px', width: '76px', background: 'linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.4) 50%, rgba(0,0,0,0))' });
-    else       Object.assign(g.cast.style, { position: 'absolute', left: 0, right: 0, top: (H / 2 - 38) + 'px', height: '76px', background: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.4) 50%, rgba(0,0,0,0))' });
-    Object.assign(g.cast.style, { pointerEvents: 'none', opacity: 0, zIndex: '2' });
-    g.wrap.appendChild(g.cast);
+    // the binding crease, drawn IN the turn overlay too, identical to the static
+    // one, so it stays put through the whole turn (no pop after the flip)
+    g.crease = document.createElement('div');
+    g.crease.className = 'book-crease' + (horiz ? '' : ' portrait');
+    g.crease.style.zIndex = '10';
+    g.wrap.appendChild(g.crease);
 
     // leaf1 = the current half we lift away
     g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);
@@ -169,7 +169,6 @@ window.PageCurl = (function () {
       if (g.leaf2.shade) g.leaf2.shade.style.opacity = String((1 - p2e) * 0.9);
       if (g.leaf2.sheen) g.leaf2.sheen.style.opacity = String((1 - p2e) * 0.8);
     }
-    if (g.cast) g.cast.style.opacity = String(Math.sin(Math.min(1, p) * Math.PI) * 0.4);
   }
 
   function finish(commit) {

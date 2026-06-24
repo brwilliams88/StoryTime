@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.5',
+      version: 'v0.9.6',
       buildDate: '2026-06-23',
 
       showSplash: true,
@@ -386,6 +386,11 @@ createApp({
       if (this.isOnCover) return 'Cover';
       if (this.isOnStoryToolbox) return 'End';
       return `Page ${this.currentPageIndex} of ${this.totalStoryPages}`;
+    },
+    // Short form for the floating indicator, e.g. "2/9"
+    pageShortLabel() {
+      if (!this.currentStory || !this.currentStoryPage) return '';
+      return `${this.currentPageIndex}/${this.totalStoryPages}`;
     },
 
     formattedCreatedAt() {
@@ -1413,6 +1418,37 @@ createApp({
       }
       return null;
     },
+    // The ready image id for a reading index (0=cover, 1..N=pages, N+1=toolbox)
+    imageIdForIndex(idx) {
+      if (!this.currentStory) return null;
+      if (idx === 0) {
+        const c = this.currentStory.cover;
+        return c && c.image_status === 'ready' ? c.image_id : null;
+      }
+      const p = this.currentStory.pages[idx - 1];
+      return p && p.image_status === 'ready' ? p.image_id : null;
+    },
+    // Preload neighbouring page images (create the object URL + decode) so the
+    // page-turn animation always has the next image ready to show.
+    preloadAdjacentImages() {
+      if (!this.currentStory) return;
+      const targets = [this.currentPageIndex + 1, this.currentPageIndex + 2, this.currentPageIndex - 1];
+      for (const i of targets) {
+        if (i < 0 || i > this.totalReadingPages - 1) continue;
+        const id = this.imageIdForIndex(i);
+        if (!id || this.imageUrls[id]) continue;
+        if (!this._loadingUrls) this._loadingUrls = {};
+        if (this._loadingUrls[id]) continue;
+        this._loadingUrls[id] = true;
+        getImageBlob(id).then((blob) => {
+          if (blob && !this.imageUrls[id]) {
+            const url = URL.createObjectURL(blob);
+            this.imageUrls[id] = url;                 // reactive
+            const im = new Image(); im.src = url; if (im.decode) im.decode().catch(() => {});
+          }
+        }).finally(() => { this._loadingUrls[id] = false; });
+      }
+    },
     // Free an object URL and drop it from the reactive map
     releaseImageURL(imageId) {
       if (!imageId) return;
@@ -1442,6 +1478,8 @@ createApp({
 
     setRating(stars) {
       if (!this.currentStory) return;
+      // tapping the current rating again clears it back to no stars
+      if (Number(this.currentStory.rating) === Number(stars)) stars = 0;
       this.currentStory.rating = stars;
       if (this.currentStoryRecord) {
         this.currentStoryRecord.rating = stars;
@@ -2301,8 +2339,14 @@ createApp({
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },
-    view(v) { if (v === 'story') this.pokeReaderUi(); },
-    currentPageIndex() { if (this.view === 'story') this.pokeReaderUi(); },
+    view(v) { if (v === 'story') { this.pokeReaderUi(); this.preloadAdjacentImages(); } },
+    // Preload neighbouring images after a page settles (NOT a UI poke — the
+    // controls only appear on an intentional tap, never during turning).
+    currentPageIndex() {
+      if (this.view !== 'story') return;
+      clearTimeout(this._preloadT);
+      this._preloadT = setTimeout(() => this.preloadAdjacentImages(), 120);
+    },
   },
 
 }).mount('#app')

@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.5" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.6b" />
 </head>
 <body>
 
@@ -363,10 +363,13 @@
         <!-- ============== READING VIEW ============== -->
         <div v-else-if="view === 'story' && currentStory" class="reading-view" :class="{ 'portrait-mode': isPortrait }">
 
-          <!-- Floating controls: a back button (top-left) + page count (bottom),
-               both fade while reading; tap the page to bring them back. -->
+          <!-- Floating controls: back (top-left) + page count (top-right). They
+               only appear when you tap the screen, and hide while turning pages. -->
           <button @click="goLibrary" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
-          <div v-if="currentStoryPage && !isOnLastTextPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageCounterLabel }}</div>
+          <div v-if="currentStoryPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageShortLabel }}</div>
+
+          <!-- Persistent book binding down the centre (so it never pops in after a turn) -->
+          <div v-if="currentStoryPage" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
 
           <div class="page-area"
                @touchstart.passive="curlStart" @touchmove="curlMove" @touchend="curlEnd" @touchcancel="curlEnd"
@@ -406,7 +409,7 @@
             </div>
 
             <!-- ===== STORY SPREAD ===== -->
-            <div v-else-if="currentStoryPage" class="book-page story-spread" :class="{ portrait: isPortrait }">
+            <div v-else-if="currentStoryPage" class="book-page story-spread" :class="{ portrait: isPortrait, 'last-spread': isOnLastTextPage }">
               <div class="spread-image">
                 <div v-if="currentStoryPage.image_status === 'ready' && getImageURL(currentStoryPage.image_id)" class="image-blur" :style="{ backgroundImage: 'url(' + getImageURL(currentStoryPage.image_id) + ')' }"></div>
                 <div class="image-frame">
@@ -453,15 +456,8 @@
               <div v-if="currentStory.summary" class="toolbox-summary">"{{ currentStory.summary }}"</div>
               <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
 
-              <div class="toolbox-by">
-                <template v-if="!editingCreatedBy">
-                  <span>{{ currentStory.created_by ? 'By ' + currentStory.created_by : 'No author yet' }}</span>
-                  <button @click="startEditCreatedBy" class="text-link">✎ Edit</button>
-                </template>
-                <template v-else>
-                  <input type="text" v-model="editCreatedByValue" placeholder="e.g. Kai, Kai & Papa" class="text-input" />
-                  <button @click="saveCreatedBy" class="btn-secondary btn-small">Save</button>
-                </template>
+              <div v-if="currentStory.created_by" class="toolbox-by">
+                <span>By {{ currentStory.created_by }}</span>
               </div>
 
               <div class="toolbox-section">
@@ -637,7 +633,8 @@
               <button @click="handleGenerateRandom" :disabled="generatingRandom" class="btn-secondary btn-small">🎲 {{ generatingRandom ? 'Generating…' : 'Generate Random' }}</button>
             </div>
             <div v-if="characters.length > 3" class="search-wrap char-search-wrap">
-              <input type="text" v-model="charSearch" placeholder="🔍 Search characters…" class="text-input char-search" />
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+              <input type="text" v-model="charSearch" placeholder="Search characters…" class="text-input char-search library-search" />
               <button v-if="charSearch" @click="charSearch = ''" class="search-clear" aria-label="Clear search">✕</button>
             </div>
             <div v-if="error" class="error-text" style="margin: 0.5rem 0;">{{ error }}</div>
@@ -1004,12 +1001,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.5"></script>
-  <script src="js/imageStorage.js?v=0.9.5"></script>
-  <script src="js/api.js?v=0.9.5"></script>
-  <script src="js/sync.js?v=0.9.5"></script>
-  <script src="js/pageCurl.js?v=0.9.5"></script>
-  <script src="js/app.js?v=0.9.5"></script>
+  <script src="js/storage.js?v=0.9.6b"></script>
+  <script src="js/imageStorage.js?v=0.9.6b"></script>
+  <script src="js/api.js?v=0.9.6b"></script>
+  <script src="js/sync.js?v=0.9.6b"></script>
+  <script src="js/pageCurl.js?v=0.9.6b"></script>
+  <script src="js/app.js?v=0.9.6b"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
