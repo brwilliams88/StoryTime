@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.12',
+      version: 'v0.9.13',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -57,6 +57,8 @@ createApp({
       inspectingImage: null,
 
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
+
+      fitDebug: '',   // TEMP: on-screen auto-fit diagnostics (remove after tuning)
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -1155,6 +1157,20 @@ createApp({
         else hi = mid - 1;
       }
       document.documentElement.style.setProperty('--story-text-size', best + 'px');
+
+      // TEMP diagnostic: measure the tallest page at the chosen size and report
+      // the geometry on screen so we can see what the phone is actually computing.
+      meas.style.fontSize = best + 'px';
+      let tall = 0, tallIdx = -1;
+      for (let i = 0; i < story.pages.length; i++) {
+        meas.textContent = (story.pages[i].text || '') || ' ';
+        let h = meas.offsetHeight;
+        if (i === lastIdx) h += 3 * best * LH;
+        if (h > tall) { tall = h; tallIdx = i; }
+      }
+      this.fitDebug = `${portrait ? 'P' : 'L'} win${vw}x${vh} col${Math.round(colW)}x${Math.round(colH)} ` +
+        `txt${Math.round(Wt)}x${Math.round(Ht)} fs=${best} tall=${Math.round(tall)}(p${tallIdx}) ` +
+        `max=${Math.round(Ht - 4 * best * LH)}`;
     },
 
     // Hidden offscreen element used to measure how tall a block of text renders

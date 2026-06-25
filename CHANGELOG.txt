@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.13 — 2026-06-25 — DIAGNOSTIC: on-screen auto-fit readout
+  • Temporary: a small blue readout at the bottom of the reader shows what the auto-fit is computing (orientation, window + column + text-box sizes, chosen font px, tallest page height). Used to figure out why the phone still shows lots of whitespace. To be removed once tuned.
+
+--------------------------
 v0.9.12 — 2026-06-25 — Auto-fit text: bigger cap (less whitespace on phone)
   • Raised the maximum auto-fit text size from 28px to 44px. Short stories on a small screen (iPhone portrait + landscape) were maxing out at 28px and leaving a lot of empty space above/below; now the text can grow further to fill the page, while still keeping at least ~2 rows of margin on the fullest page. (Pages with less text than the fullest page still show more margin — the size stays the same across the whole book by design.)
 
