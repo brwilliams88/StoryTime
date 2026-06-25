@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.16" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.17" />
 </head>
 <body>
 
@@ -375,37 +375,41 @@
                @touchstart.passive="curlStart" @touchmove="curlMove" @touchend="curlEnd" @touchcancel="curlEnd"
                @mousedown="curlStart">
 
-            <!-- ===== COVER ===== -->
+            <!-- ===== COVER (a closed book that opens on turn) ===== -->
             <div v-if="isOnCover" class="book-page cover-page" :class="{ portrait: isPortrait }">
-              <h1 class="cover-title">{{ currentStory.title }}</h1>
-              <div class="cover-image-wrap">
-                <div v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)" class="image-blur" :style="{ backgroundImage: 'url(' + getImageURL(currentStory.cover.image_id) + ')' }"></div>
-                <div class="image-frame">
-                  <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
-                    <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="page-image" draggable="false" />
-                  </template>
-                  <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
-                    <div class="image-placeholder">
-                      <div class="loading-spinner small"></div>
-                      <div class="placeholder-label">Drawing the cover…</div>
+              <div class="cover-book">
+                <div class="cover-front">
+                  <div class="cover-image-wrap">
+                    <div v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)" class="image-blur" :style="{ backgroundImage: 'url(' + getImageURL(currentStory.cover.image_id) + ')' }"></div>
+                    <div class="image-frame">
+                      <template v-if="currentStory.cover.image_status === 'ready' && getImageURL(currentStory.cover.image_id)">
+                        <img :src="getImageURL(currentStory.cover.image_id)" :alt="currentStory.cover.image_prompt" class="page-image" draggable="false" />
+                      </template>
+                      <template v-else-if="currentStory.cover.image_status === 'loading' || currentStory.cover.image_status === 'pending'">
+                        <div class="image-placeholder">
+                          <div class="loading-spinner small"></div>
+                          <div class="placeholder-label">Drawing the cover…</div>
+                        </div>
+                      </template>
+                      <template v-else-if="currentStory.cover.image_status === 'skipped'">
+                        <div class="image-placeholder skipped">
+                          <div class="placeholder-label">[Skipped]</div>
+                          <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
+                        </div>
+                      </template>
+                      <template v-else-if="currentStory.cover.image_status === 'failed'">
+                        <div class="image-placeholder failed">
+                          <div class="placeholder-label">Image failed</div>
+                          <button @click.stop="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
+                        </div>
+                      </template>
+                      <button v-if="showInspect && currentStory.cover.image_status === 'ready'" class="inspect-btn" @click="openImageInspection('cover')" aria-label="Inspect image">ⓘ</button>
                     </div>
-                  </template>
-                  <template v-else-if="currentStory.cover.image_status === 'skipped'">
-                    <div class="image-placeholder skipped">
-                      <div class="placeholder-label">[Skipped]</div>
-                      <pre class="placeholder-prompt">{{ currentStory.cover.image_prompt }}</pre>
-                    </div>
-                  </template>
-                  <template v-else-if="currentStory.cover.image_status === 'failed'">
-                    <div class="image-placeholder failed">
-                      <div class="placeholder-label">Image failed</div>
-                      <button @click.stop="regenerateOneImage('cover')" class="btn-secondary btn-tiny">Try Again</button>
-                    </div>
-                  </template>
-                  <button v-if="showInspect && currentStory.cover.image_status === 'ready'" class="inspect-btn" @click="openImageInspection('cover')" aria-label="Inspect image">ⓘ</button>
+                  </div>
+                  <h1 class="cover-title">{{ currentStory.title }}</h1>
+                  <div v-if="currentStory.created_by" class="cover-by">By {{ currentStory.created_by }}</div>
                 </div>
               </div>
-              <div v-if="currentStory.created_by" class="cover-by">By {{ currentStory.created_by }}</div>
             </div>
 
             <!-- ===== STORY SPREAD ===== -->
@@ -1001,12 +1005,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.16"></script>
-  <script src="js/imageStorage.js?v=0.9.16"></script>
-  <script src="js/api.js?v=0.9.16"></script>
-  <script src="js/sync.js?v=0.9.16"></script>
-  <script src="js/pageCurl.js?v=0.9.16"></script>
-  <script src="js/app.js?v=0.9.16"></script>
+  <script src="js/storage.js?v=0.9.17"></script>
+  <script src="js/imageStorage.js?v=0.9.17"></script>
+  <script src="js/api.js?v=0.9.17"></script>
+  <script src="js/sync.js?v=0.9.17"></script>
+  <script src="js/pageCurl.js?v=0.9.17"></script>
+  <script src="js/app.js?v=0.9.17"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

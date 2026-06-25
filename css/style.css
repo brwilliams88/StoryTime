@@ -1450,25 +1450,9 @@ body:has(.app-main-reading) {
 }
 
 /* ---- Cover page ---- */
-.cover-page {
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0.6rem 0.5rem;
-  overflow: hidden;
-  gap: 0.4rem;
-}
-
-.cover-title {
-  font-size: 1.5rem;
-  color: var(--text-main);
-  line-height: 1.2;
-  font-weight: 700;
-  text-align: center;
-  margin: 0;
-  flex-shrink: 0;
-  max-width: 92%;
-}
+/* (.cover-page / .cover-title layout now live in the "COVER AS AN OPENABLE
+   BOOK" block near the end of this file — the old flat-cover rules were
+   removed when the cover became a book object.) */
 
 .cover-image-wrap {
   position: relative;
@@ -1499,32 +1483,6 @@ body:has(.app-main-reading) {
   height: 100%;
   object-fit: contain;
   border-radius: 0;   /* book-page pictures are never rounded (landscape or portrait) */
-}
-
-/* Portrait cover — flex column, group vertically centered, By line at bottom */
-.cover-page.portrait {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 0.8rem 0.5rem;
-  gap: 0.5rem;
-}
-.cover-page.portrait .cover-title {
-  font-size: 1.45rem;
-  margin: 0;
-  flex-shrink: 0;
-  order: 1;
-}
-.cover-page.portrait .cover-image-wrap {
-  flex: 0 1 auto;
-  max-height: 70%;
-  width: 100%;
-  order: 2;
-}
-.cover-page.portrait .cover-by {
-  margin-top: 0.3rem;
-  order: 3;
 }
 
 /* ---- Story spread (landscape: image left, text right) ---- */
@@ -1625,7 +1583,7 @@ body:has(.app-main-reading) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 1.4rem 1.4rem 2.4rem;   /* text sits ~2 chars closer to the centre crease (landscape) */
+  padding: 1rem 2rem 1.4rem 1.9rem;   /* landscape: ~1 char closer to the crease (left), ~1 char more outer margin (right) */
   border-left: 1px solid var(--border-soft);
   overflow-y: auto;
   min-width: 0;
@@ -2832,3 +2790,66 @@ body:has(.app-main-reading) {
 }
 
 /* (Page-stack edge lines removed at the user's request.) */
+
+/* ===================================================================
+   v0.9.17 — COVER AS AN OPENABLE BOOK
+   The cover page is a centred closed book (front cover art + title +
+   author, spine + page edges) on the dark reader stage. On turn, JS
+   slides it so its hinge meets the centre crease, then swings the front
+   cover open to reveal the first spread (see animateCoverOpen in app.js).
+   =================================================================== */
+.cover-page {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; gap: 0; overflow: hidden;
+  background: var(--bg-deep);
+  perspective: 1800px;            /* gives the resting book a hint of depth */
+}
+.cover-book {
+  position: relative;
+  width: min(64vw, 48vh);         /* portrait: a tall-ish book */
+  aspect-ratio: 3 / 4;
+  max-height: 80%;
+  transform-style: preserve-3d;
+  border-radius: 3px 7px 7px 3px;
+  box-shadow: 0 22px 46px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.4);
+}
+.reading-view:not(.portrait-mode) .cover-book { width: min(42vh, 36vw); max-height: 84%; }
+/* spine down the left, page block down the right */
+.cover-book::before {
+  content: ''; position: absolute; left: -3px; top: 0; bottom: 0; width: 9px;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(to right, #150d06, #3c2a1a 70%, #4a3520 100%);
+  box-shadow: inset -2px 0 4px rgba(0,0,0,0.5);
+}
+.cover-book::after {
+  content: ''; position: absolute; right: -5px; top: 2.5%; bottom: 2.5%; width: 6px;
+  border-radius: 0 2px 2px 0;
+  background: repeating-linear-gradient(to bottom, #f3ead6 0, #f3ead6 2px, #d9ccb1 2px, #d9ccb1 3px);
+  box-shadow: 1px 0 3px rgba(0,0,0,0.35);
+}
+.cover-front {
+  position: absolute; inset: 0; border-radius: inherit; overflow: hidden;
+  transform-style: preserve-3d; backface-visibility: hidden;
+  background: #241a10;
+}
+/* cover art FILLS the face (covers, unlike interior pages which letterbox) */
+.cover-front .cover-image-wrap { position: absolute; inset: 0; display: block; }
+.cover-front .image-frame {
+  position: absolute; inset: 0; aspect-ratio: auto; max-width: none; max-height: none;
+  width: 100%; height: 100%; display: block;
+}
+.cover-front .page-image { width: 100%; height: 100%; object-fit: cover; }
+/* title + author sit over the art with soft scrims (override the dark-ink rule) */
+.cover-front .cover-title {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 3; margin: 0;
+  padding: 0.7rem 0.8rem 1.4rem; max-width: none; color: #fff; font-weight: 700;
+  font-size: clamp(1.05rem, 2.7vh, 1.6rem); text-align: center; line-height: 1.18;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0));
+}
+.cover-front .cover-by {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; margin: 0;
+  padding: 1.2rem 0.7rem 0.6rem; color: #f3e9d6; font-size: 0.82rem; text-align: center;
+  text-shadow: 0 1px 5px rgba(0,0,0,0.55);
+  background: linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0));
+}

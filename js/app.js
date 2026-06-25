@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.16',
+      version: 'v0.9.17',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -464,6 +464,7 @@ createApp({
       // Arrow keys play the same turn animation (fall back to instant nav).
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
+        if (this.isOnCover) { this.animateCoverOpen(); return; }
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -1116,11 +1117,11 @@ createApp({
       const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       const portrait = this.isPortrait;
       // Text column box, mirroring the .spread-text CSS for each orientation:
-      //   landscape → right half, full height, padding L/R 2.4+1.4rem, T/B 1+1.4rem
+      //   landscape → right half, full height, padding L/R 1.9+2.0rem, T/B 1+1.4rem
       //   portrait  → bottom half, full width, padding L/R 1.3+1.3rem,  T/B 1+1.3rem
       const colW = portrait ? vw : vw * 0.5;
       const colH = portrait ? vh * 0.5 : vh;
-      const padH = (portrait ? 2.6 : 3.8) * rootPx;   // left + right padding
+      const padH = (portrait ? 2.6 : 3.9) * rootPx;   // left + right padding
       const padV = (portrait ? 2.3 : 2.4) * rootPx;   // top + bottom padding
       const Wt = Math.max(40, colW - padH);           // usable text width
       const Ht = Math.max(40, colH - padV);           // usable text height
@@ -1169,12 +1170,14 @@ createApp({
         if (fits(mid)) { best = mid; lo = mid + 1; }
         else hi = mid - 1;
       }
-      // Device testing showed the comfortable fit read a few sizes small, so
+      // Device testing showed the comfortable fit reads a few sizes small, so
       // nudge it up by BONUS. Cap it so even the tallest page keeps at least
-      // MIN_ROWS of clear margin (so the text always fits with some air). The
-      // cap is never below `best`, so we never end up smaller than the fit.
-      const BONUS = 4;
-      const MIN_ROWS = 1.5;   // boosted size floor: >=0.75 row clear top & bottom
+      // MIN_ROWS of clear margin (text always fits with a little air). MIN_ROWS
+      // is BELOW the fit's snug ceiling (1.5) so the boost actually has room to
+      // grow — using 1.5 here is what made the previous +4 a no-op. The cap is
+      // never below `best`, so we never end up smaller than the fit.
+      const BONUS = 5;
+      const MIN_ROWS = 0.8;   // boosted size floor: >=0.4 row clear top & bottom
       const fitsBoost = (fs) => {
         meas.style.fontSize = fs + 'px';
         const maxBlock = Ht - MIN_ROWS * fs * LH;
@@ -1431,9 +1434,99 @@ createApp({
     canGoPrev() { return this.currentPageIndex > 0; },
 
     // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area)
-    curlStart(e) { if (window.PageCurl) window.PageCurl.start(e, e.currentTarget); },
-    curlMove(e)  { if (window.PageCurl) window.PageCurl.move(e); },
-    curlEnd(e)   { if (window.PageCurl) window.PageCurl.end(e); },
+    // On the cover, gestures trigger the book-open animation (not a page curl);
+    // everywhere else the finger-following curl handles the turn.
+    curlStart(e) {
+      if (this.isOnCover) { this._coverDown(e); return; }
+      if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
+    },
+    curlMove(e) {
+      if (this._cg) { this._coverMoveGesture(e); return; }
+      if (window.PageCurl) window.PageCurl.move(e);
+    },
+    curlEnd(e) {
+      if (this._cg) { this._coverUpGesture(e); return; }
+      if (window.PageCurl) window.PageCurl.end(e);
+    },
+
+    // ---- Cover (closed book) gesture → open animation ----
+    _coverPoint(e) {
+      const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+      return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY };
+    },
+    _coverDown(e) {
+      if (e.target.closest && e.target.closest('button, a, .inspect-btn')) return;
+      const p = this._coverPoint(e);
+      this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0 };
+      if (e.type === 'mousedown') {
+        this._cg.mm = (ev) => this._coverMoveGesture(ev);
+        this._cg.mu = (ev) => this._coverUpGesture(ev);
+        document.addEventListener('mousemove', this._cg.mm);
+        document.addEventListener('mouseup', this._cg.mu);
+      }
+    },
+    _coverMoveGesture(e) {
+      if (!this._cg) return;
+      const p = this._coverPoint(e);
+      this._cg.primary = this._cg.axis === 'x' ? p.x - this._cg.x0 : p.y - this._cg.y0;
+      if (Math.abs(this._cg.primary) > 8 && e.cancelable) e.preventDefault();
+    },
+    _coverUpGesture() {
+      const g = this._cg; if (!g) return;
+      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+      this._cg = null;
+      if (Math.abs(g.primary || 0) < 40) { this.pokeReaderUi(); return; }   // tap → just reveal controls
+      if (g.primary < 0) this.animateCoverOpen();                            // forward swipe → open the book
+      // (a backward swipe on the cover does nothing — there's nothing before it)
+    },
+
+    // Slide the closed book so its hinge meets the centre crease, then swing the
+    // front cover open to reveal the first spread underneath. GSAP if available,
+    // otherwise just jump to page 1. (Signs/durations are easy to tune.)
+    animateCoverOpen() {
+      if (this._coverAnim || !this.isOnCover) return;
+      const area = document.querySelector('.page-area');
+      const coverEl = area && area.querySelector('.cover-page');
+      const front = coverEl && coverEl.querySelector('.cover-front');
+      const gsap = window.gsap;
+      if (!area || !coverEl || !front || !gsap) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
+
+      this._coverAnim = true;
+      const rect = area.getBoundingClientRect();
+      const portrait = this.isPortrait;
+      const fr = front.getBoundingClientRect();   // book face, measured before we switch pages
+
+      // Clone the cover into a fixed overlay (above the crease); reveal the spread beneath.
+      const wrap = document.createElement('div');
+      Object.assign(wrap.style, {
+        position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+        width: rect.width + 'px', height: rect.height + 'px',
+        zIndex: 52, pointerEvents: 'none', perspective: '1800px', overflow: 'hidden',
+      });
+      const clone = coverEl.cloneNode(true);
+      Object.assign(clone.style, { position: 'absolute', inset: '0', margin: '0', transformStyle: 'preserve-3d' });
+      wrap.appendChild(clone);
+      document.body.appendChild(wrap);
+      const cloneFront = clone.querySelector('.cover-front');
+
+      this.currentPageIndex = 1;   // first spread renders live under the overlay
+
+      // slide so the hinge edge lands on the screen centre
+      let slideX = 0, slideY = 0;
+      if (portrait) slideY = (rect.height / 2) - (fr.top - rect.top);                 // top edge → centre Y
+      else          slideX = (rect.width / 2) - ((fr.left - rect.left) + fr.width);   // right edge → centre X
+      cloneFront.style.transformOrigin = portrait ? 'center top' : 'right center';
+
+      const tl = gsap.timeline({
+        onComplete: () => { wrap.remove(); this._coverAnim = false; this.pokeReaderUi(); },
+      });
+      const openVars = portrait
+        ? { rotateX: -118, duration: 0.55, ease: 'power2.in' }
+        : { rotateY: 118, duration: 0.55, ease: 'power2.in' };
+      tl.to(clone, { x: slideX, y: slideY, duration: 0.4, ease: 'power2.inOut' });
+      tl.to(cloneFront, openVars, '>-0.04');
+      tl.to(clone, { autoAlpha: 0, duration: 0.2 }, '>-0.18');
+    },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {
       this.readerUiShow = true;

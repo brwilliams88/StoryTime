@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.17 — 2026-06-25 — Bigger text (for real), text nudge, cover opens like a book
+  • Text size: the +4 bump in v0.9.16 was a no-op (its cap reused the same margin the fit was already limited by, so it had no room to grow). Fixed: the boost floor is now below the fit's margin, so the text actually grows — now bumps +5 (capped so the tallest page still keeps a sliver of top/bottom margin and never overflows).
+  • Landscape text: shifted ~1 character closer to the centre crease, with ~1 character more margin on the outer (right) edge.
+  • COVER NOW OPENS LIKE A BOOK: the title page is a centred closed book (cover art + title + author, spine + page edges). On swipe/arrow it slides so its hinge meets the centre crease — down in portrait, left in landscape — then the front cover swings open to reveal the first spread. Falls back to a plain jump if GSAP isn't available. (First cut — slide direction, open angle, and book size are easy knobs; portrait/landscape rotate signs may need a flip after seeing it on a device.)
+
+--------------------------
 v0.9.16 — 2026-06-25 — Story text: bigger (+4) & justified; bend turn dropped
   • Story text now sizes up +4 from the auto-fit (device testing showed the fit read a few sizes small), capped so the tallest page always keeps a little top/bottom margin — text never overflows.
   • Story text is now justified (flush left and right), with the final line left-aligned.
