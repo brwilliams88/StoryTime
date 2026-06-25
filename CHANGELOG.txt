@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.16 — 2026-06-25 — Story text: bigger (+4) & justified; bend turn dropped
+  • Story text now sizes up +4 from the auto-fit (device testing showed the fit read a few sizes small), capped so the tallest page always keeps a little top/bottom margin — text never overflows.
+  • Story text is now justified (flush left and right), with the final line left-aligned.
+  • Dropped the experimental "bend" page-turn — keeping the classic turn. Removed pageCurlBend.js and the whole diagnostic panel (text dial + A/B toggle).
+
+--------------------------
 v0.9.15 — 2026-06-25 — DIAGNOSTIC: text-size dial + page-turn A/B (classic vs bend)
   • Temporary control panel at the top of the reader, two parts:
       1) TEXT dial — A−/A+ to set the story text size by hand (it grows up/down into the margins), with an "Auto" button to go back to the auto-fit. The label shows the current px (and "auto" when not overridden). Tune across a few books and tell me the px you like.

@@ -1640,6 +1640,8 @@ body:has(.app-main-reading) {
   line-height: 1.6;
   color: var(--text-main);
   margin: 0;
+  text-align: justify;
+  text-align-last: left;   /* don't stretch the final line */
 }
 
 /* "The End" — quiet, same ink as the body text: widely letter-spaced caps
@@ -2830,27 +2832,3 @@ body:has(.app-main-reading) {
 }
 
 /* (Page-stack edge lines removed at the user's request.) */
-
-/* ===================================================================
-   TEMPORARY DIAGNOSTIC (v0.9.15) — reader control panel: a manual
-   text-size dial and a page-turn A/B toggle (classic fold vs the
-   experimental segmented bend). REMOVE this block + the .reader-diag
-   markup + the diagnostic data/methods once tuning is done.
-   =================================================================== */
-.reader-diag {
-  position: fixed; z-index: 60; left: 50%; transform: translateX(-50%);
-  top: calc(env(safe-area-inset-top) + 6px);
-  display: flex; flex-direction: column; gap: 5px;
-  background: rgba(21,101,192,0.92); color: #fff; padding: 7px 9px; border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.4); font-family: inherit;
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-}
-.reader-diag .rd-row { display: flex; align-items: center; gap: 6px; }
-.reader-diag .rd-label { font-size: 11px; font-weight: 700; width: 34px; opacity: 0.85; }
-.reader-diag .rd-val { font-size: 12px; font-weight: 600; min-width: 58px; text-align: center; }
-.reader-diag .rd-btn {
-  font-family: inherit; font-size: 12px; font-weight: 700; color: #fff;
-  background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 8px; padding: 4px 9px; cursor: pointer; min-width: 34px; line-height: 1.2;
-}
-.reader-diag .rd-btn.on { background: #fff; color: #1565c0; border-color: #fff; }
