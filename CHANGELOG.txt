@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.15 — 2026-06-25 — DIAGNOSTIC: text-size dial + page-turn A/B (classic vs bend)
+  • Temporary control panel at the top of the reader, two parts:
+      1) TEXT dial — A−/A+ to set the story text size by hand (it grows up/down into the margins), with an "Auto" button to go back to the auto-fit. The label shows the current px (and "auto" when not overridden). Tune across a few books and tell me the px you like.
+      2) TURN toggle — switch the page-turn between "Classic" (the existing fold, unchanged) and "Bend ✨" (a new experimental segmented geometric curl that bows the page like real paper). A/B them and tell me which you prefer.
+  • New file js/pageCurlBend.js holds the bend turn as a self-contained engine (same API as pageCurl.js); the existing pageCurl.js is untouched. Feel knobs at the top of pageCurlBend.js: N strips, PERSP, SWING, CURL. Heavy by design (N DOM clones) to see what's possible on iPhone. Portrait rotateX sign may need flipping after seeing it live.
+  • All of this is scaffolding to be removed once we lock the text size and pick a turn.
+
+--------------------------
 v0.9.14 — 2026-06-25 — Auto-fit text: one size, snug long pages (bigger overall)
   • The auto-fit was correctly sizing to the single LONGEST page, which made the shared font small and left short pages looking empty. Now it keeps one book-wide size but allows the few longest pages (up to ~20%) to run with tighter top/bottom margins, so the shared size can grow bigger and most pages fill nicely. No page ever overflows off-screen (longest pages still keep a small margin). Removed the temporary on-screen diagnostic readout. Knobs in recomputeStoryFontSize: COMFORT_ROWS, SNUG_ROWS, the 0.2 snug fraction, and the 14–44px range.
 

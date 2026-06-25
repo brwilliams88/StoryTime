@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.14',
+      version: 'v0.9.15',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -57,6 +57,11 @@ createApp({
       inspectingImage: null,
 
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
+
+      // TEMP diagnostic (remove after tuning): manual text-size dial + page-turn A/B
+      manualFontPx: null,        // null = auto-fit; a number = user-dialed override
+      autoFontPx: 17,            // last auto-fit result (shown in the dial)
+      curlEngine: 'classic',     // 'classic' = pageCurl.js, 'bend' = pageCurlBend.js
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -407,9 +412,11 @@ createApp({
     setTimeout(() => this.dismissSplash(), 1500);
 
     // Wire the finger-following page-curl to the reader (snapshots + nav).
-    if (typeof window.PageCurl !== 'undefined') {
+    // Both turn engines (classic fold + experimental segmented bend) get the
+    // SAME config; the diagnostic toggle (curlEngine) picks which is live.
+    {
       const self = this;
-      window.PageCurl.init({
+      const curlCfg = {
         index: () => self.currentPageIndex,
         setIndex: (i) => { self.currentPageIndex = i; },
         canNext: () => self.canGoNext(),
@@ -419,7 +426,9 @@ createApp({
         isPortrait: () => self.isPortrait,
         onTap: () => self.pokeReaderUi(),
         afterRender: (fn) => self.$nextTick(fn),
-      });
+      };
+      if (window.PageCurl) window.PageCurl.init(curlCfg);
+      if (window.PageCurlBend) window.PageCurlBend.init(curlCfg);
     }
 
     const stored = getStoredPassword();
@@ -461,13 +470,14 @@ createApp({
       // Don't navigate while a modal is open over the story
       if (this.showSettings || this.showQuiz || this.inspectingImage ||
           this.copyrightModal || this.warningModal || this.showCharactersModal) return;
-      // Arrow keys play the same turn animation (fall back to instant nav).
+      // Arrow keys play the active turn animation (fall back to instant nav).
+      const c = this.activeCurl();
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
-        if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
+        if (c && c.animate) c.animate(true); else this.nextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
-        if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(false); else this.prevPage();
+        if (c && c.animate) c.animate(false); else this.prevPage();
       }
     };
     window.addEventListener('keydown', this._keyHandler);
@@ -1103,6 +1113,12 @@ createApp({
       if (this.view !== 'story') return;
       const story = this.currentStory;
       if (!story || !story.pages || !story.pages.length) return;
+      // TEMP diagnostic: if the user has dialed a manual size, just honour it
+      // (still re-applied on resize/orientation so it sticks).
+      if (this.manualFontPx != null) {
+        document.documentElement.style.setProperty('--story-text-size', this.manualFontPx + 'px');
+        return;
+      }
       // NB: this is a multi-root component, so this.$el is a comment node, not an
       // element — query the document for the (unique) reading view instead.
       const rv = document.querySelector('.reading-view');
@@ -1169,8 +1185,22 @@ createApp({
         if (fits(mid)) { best = mid; lo = mid + 1; }
         else hi = mid - 1;
       }
+      this.autoFontPx = best;
       document.documentElement.style.setProperty('--story-text-size', best + 'px');
     },
+
+    // TEMP diagnostic: text-size dial + page-turn engine helpers (remove after tuning)
+    effectiveFontPx() { return this.manualFontPx != null ? this.manualFontPx : this.autoFontPx; },
+    bumpFont(delta) {
+      const base = this.manualFontPx != null ? this.manualFontPx : this.autoFontPx;
+      this.manualFontPx = Math.max(12, Math.min(48, base + delta));
+      document.documentElement.style.setProperty('--story-text-size', this.manualFontPx + 'px');
+    },
+    resetFontAuto() {
+      this.manualFontPx = null;
+      this.recomputeStoryFontSize();
+    },
+    activeCurl() { return this.curlEngine === 'bend' ? window.PageCurlBend : window.PageCurl; },
 
     // Hidden offscreen element used to measure how tall a block of text renders
     // at a given width + font size (without disturbing the visible page).
@@ -1414,9 +1444,9 @@ createApp({
     canGoPrev() { return this.currentPageIndex > 0; },
 
     // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area)
-    curlStart(e) { if (window.PageCurl) window.PageCurl.start(e, e.currentTarget); },
-    curlMove(e)  { if (window.PageCurl) window.PageCurl.move(e); },
-    curlEnd(e)   { if (window.PageCurl) window.PageCurl.end(e); },
+    curlStart(e) { const c = this.activeCurl(); if (c) c.start(e, e.currentTarget); },
+    curlMove(e)  { const c = this.activeCurl(); if (c) c.move(e); },
+    curlEnd(e)   { const c = this.activeCurl(); if (c) c.end(e); },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {
       this.readerUiShow = true;
