@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.10',
+      version: 'v0.9.11',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1099,14 +1099,19 @@ createApp({
     // it measures the real reading-view box, it re-fits per device and on
     // every resize / orientation change (phone vs iPad vs laptop window).
     // ============================================================
-    recomputeStoryFontSize() {
+    recomputeStoryFontSize(attempt) {
       if (this.view !== 'story') return;
       const story = this.currentStory;
       if (!story || !story.pages || !story.pages.length) return;
-      const rv = this.$el && this.$el.querySelector('.reading-view');
-      if (!rv) return;
-      const vw = rv.clientWidth, vh = rv.clientHeight;
-      if (!vw || !vh) return;
+      // NB: this is a multi-root component, so this.$el is a comment node, not an
+      // element — query the document for the (unique) reading view instead.
+      const rv = document.querySelector('.reading-view');
+      const vw = rv ? rv.clientWidth : 0, vh = rv ? rv.clientHeight : 0;
+      if (!rv || !vw || !vh) {
+        // DOM not laid out yet (just switched into the reader) — retry briefly.
+        if ((attempt || 0) < 5) setTimeout(() => this.recomputeStoryFontSize((attempt || 0) + 1), 60);
+        return;
+      }
 
       const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       const portrait = this.isPortrait;

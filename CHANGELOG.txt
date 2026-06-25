@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.11 — 2026-06-25 — Fix: auto-fit story text now actually runs
+  • The auto-fit added in v0.9.10 never ran — it looked for the reading view via the component root, but this is a multi-root app so that root is a comment node (no querySelector). Now it finds the reading view directly, with a short retry while the page lays out. Story text once again grows/shrinks to one book-wide size that fits the fullest page.
+
+--------------------------
 v0.9.10 — 2026-06-25 — Reading polish: chosen crease/text, auto-fit story text
   • Applied the picks from the v0.9.9 diagnostic and removed all the diagnostic scaffolding (labels + per-page variants):
       - Centre crease: a touch deeper than before (halfway to the "stronger" preview). It stays a single fixed element above the whole page-turn, so it's identical at rest and while turning - never appears/disappears.
