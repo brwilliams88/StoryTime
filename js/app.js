@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.9',
-      buildDate: '2026-06-23',
+      version: 'v0.9.10',
+      buildDate: '2026-06-25',
 
       showSplash: true,
 
@@ -392,21 +392,6 @@ createApp({
       if (!this.currentStory || !this.currentStoryPage) return '';
       return `${this.currentPageIndex}/${this.totalStoryPages}`;
     },
-    // TEMP diagnostic: each story page shows one labelled variant so the user can
-    // pick crease strength, image-page fill, and text positioning. Removed after.
-    diagConfig() {
-      if (!this.currentStoryPage) return { label: '', creaseClass: '', spreadClass: '' };
-      const configs = [
-        { label: '1 — BASELINE · crease normal · fill = blur · text = current', creaseClass: '', spreadClass: '' },
-        { label: '2 — CREASE: STRONGER (compare vs page 1)',                    creaseClass: 'diag-crease-strong', spreadClass: '' },
-        { label: '3 — IMAGE FILL: CREAM (compare vs blur on page 1)',           creaseClass: '', spreadClass: 'diag-fill-cream' },
-        { label: '4 — TEXT: SHIFTED LEFT toward crease (~2 letters)',           creaseClass: '', spreadClass: 'diag-text-shift' },
-        { label: '5 — TEXT: JUSTIFIED (flush both edges)',                      creaseClass: '', spreadClass: 'diag-text-justify' },
-        { label: '6 — TEXT: CENTERED COLUMN (balanced margins)',               creaseClass: '', spreadClass: 'diag-text-balanced' },
-      ];
-      return configs[(this.currentPageIndex - 1) % configs.length];
-    },
-
     formattedCreatedAt() {
       if (!this.currentStory || !this.currentStory.createdAt) return '';
       const d = new Date(this.currentStory.createdAt);
@@ -455,8 +440,16 @@ createApp({
 
     window.matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
       this.isPortrait = e.matches;
-      this.$nextTick(() => window.scrollTo(0, 0));
+      this.$nextTick(() => { window.scrollTo(0, 0); this.recomputeStoryFontSize(); });
     });
+
+    // Re-fit the story text whenever the window resizes (e.g. dragging a laptop
+    // browser window) so the auto-fit stays correct. Debounced.
+    this._resizeHandler = () => {
+      clearTimeout(this._resizeT);
+      this._resizeT = setTimeout(() => this.recomputeStoryFontSize(), 150);
+    };
+    window.addEventListener('resize', this._resizeHandler);
 
     // Desktop keyboard navigation for the reading view (arrow keys).
     // On-screen arrows were removed — touch uses swipe, desktop uses keys.
@@ -494,6 +487,7 @@ createApp({
     if (this._keyHandler) window.removeEventListener('keydown', this._keyHandler);
     if (this._onlineHandler) window.removeEventListener('online', this._onlineHandler);
     if (this._offlineHandler) window.removeEventListener('offline', this._offlineHandler);
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
   },
 
   methods: {
@@ -938,7 +932,6 @@ createApp({
         recordSpend('text', textResult.cost);
         setLastStorySpend(textResult.cost, 0);
         this.currentPageIndex = 0;
-        this.applyStoryFontSize(storyData);
 
         const mode = this.imageGenMode || 'all';
 
@@ -1096,21 +1089,79 @@ createApp({
     },
 
     // ============================================================
-    // Dynamic font size based on words per page
+    // Dynamic story text size — AUTO-FIT to the live page.
+    //
+    // Goal: one font size for the WHOLE book (consistent like a printed
+    // book), as large as possible while the page with the MOST text still
+    // leaves at least ~2 blank rows of margin above and below its text. So
+    // when pages are sparse the text grows to fill the whitespace; when a
+    // page is dense it shrinks just enough that nothing overflows. Because
+    // it measures the real reading-view box, it re-fits per device and on
+    // every resize / orientation change (phone vs iPad vs laptop window).
     // ============================================================
-    applyStoryFontSize(storyData) {
-      if (!storyData || !storyData.pages || !storyData.pages.length) return;
-      const totalWords = storyData.pages.reduce(
-        (sum, p) => sum + ((p.text || '').split(/\s+/).filter(Boolean).length), 0
-      );
-      const avg = totalWords / storyData.pages.length;
-      let size;
-      if (avg < 40)       size = '1.3rem';
-      else if (avg < 60)  size = '1.2rem';
-      else if (avg < 80)  size = '1.1rem';
-      else if (avg < 100) size = '1.0rem';
-      else                size = '0.95rem';
-      document.documentElement.style.setProperty('--story-text-size', size);
+    recomputeStoryFontSize() {
+      if (this.view !== 'story') return;
+      const story = this.currentStory;
+      if (!story || !story.pages || !story.pages.length) return;
+      const rv = this.$el && this.$el.querySelector('.reading-view');
+      if (!rv) return;
+      const vw = rv.clientWidth, vh = rv.clientHeight;
+      if (!vw || !vh) return;
+
+      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const portrait = this.isPortrait;
+      // Text column box, mirroring the .spread-text CSS for each orientation:
+      //   landscape → right half, full height, padding L/R 2.4+1.4rem, T/B 1+1.4rem
+      //   portrait  → bottom half, full width, padding L/R 1.3+1.3rem,  T/B 1+1.3rem
+      const colW = portrait ? vw : vw * 0.5;
+      const colH = portrait ? vh * 0.5 : vh;
+      const padH = (portrait ? 2.6 : 3.8) * rootPx;   // left + right padding
+      const padV = (portrait ? 2.3 : 2.4) * rootPx;   // top + bottom padding
+      const Wt = Math.max(40, colW - padH);           // usable text width
+      const Ht = Math.max(40, colH - padV);           // usable text height
+
+      const LH = 1.6;                                 // matches .spread-text p line-height
+      const meas = this._fontMeasureEl || (this._fontMeasureEl = this._makeFontMeasureEl());
+      meas.style.width = Wt + 'px';
+      meas.style.lineHeight = String(LH);
+
+      // Does font size `fs` (px) fit EVERY page with >=2 rows clear top & bottom?
+      const lastIdx = story.pages.length - 1;
+      const fitsAll = (fs) => {
+        meas.style.fontSize = fs + 'px';
+        const maxBlock = Ht - 4 * fs * LH;            // reserve 2 rows top + 2 rows bottom
+        if (maxBlock <= fs * LH) return false;        // not even one line fits
+        for (let i = 0; i < story.pages.length; i++) {
+          meas.textContent = (story.pages[i].text || '') || ' ';
+          let h = meas.offsetHeight;
+          if (i === lastIdx) h += 3 * fs * LH;        // leave room for the "The End" flourish
+          if (h > maxBlock) return false;
+        }
+        return true;
+      };
+
+      // Largest integer px in [14, 28] that fits; fall back to 14 if even that overflows.
+      let lo = 14, hi = 28, best = 14;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (fitsAll(mid)) { best = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      document.documentElement.style.setProperty('--story-text-size', best + 'px');
+    },
+
+    // Hidden offscreen element used to measure how tall a block of text renders
+    // at a given width + font size (without disturbing the visible page).
+    _makeFontMeasureEl() {
+      const el = document.createElement('div');
+      const cs = getComputedStyle(document.body);
+      el.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;' +
+        'box-sizing:border-box;white-space:normal;word-break:normal;overflow-wrap:break-word;' +
+        'margin:0;padding:0;pointer-events:none;';
+      el.style.fontFamily = cs.fontFamily;
+      el.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(el);
+      return el;
     },
 
     async generateOneImage(target, storyData) {
@@ -1835,7 +1886,6 @@ createApp({
         this.currentTextCost = story.text_cost || 0;
         this.currentImagesCost = story.images_cost || 0;
         this.currentPageIndex = 0;
-        this.applyStoryFontSize(story);
         this.loading = false;
         this.view = 'story';
         window.scrollTo(0, 0);
@@ -2353,7 +2403,13 @@ createApp({
     showQuiz() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },
-    view(v) { if (v === 'story') { this.pokeReaderUi(); this.preloadAdjacentImages(); } },
+    view(v) {
+      if (v === 'story') {
+        this.pokeReaderUi();
+        this.preloadAdjacentImages();
+        this.$nextTick(() => this.recomputeStoryFontSize());
+      }
+    },
     // Preload neighbouring images after a page settles (NOT a UI poke — the
     // controls only appear on an intentional tap, never during turning).
     currentPageIndex() {

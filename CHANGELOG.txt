@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.10 — 2026-06-25 — Reading polish: chosen crease/text, auto-fit story text
+  • Applied the picks from the v0.9.9 diagnostic and removed all the diagnostic scaffolding (labels + per-page variants):
+      - Centre crease: a touch deeper than before (halfway to the "stronger" preview). It stays a single fixed element above the whole page-turn, so it's identical at rest and while turning - never appears/disappears.
+      - Image-page fill: kept the blurred image fill (no cream).
+      - Text: the body sits ~2 characters closer to the centre crease in landscape.
+  • NEW - story text auto-fits the page. The whole book uses ONE font size (consistent like a printed book), picked as large as it can be while the page with the most text still keeps at least ~2 blank rows above and below. Sparse pages now grow to fill the whitespace; it re-fits live for phone vs iPad vs a resized laptop window and on rotation.
+
+--------------------------
 v0.9.9 — 2026-06-25 — DIAGNOSTIC: per-page option preview (crease / fill / text)
   • Temporary: each story page shows a labelled variant so we can pick — page 1 baseline, 2 stronger crease, 3 cream image-fill (vs blur), 4 text shifted left, 5 justified text, 6 centered text column. A blue label up top says which is which. To be replaced with the chosen options.
 

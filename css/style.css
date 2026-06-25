@@ -1625,7 +1625,7 @@ body:has(.app-main-reading) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 1.4rem 1.4rem 4rem;   /* extra LEFT padding = breathing room from the centre crease (landscape) */
+  padding: 1rem 1.4rem 1.4rem 2.4rem;   /* text sits ~2 chars closer to the centre crease (landscape) */
   border-left: 1px solid var(--border-soft);
   overflow-y: auto;
   min-width: 0;
@@ -2680,28 +2680,28 @@ body:has(.app-main-reading) {
    Pages turn underneath it. Soft valley, no white ridges. ---- */
 .book-crease {
   position: fixed; z-index: 50; pointer-events: none;
-  left: 50%; top: 0; bottom: 0; width: 50px; transform: translateX(-50%);
+  left: 50%; top: 0; bottom: 0; width: 60px; transform: translateX(-50%);
   background:
     linear-gradient(to right,
       rgba(74,54,24,0) 0%,
-      rgba(74,54,24,0.12) 34%,        /* pages darken toward the binding */
-      rgba(40,28,12,0.12) 46%,
-      rgba(30,20,8,0.42) 50%,         /* deep binding valley */
-      rgba(40,28,12,0.12) 54%,
-      rgba(74,54,24,0.12) 66%,
+      rgba(74,54,24,0.17) 30%,        /* pages darken toward the binding */
+      rgba(40,28,12,0.21) 45%,
+      rgba(23,15,6,0.53) 50%,         /* deep binding valley */
+      rgba(40,28,12,0.21) 55%,
+      rgba(74,54,24,0.17) 70%,
       rgba(74,54,24,0) 100%);
 }
 .book-crease.portrait {
-  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 50px;
+  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 60px;
   transform: translateY(-50%);
   background:
     linear-gradient(to bottom,
       rgba(74,54,24,0) 0%,
-      rgba(74,54,24,0.12) 34%,
-      rgba(40,28,12,0.12) 46%,
-      rgba(30,20,8,0.42) 50%,
-      rgba(40,28,12,0.12) 54%,
-      rgba(74,54,24,0.12) 66%,
+      rgba(74,54,24,0.17) 30%,
+      rgba(40,28,12,0.21) 45%,
+      rgba(23,15,6,0.53) 50%,
+      rgba(40,28,12,0.21) 55%,
+      rgba(74,54,24,0.17) 70%,
       rgba(74,54,24,0) 100%);
 }
 
@@ -2830,43 +2830,3 @@ body:has(.app-main-reading) {
 }
 
 /* (Page-stack edge lines removed at the user's request.) */
-
-/* ===================================================================
-   TEMPORARY DIAGNOSTIC (v0.9.9) — each story page shows one labelled
-   variant so the user can pick crease strength / image fill / text layout.
-   REMOVE this whole block + the diagConfig wiring once finalized.
-   =================================================================== */
-.diag-label {
-  position: fixed; z-index: 60; top: 8px; left: 50%; transform: translateX(-50%);
-  background: #1565c0; color: #fff; font-size: 12px; font-weight: 600;
-  padding: 5px 14px; border-radius: 999px; pointer-events: none;
-  max-width: 92vw; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-}
-
-/* (2) STRONGER crease — deeper valley + wider page-surface darkening */
-.book-crease.diag-crease-strong {
-  width: 72px;
-  background: linear-gradient(to right,
-    rgba(74,54,24,0) 0%, rgba(74,54,24,0.22) 26%, rgba(40,28,12,0.30) 44%,
-    rgba(16,10,3,0.64) 50%, rgba(40,28,12,0.30) 56%, rgba(74,54,24,0.22) 74%, rgba(74,54,24,0) 100%);
-}
-.book-crease.portrait.diag-crease-strong {
-  width: auto; height: 72px;
-  background: linear-gradient(to bottom,
-    rgba(74,54,24,0) 0%, rgba(74,54,24,0.22) 26%, rgba(40,28,12,0.30) 44%,
-    rgba(16,10,3,0.64) 50%, rgba(40,28,12,0.30) 56%, rgba(74,54,24,0.22) 74%, rgba(74,54,24,0) 100%);
-}
-
-/* (3) IMAGE FILL = cream paper (instead of the blurred image) */
-.story-spread.diag-fill-cream .image-blur { display: none; }
-.book-page.diag-fill-cream .spread-image { background: #f4eddb; }
-
-/* (4) TEXT shifted LEFT toward the crease (landscape) */
-.story-spread:not(.portrait).diag-text-shift .spread-text { padding-left: 2.4rem; }
-
-/* (5) JUSTIFIED text */
-.diag-text-justify .spread-text p { text-align: justify; }
-
-/* (6) CENTERED text column with balanced margins (landscape) */
-.story-spread:not(.portrait).diag-text-balanced .spread-text { padding-left: 2.2rem; padding-right: 2.2rem; }
-.story-spread.diag-text-balanced .spread-text p { max-width: 27ch; margin-left: auto; margin-right: auto; }
