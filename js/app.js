@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.8',
+      version: 'v0.9.9',
       buildDate: '2026-06-23',
 
       showSplash: true,
@@ -391,6 +391,20 @@ createApp({
     pageShortLabel() {
       if (!this.currentStory || !this.currentStoryPage) return '';
       return `${this.currentPageIndex}/${this.totalStoryPages}`;
+    },
+    // TEMP diagnostic: each story page shows one labelled variant so the user can
+    // pick crease strength, image-page fill, and text positioning. Removed after.
+    diagConfig() {
+      if (!this.currentStoryPage) return { label: '', creaseClass: '', spreadClass: '' };
+      const configs = [
+        { label: '1 — BASELINE · crease normal · fill = blur · text = current', creaseClass: '', spreadClass: '' },
+        { label: '2 — CREASE: STRONGER (compare vs page 1)',                    creaseClass: 'diag-crease-strong', spreadClass: '' },
+        { label: '3 — IMAGE FILL: CREAM (compare vs blur on page 1)',           creaseClass: '', spreadClass: 'diag-fill-cream' },
+        { label: '4 — TEXT: SHIFTED LEFT toward crease (~2 letters)',           creaseClass: '', spreadClass: 'diag-text-shift' },
+        { label: '5 — TEXT: JUSTIFIED (flush both edges)',                      creaseClass: '', spreadClass: 'diag-text-justify' },
+        { label: '6 — TEXT: CENTERED COLUMN (balanced margins)',               creaseClass: '', spreadClass: 'diag-text-balanced' },
+      ];
+      return configs[(this.currentPageIndex - 1) % configs.length];
     },
 
     formattedCreatedAt() {

@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.9 — 2026-06-25 — DIAGNOSTIC: per-page option preview (crease / fill / text)
+  • Temporary: each story page shows a labelled variant so we can pick — page 1 baseline, 2 stronger crease, 3 cream image-fill (vs blur), 4 text shifted left, 5 justified text, 6 centered text column. A blue label up top says which is which. To be replaced with the chosen options.
+
+--------------------------
 v0.9.8 — 2026-06-25 — Image Page: Centered Picture, Blur Fill, Square Corners
   • The picture on an image page now fills the page along its long axis and is centred, with the blurred colour fill in the gaps — left/right in landscape, top/bottom in portrait. The image half is an exact 50% so it meets the centre crease cleanly (no cream gap).
   • Book-page pictures are no longer rounded at the corners (any view), and the photo drop-shadow is gone.
