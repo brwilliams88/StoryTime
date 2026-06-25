@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.13',
+      version: 'v0.9.14',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -57,8 +57,6 @@ createApp({
       inspectingImage: null,
 
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
-
-      fitDebug: '',   // TEMP: on-screen auto-fit diagnostics (remove after tuning)
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -1132,45 +1130,46 @@ createApp({
       meas.style.width = Wt + 'px';
       meas.style.lineHeight = String(LH);
 
-      // Does font size `fs` (px) fit EVERY page with >=2 rows clear top & bottom?
-      const lastIdx = story.pages.length - 1;
-      const fitsAll = (fs) => {
+      // "One size, snug long pages": pick the largest single size where MOST
+      // pages keep a full ~2-row margin top & bottom, allowing the few longest
+      // pages to run tighter (but never off-screen). Sizing to the absolute
+      // longest page made the shared size too small, so short pages looked
+      // empty; this lets a long outlier be snug while the book gets bigger.
+      const N = story.pages.length;
+      const lastIdx = N - 1;
+      const COMFORT_ROWS = 4;     // 2 rows clear top + 2 bottom on a "comfortable" page
+      const SNUG_ROWS = 1.5;      // longest pages: keep ~0.75 row each side (never clip)
+      const allowedSnug = Math.max(1, Math.floor(0.2 * N));   // up to ~20% of pages may be snug
+      const requiredComfort = N - allowedSnug;
+
+      const pageHeight = (i, fs) => {
+        meas.textContent = (story.pages[i].text || '') || ' ';
+        let h = meas.offsetHeight;
+        if (i === lastIdx) h += 3 * fs * LH;          // room for the "The End" flourish
+        return h;
+      };
+      const fits = (fs) => {
         meas.style.fontSize = fs + 'px';
-        const maxBlock = Ht - 4 * fs * LH;            // reserve 2 rows top + 2 rows bottom
-        if (maxBlock <= fs * LH) return false;        // not even one line fits
-        for (let i = 0; i < story.pages.length; i++) {
-          meas.textContent = (story.pages[i].text || '') || ' ';
-          let h = meas.offsetHeight;
-          if (i === lastIdx) h += 3 * fs * LH;        // leave room for the "The End" flourish
-          if (h > maxBlock) return false;
+        const comfortMax = Ht - COMFORT_ROWS * fs * LH;
+        const snugMax = Ht - SNUG_ROWS * fs * LH;     // hard ceiling — no page may exceed this
+        if (comfortMax <= fs * LH) return false;      // not even one line fits comfortably
+        let comfortable = 0;
+        for (let i = 0; i < N; i++) {
+          const h = pageHeight(i, fs);
+          if (h > snugMax) return false;              // would clip / overflow → too big
+          if (h <= comfortMax) comfortable++;
         }
-        return true;
+        return comfortable >= requiredComfort;
       };
 
-      // Largest integer px in [14, 44] that fits; fall back to 14 if even that
-      // overflows. The high cap lets short stories grow to fill the page on
-      // small screens (a 28px cap was leaving lots of whitespace on iPhone).
+      // Largest integer px in [14, 44] that fits; fall back to 14 otherwise.
       let lo = 14, hi = 44, best = 14;
       while (lo <= hi) {
         const mid = (lo + hi) >> 1;
-        if (fitsAll(mid)) { best = mid; lo = mid + 1; }
+        if (fits(mid)) { best = mid; lo = mid + 1; }
         else hi = mid - 1;
       }
       document.documentElement.style.setProperty('--story-text-size', best + 'px');
-
-      // TEMP diagnostic: measure the tallest page at the chosen size and report
-      // the geometry on screen so we can see what the phone is actually computing.
-      meas.style.fontSize = best + 'px';
-      let tall = 0, tallIdx = -1;
-      for (let i = 0; i < story.pages.length; i++) {
-        meas.textContent = (story.pages[i].text || '') || ' ';
-        let h = meas.offsetHeight;
-        if (i === lastIdx) h += 3 * best * LH;
-        if (h > tall) { tall = h; tallIdx = i; }
-      }
-      this.fitDebug = `${portrait ? 'P' : 'L'} win${vw}x${vh} col${Math.round(colW)}x${Math.round(colH)} ` +
-        `txt${Math.round(Wt)}x${Math.round(Ht)} fs=${best} tall=${Math.round(tall)}(p${tallIdx}) ` +
-        `max=${Math.round(Ht - 4 * best * LH)}`;
     },
 
     // Hidden offscreen element used to measure how tall a block of text renders

@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.14 — 2026-06-25 — Auto-fit text: one size, snug long pages (bigger overall)
+  • The auto-fit was correctly sizing to the single LONGEST page, which made the shared font small and left short pages looking empty. Now it keeps one book-wide size but allows the few longest pages (up to ~20%) to run with tighter top/bottom margins, so the shared size can grow bigger and most pages fill nicely. No page ever overflows off-screen (longest pages still keep a small margin). Removed the temporary on-screen diagnostic readout. Knobs in recomputeStoryFontSize: COMFORT_ROWS, SNUG_ROWS, the 0.2 snug fraction, and the 14–44px range.
+
+--------------------------
 v0.9.13 — 2026-06-25 — DIAGNOSTIC: on-screen auto-fit readout
   • Temporary: a small blue readout at the bottom of the reader shows what the auto-fit is computing (orientation, window + column + text-box sizes, chosen font px, tallest page height). Used to figure out why the phone still shows lots of whitespace. To be removed once tuned.
 
