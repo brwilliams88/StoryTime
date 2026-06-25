@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.11',
+      version: 'v0.9.12',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1145,8 +1145,10 @@ createApp({
         return true;
       };
 
-      // Largest integer px in [14, 28] that fits; fall back to 14 if even that overflows.
-      let lo = 14, hi = 28, best = 14;
+      // Largest integer px in [14, 44] that fits; fall back to 14 if even that
+      // overflows. The high cap lets short stories grow to fill the page on
+      // small screens (a 28px cap was leaving lots of whitespace on iPhone).
+      let lo = 14, hi = 44, best = 14;
       while (lo <= hi) {
         const mid = (lo + hi) >> 1;
         if (fitsAll(mid)) { best = mid; lo = mid + 1; }

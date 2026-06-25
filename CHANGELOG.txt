@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.12 — 2026-06-25 — Auto-fit text: bigger cap (less whitespace on phone)
+  • Raised the maximum auto-fit text size from 28px to 44px. Short stories on a small screen (iPhone portrait + landscape) were maxing out at 28px and leaving a lot of empty space above/below; now the text can grow further to fill the page, while still keeping at least ~2 rows of margin on the fullest page. (Pages with less text than the fullest page still show more margin — the size stays the same across the whole book by design.)
+
+--------------------------
 v0.9.11 — 2026-06-25 — Fix: auto-fit story text now actually runs
   • The auto-fit added in v0.9.10 never ran — it looked for the reading view via the component root, but this is a multi-root app so that root is a comment node (no querySelector). Now it finds the reading view directly, with a short retry while the page lays out. Story text once again grows/shrinks to one book-wide size that fits the fullest page.
 
