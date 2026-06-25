@@ -1498,8 +1498,7 @@ body:has(.app-main-reading) {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  border-radius: 0;   /* book-page pictures are never rounded (landscape or portrait) */
 }
 
 /* Portrait cover — flex column, group vertically centered, By line at bottom */
@@ -2809,14 +2808,25 @@ body:has(.app-main-reading) {
 }
 .spread-image, .cover-image-wrap { overflow: hidden; }
 .cover-image-wrap .image-frame { position: relative; z-index: 1; }
-/* On a story page, the frame FILLS the whole image half; the square picture is
-   contain-centred inside it (object-fit), and the blurred fill shows through the
-   transparent letterbox around it. This is reliable in landscape (the old
-   aspect-ratio square mis-sized inside flexbox). */
+/* Story image page. The bug all along: the picture's box was being sized to the
+   IMAGE itself, so object-fit had nothing to letterbox and there were no side gaps.
+   Fix: force a single full-size grid cell with minmax(0,1fr) (so it's the whole
+   image half, not content-sized), let the frame + picture FILL that cell, and let
+   object-fit:contain centre the square — leaving the short-axis gaps for the blur. */
+/* Force EXACTLY 50/50 in landscape so the image half reaches the centre crease.
+   (flex:1 was resolving to ~46/54, leaving a cream gap before the crease; portrait
+   already uses flex:0 0 50%.) */
+.story-spread:not(.portrait) .spread-image,
+.story-spread:not(.portrait) .spread-text { flex: 0 0 50%; min-width: 0; }
+
+.spread-image { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 .spread-image .image-frame {
-  position: absolute; inset: 0; z-index: 1;
-  aspect-ratio: auto; max-width: none; max-height: none;
+  grid-area: 1 / 1; z-index: 1; position: static; inset: auto; display: block;
+  width: 100%; height: 100%; max-width: none; max-height: none; aspect-ratio: auto;
 }
-.spread-image .page-image { width: 100%; height: 100%; object-fit: contain; }
+.spread-image .page-image {
+  width: 100%; height: 100%; object-fit: contain; object-position: center;
+  position: static; transform: none; border-radius: 0; box-shadow: none;
+}
 
 /* (Page-stack edge lines removed at the user's request.) */
