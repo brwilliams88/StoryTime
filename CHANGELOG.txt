@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.31 — 2026-06-26 — Soft blur over the close→shelf cross-fade
+  • Added a subtle blur on the two book formats while they cross-fade during the close→shelf transition, to further soften/mask the format swap.
+
+--------------------------
 v0.9.30 — 2026-06-26 — Fix the book landing low then snapping up (tilt offset)
   • The shelf book is tilted (rotateX), so its measured bounding box sits higher than where the flat-positioned clone actually rendered the tilted book — the clone landed slightly low, then the real book revealed and it snapped up. Now the flight anchors on the clone's ACTUAL measured cover position, so on landing the clone's cover sits exactly on the real book's cover (tops aligned with the neighbouring books) — no last-moment jump.
 

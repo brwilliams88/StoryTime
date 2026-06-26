@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.30',
+      version: 'v0.9.31',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1957,8 +1957,12 @@ createApp({
                 const fImg = { left: lerp(cen.left, cr.left, eb), top: lerp(cen.top, cr.top, eb), width: lerp(cen.width, cr.width, eb), height: lerp(cen.height, cr.height, eb) };
                 mapSub(big, cen, bigSub, fImg);
                 mapSub(shelf, er, shelfSub, fImg);
-                big.style.opacity = String(1 - Math.min(1, b / 0.5));      // gone by half-way
-                shelf.style.opacity = String(Math.min(1, b / 0.42));       // in by ~42%
+                const bf = Math.min(1, b / 0.5), sf = Math.min(1, b / 0.42);
+                big.style.opacity = String(1 - bf);        // gone by half-way
+                shelf.style.opacity = String(sf);          // in by ~42%
+                // soft blur over the cross-fade to mask the format swap
+                big.style.filter = 'blur(' + (bf * 2.5) + 'px)';
+                shelf.style.filter = 'blur(' + ((1 - sf) * 2.5) + 'px)';
               }
             },
           });
