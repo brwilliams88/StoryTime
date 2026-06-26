@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.25',
+      version: 'v0.9.26',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1856,13 +1856,18 @@ createApp({
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (!gsap || !coverBook || !targetId || reduce) { this._exitToLibrary(targetId); return; }
 
+      // Clear any stray transition clones from an interrupted previous run.
+      document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());
+
       const sr = coverBook.getBoundingClientRect();   // start: big centred book
 
       // dark layer that hides the view swap (matches the reader stage), and a
-      // clone of the big book pinned over it.
+      // clone of the big book pinned over it. (.book-fly-temp = swept on cleanup.)
       const dark = document.createElement('div');
+      dark.className = 'book-fly-temp';
       Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '1', pointerEvents: 'none' });
       const big = coverBook.cloneNode(true);
+      big.classList.add('book-fly-temp');
       Object.assign(big.style, { position: 'fixed', left: sr.left + 'px', top: sr.top + 'px', width: sr.width + 'px', height: sr.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none' });
       document.body.appendChild(dark);
       document.body.appendChild(big);
@@ -1871,7 +1876,7 @@ createApp({
       this.view = 'library';
       this.currentPageIndex = 0;
       this.$nextTick(() => {
-        const cleanup = () => { dark.remove(); big.remove(); };
+        const cleanup = () => { document.querySelectorAll('.book-fly-temp').forEach(el => el.remove()); };
         let slot = null;
         try {
           const sel = '[data-book-id="' + (window.CSS && CSS.escape ? CSS.escape(targetId) : targetId) + '"]';
@@ -1889,6 +1894,7 @@ createApp({
           // shelf-format clone, its own box at the slot; the .book keeps its own
           // perspective/tilt, the wrapper does the FLIP.
           const shelf = document.createElement('div');
+          shelf.className = 'book-fly-temp';
           Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', opacity: '0' });
           const bookClone = bookEl.cloneNode(true);
           bookClone.style.visibility = 'visible';
@@ -1902,7 +1908,9 @@ createApp({
           gsap.set(shelf, { x: sr.left - er.left, y: sr.top - er.top, scaleX: 1 / sx, scaleY: 1 / sy });
 
           const D = 0.6;
-          const tl = gsap.timeline({ onComplete: () => { bookEl.style.visibility = ''; cleanup(); } });
+          const done = () => { bookEl.style.visibility = ''; cleanup(); };
+          const tl = gsap.timeline({ onComplete: done });
+          setTimeout(done, (0.16 + D) * 1000 + 700);   // backstop if onComplete never fires
           tl.to(dark, { opacity: 0, duration: 0.24, ease: 'power1.out' }, 0);
           // fly + shrink the big book into the slot, fading it out as the shelf clone fades in
           tl.to(big,   { x: er.left - sr.left, y: er.top - sr.top, scaleX: sx, scaleY: sy, duration: D, ease: 'power3.inOut' }, 0.16);

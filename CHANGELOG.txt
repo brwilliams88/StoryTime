@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.26 — 2026-06-26 — Fix leftover book clone after the shelf morph
+  • The shelf-format clone from the close→shelf transition wasn't being removed, so a slightly smaller book lingered on top of the real one (and piled up on later exits). Cleanup now removes ALL transition clones (the dark layer, the big book, and the shelf clone), with a backstop timeout and a sweep of any strays at the start of the next transition.
+
+--------------------------
 v0.9.25 — 2026-06-26 — Closing the book "puts it back on the shelf" (morph transition)
   • After the book closes and centres, the dark stage now melts away to reveal the Library behind — scrolled so this book's slot is centred, with the slot left EMPTY — then the centred book flies into that slot, shrinking and cross-fading from the big title-book format into the small tilted shelf-book format, and hands off to the real book on landing. ~0.9s, smooth. Honours prefers-reduced-motion (cuts straight to the shelf) and falls back gracefully if anything can't be measured.
 
