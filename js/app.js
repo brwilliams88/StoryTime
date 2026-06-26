@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.27',
+      version: 'v0.9.28',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1846,15 +1846,17 @@ createApp({
       curl.animate(false, 0);               // turn the current page straight onto the cover
     },
 
-    // The "put the book back on the shelf" transition, in two phases:
-    //  A) the closed book (in its book-in-half pose) travels to screen centre
-    //     while the dark stage melts away — so by the time it's centred you
-    //     already see the shelf behind it;
-    //  B) it flies from centre into its (empty) slot, shrinking while the big
-    //     title-book format cross-fades into the small tilted shelf format —
-    //     the cross-fade (with a soft blur to mask it) completes by the HALFWAY
-    //     point of the flight, so the rest is just a clean scale-down. Hands off
-    //     to the real shelf book on landing.
+    // The "put the book back on the shelf" transition, IMAGE-ANCHORED so the
+    // cover picture never translates between the two book formats. Two phases:
+    //  A) the closed book travels from its book-in-half pose to screen centre
+    //     while the dark stage melts away (so by centre you see the shelf);
+    //  B) it flies into its (empty) slot. The flight is driven by the cover
+    //     IMAGE rect (centre → the shelf cover square): both the big clone and
+    //     the shelf clone are transformed each frame so their cover image lands
+    //     exactly on that moving rect. The big format's overlaid title fades out
+    //     and the shelf's cream plate fades in AROUND the fixed image, so the
+    //     picture stays put and only the chrome changes. Hands off to the real
+    //     shelf book on landing.
     _bookToShelf(targetId) {
       const gsap = window.gsap;
       const area = document.querySelector('.page-area');
@@ -1864,16 +1866,18 @@ createApp({
 
       document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());   // sweep strays
 
-      const half = coverBook.getBoundingClientRect();                 // current pose (book-in-half, or centred on the cover)
+      const half = coverBook.getBoundingClientRect();                 // current pose (book-in-half, or centred)
       const pa = area.getBoundingClientRect();
       const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2, width: half.width, height: half.height };
 
       const dark = document.createElement('div');
       dark.className = 'book-fly-temp';
       Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '1', pointerEvents: 'none' });
+      // big clone is pinned at the CENTRE box; phase A just translates it from the half pose
       const big = coverBook.cloneNode(true);
       big.classList.add('book-fly-temp');
-      Object.assign(big.style, { position: 'fixed', left: half.left + 'px', top: half.top + 'px', width: half.width + 'px', height: half.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none' });
+      Object.assign(big.style, { position: 'fixed', left: cen.left + 'px', top: cen.top + 'px', width: cen.width + 'px', height: cen.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none' });
+      big.style.transform = 'translate(' + (half.left - cen.left) + 'px,' + (half.top - cen.top) + 'px)';
       document.body.appendChild(dark);
       document.body.appendChild(big);
 
@@ -1892,40 +1896,58 @@ createApp({
 
         if (bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });
         requestAnimationFrame(() => {
-          const er = bookEl.getBoundingClientRect();   // the shelf slot
-          bookEl.style.visibility = 'hidden';          // leave the gap
+          const er = bookEl.getBoundingClientRect();                       // the shelf slot (whole book)
+          const coverEl = bookEl.querySelector('.book-cover');
+          const cr = coverEl ? coverEl.getBoundingClientRect()             // the shelf COVER square (= image)
+                             : { left: er.left, top: er.top, width: er.width, height: er.width };
+          bookEl.style.visibility = 'hidden';                              // leave the gap
 
           const shelf = document.createElement('div');
           shelf.className = 'book-fly-temp';
-          Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', opacity: '0' });
+          Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2099', pointerEvents: 'none', transformOrigin: '0 0', opacity: '0' });
           const bookClone = bookEl.cloneNode(true);
           bookClone.style.visibility = 'visible';
           bookClone.style.margin = '0';
-          bookClone.style.width = '100%';
           shelf.appendChild(bookClone);
           document.body.appendChild(shelf);
 
-          // poses are transforms relative to each clone's home box (big=half, shelf=slot)
-          const bigCen  = { x: cen.left - half.left, y: cen.top - half.top, scaleX: 1, scaleY: 1 };
-          const bigSlot = { x: er.left - half.left, y: er.top - half.top, scaleX: er.width / half.width, scaleY: er.height / half.height };
-          const shelfCen = { x: cen.left - er.left, y: cen.top - er.top, scaleX: half.width / er.width, scaleY: half.height / er.height };
+          // each clone's cover-image sub-rect within its own (untransformed) box
+          const bigSub = { lx: 0, ly: 0, w: cen.width, h: cen.height };    // big image fills its box
+          const shelfSub = { lx: cr.left - er.left, ly: cr.top - er.top, w: cr.width, h: cr.height };
+          // transform a clone so its sub-rect maps onto target rect t (transform-origin 0 0)
+          const mapSub = (el, home, sub, t) => {
+            const sx = t.width / sub.w, sy = t.height / sub.h;
+            const tx = t.left - home.left - sub.lx * sx, ty = t.top - home.top - sub.ly * sy;
+            el.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + sx + ',' + sy + ')';
+          };
+          const lerp = (a, b, t) => a + (b - a) * t;
+          const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-          const A = 0.34, B = 0.6;             // travel-to-centre, then fly-to-slot
-          const FADE = B * 0.5;                // cross-fade finishes by the halfway point of the flight
+          const A = 0.34, B = 0.62, total = A + B, pA = A / total;
           const done = () => { bookEl.style.visibility = ''; cleanup(); };
-          const tl = gsap.timeline({ onComplete: done });
-          setTimeout(done, (A + B) * 1000 + 800);   // backstop
-
-          // Phase A: travel to centre while the dark melts to reveal the shelf
-          tl.to(big,  { x: bigCen.x, y: bigCen.y, duration: A, ease: 'power2.inOut' }, 0);
-          tl.to(dark, { opacity: 0, duration: A, ease: 'power1.out' }, 0);
-          tl.set(shelf, shelfCen, 0);          // park the shelf clone over the centre (hidden)
-
-          // Phase B: fly to the slot; cross-fade (with a soft blur) done by half-way
-          tl.to(big,   { x: bigSlot.x, y: bigSlot.y, scaleX: bigSlot.scaleX, scaleY: bigSlot.scaleY, duration: B, ease: 'power3.inOut' }, A);
-          tl.to(shelf, { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: B, ease: 'power3.inOut' }, A);
-          tl.to(big,   { opacity: 0, filter: 'blur(3px)', duration: FADE, ease: 'power1.in' }, A);
-          tl.fromTo(shelf, { filter: 'blur(3px)' }, { opacity: 1, filter: 'blur(0px)', duration: FADE, ease: 'power1.out' }, A);
+          setTimeout(done, total * 1000 + 800);   // backstop
+          const st = { p: 0 };
+          gsap.to(st, {
+            p: 1, duration: total, ease: 'none', onComplete: done,
+            onUpdate: () => {
+              const p = st.p;
+              if (p <= pA) {
+                // Phase A — travel to centre, dark melts (image rides with the big clone)
+                const a = easeIO(p / pA);
+                big.style.transform = 'translate(' + ((half.left - cen.left) * (1 - a)) + 'px,' + ((half.top - cen.top) * (1 - a)) + 'px)';
+                dark.style.opacity = String(1 - p / pA);
+              } else {
+                // Phase B — image-anchored fly to the slot
+                dark.style.opacity = '0';
+                const b = (p - pA) / (1 - pA), eb = easeIO(b);
+                const fImg = { left: lerp(cen.left, cr.left, eb), top: lerp(cen.top, cr.top, eb), width: lerp(cen.width, cr.width, eb), height: lerp(cen.height, cr.height, eb) };
+                mapSub(big, cen, bigSub, fImg);
+                mapSub(shelf, er, shelfSub, fImg);
+                big.style.opacity = String(1 - Math.min(1, b / 0.5));      // gone by half-way
+                shelf.style.opacity = String(Math.min(1, b / 0.42));       // in by ~42%
+              }
+            },
+          });
         });
       });
     },
