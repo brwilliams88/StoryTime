@@ -70,12 +70,15 @@ window.PageCurl = (function () {
 
   // destOverride: land on a specific page instead of ±1 (used to close the book
   // straight from a deep page to the cover, with the current page as the leaf).
-  function animate(forward, destOverride) {
+  // slide: {x,y} — give the whole turn overlay a slide-in entrance (starts at
+  // this offset, eases to 0 over the first 60% of the turn). Used by the cover
+  // OPEN so the book slides into position WHILE it's turning open.
+  function animate(forward, destOverride, slide) {
     if (animating || g || !cfg) return;
     const area = document.querySelector('.page-area');
     if (!area) { forward ? cfg.goNext() : cfg.goPrev(); return; }
     if (!(forward ? cfg.canNext() : cfg.canPrev())) return;
-    g = { area, axis: cfg.isPortrait() ? 'y' : 'x', forward, started: true, prog: 0, destOverride: (destOverride == null ? null : destOverride) };
+    g = { area, axis: cfg.isPortrait() ? 'y' : 'x', forward, started: true, prog: 0, destOverride: (destOverride == null ? null : destOverride), slide: slide || null };
     if (!safeBegin()) { commitInstant(); return; }
     finish(true);
   }
@@ -125,6 +128,7 @@ window.PageCurl = (function () {
 
     g.wrap = document.createElement('div');
     Object.assign(g.wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', perspective: '1900px', pointerEvents: 'none', zIndex: 46 });
+    if (g.slide) g.wrap.style.transform = 'translate(' + g.slide.x + 'px,' + g.slide.y + 'px)';   // slide-in entrance start
     document.body.appendChild(g.wrap);
 
     // held current page on the side we lay onto (under leaf2)
@@ -156,6 +160,12 @@ window.PageCurl = (function () {
 
   function apply(p) {
     if (!g || !g.leaf1) return;
+    // slide-in entrance: ease the whole overlay from g.slide → 0 over the first
+    // 60% of the turn (so the book settles into position while it's still opening)
+    if (g.slide && g.wrap) {
+      const k = Math.min(1, p / 0.6), e = 1 - Math.pow(1 - k, 2);
+      g.wrap.style.transform = 'translate(' + (g.slide.x * (1 - e)) + 'px,' + (g.slide.y * (1 - e)) + 'px)';
+    }
     // leaf1 lifts 0→90 over the first half
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
     g.leaf1.setAngle(a1);

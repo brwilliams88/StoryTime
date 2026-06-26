@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.31',
+      version: 'v0.9.32',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -59,6 +59,7 @@ createApp({
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
 
       coverShift: false,   // true = closed book slid into its hinge-side half (for the open/close turn)
+      coverInstant: false, // true = skip the .cover-book slide transition (the turn overlay does the slide)
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -445,6 +446,7 @@ createApp({
         // melt during that travel). For a normal close, settle to centre here.
         afterTurn: (landed) => {
           self._coverAnim = false;
+          self.coverInstant = false;
           if (landed === 0 && self._closingToLibrary != null) {
             const id = self._closingToLibrary; self._closingToLibrary = null;
             self.$nextTick(() => self._bookToShelf(id));
@@ -1526,25 +1528,32 @@ createApp({
       if (g.primary < 0) this.openCover();   // forward swipe on the cover → open the book
     },
 
-    // Open the book (cover → first spread). First SLIDE the closed book into the
-    // half it will hinge from (down in portrait, right in landscape) via the
-    // .cover-book CSS transition — during which only the book + dark stage show
-    // (no spread peeking through). THEN hand off to the normal page-turn, which
-    // lifts the cover like a page and lays the first spread's half down on the
-    // other side — exactly like a regular turn. afterTurn() clears coverShift.
-    // (The reverse — close — is just a normal back-turn to the cover; see the
-    // setIndex / afterTurn hooks in mounted.) Falls back to an instant jump.
+    // Open the book (cover → first spread), with the slide and the page-turn
+    // happening TOGETHER. We place the book in its hinge-side half INSTANTLY
+    // (no CSS slide) so the turn engine can capture it, then play the normal
+    // two-faced turn while giving the turn overlay a slide-in entrance — it
+    // starts at screen centre and eases into the hinge position over the first
+    // part of the turn. So the book slides into place as it opens, you see the
+    // inner pages, and the lay-side page lays down past 90° — same engine,
+    // just sliding at the same time. Falls back to an instant jump.
     openCover() {
       if (this._coverAnim || !this.isOnCover) return;
       const curl = window.PageCurl;
       if (!curl || !curl.animate) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
       this._coverAnim = true;
-      this.coverShift = true;                       // slide the book into its hinge-side half
-      const SLIDE = 540;                            // keep >= the .cover-book CSS transition (0.5s)
-      setTimeout(() => {
-        curl.animate(true);                         // then turn the cover like a page
-        setTimeout(() => { this._coverAnim = false; }, 2000);   // backstop if the turn bailed
-      }, SLIDE);
+      this.coverShift = true;        // book → hinge-side half...
+      this.coverInstant = true;      // ...instantly (the visible slide is done by the turn overlay)
+      this.$nextTick(() => {
+        const area = document.querySelector('.page-area');
+        const cb = area && area.querySelector('.cover-book');
+        if (!area || !cb) { this.currentPageIndex = 1; this.coverShift = false; this.coverInstant = false; this._coverAnim = false; return; }
+        const half = cb.getBoundingClientRect();
+        const pa = area.getBoundingClientRect();
+        const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2 };
+        // overlay starts shifted so the book appears at CENTRE, eases to the half
+        curl.animate(true, null, { x: cen.left - half.left, y: cen.top - half.top });
+        setTimeout(() => { this._coverAnim = false; }, 2000);   // backstop
+      });
     },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {

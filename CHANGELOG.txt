@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.32 — 2026-06-26 — Cover opens WHILE it slides into place (concurrent open)
+  • The book open now slides and opens at the same time, using the same two-faced page-turn engine: the book is placed in its hinge-side half instantly, then the turn plays with a slide-in entrance (the whole turn overlay starts at screen centre and eases into the hinge position over the first ~60% of the turn). So the book slides into position as it opens — you see the inner pages, and the lay-side page lays down past 90° — same look as a normal turn, just sliding concurrently. (Close still uses the prior reverse-turn for now; we can make it concurrent too if the open feels right.)
+
+--------------------------
 v0.9.31 — 2026-06-26 — Soft blur over the close→shelf cross-fade
   • Added a subtle blur on the two book formats while they cross-fade during the close→shelf transition, to further soften/mask the format swap.
 
