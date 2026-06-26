@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.27 — 2026-06-26 — Smoother close→shelf: dark melts on the way to centre, earlier morph
+  • The close→shelf transition is now two phases. (A) The closed book travels to screen centre while the dark background melts away — so by the time it's centred you already see the bookshelf behind it (no separate dark-fade step after centring). (B) It then flies into its empty slot, and the cross-fade from the big title-book format to the small shelf-book format now FINISHES by the halfway point of the flight (with a soft blur over the swap), so the rest is just a clean scale-down. Much less "two books adjusting" at the landing.
+
+--------------------------
 v0.9.26 — 2026-06-26 — Fix leftover book clone after the shelf morph
   • The shelf-format clone from the close→shelf transition wasn't being removed, so a slightly smaller book lingered on top of the real one (and piled up on later exits). Cleanup now removes ALL transition clones (the dark layer, the big book, and the shelf clone), with a backstop timeout and a sweep of any strays at the start of the next transition.
 

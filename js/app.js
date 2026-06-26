@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.26',
+      version: 'v0.9.27',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -439,15 +439,17 @@ createApp({
           }
           return true;
         },
-        // After any turn settles, drop coverShift. On a close (landed on the
-        // cover) that slides the book home to centre. If this close was the back
-        // arrow exiting the book, fade to the library once it's settled.
+        // After a turn settles. For the back-arrow exit (landed on the cover),
+        // we KEEP the book in its book-in-half pose and hand straight to the
+        // shelf morph, which does the travel-to-centre itself (so the dark can
+        // melt during that travel). For a normal close, settle to centre here.
         afterTurn: (landed) => {
-          self.coverShift = false;
           self._coverAnim = false;
           if (landed === 0 && self._closingToLibrary != null) {
             const id = self._closingToLibrary; self._closingToLibrary = null;
-            setTimeout(() => self._bookToShelf(id), 520);   // wait for the settle-to-centre slide
+            self.$nextTick(() => self._bookToShelf(id));
+          } else {
+            self.coverShift = false;
           }
         },
       });
@@ -1844,37 +1846,40 @@ createApp({
       curl.animate(false, 0);               // turn the current page straight onto the cover
     },
 
-    // The "put the book back on the shelf" transition. The closed book is
-    // centred on the dark stage; we melt the dark away to reveal the library
-    // behind (scrolled so this book's slot is centred, with the slot left
-    // EMPTY), then fly the book from centre into that slot — shrinking and
-    // cross-fading from the big title-book format to the small tilted shelf
-    // format — and hand off to the real shelf book on landing.
+    // The "put the book back on the shelf" transition, in two phases:
+    //  A) the closed book (in its book-in-half pose) travels to screen centre
+    //     while the dark stage melts away — so by the time it's centred you
+    //     already see the shelf behind it;
+    //  B) it flies from centre into its (empty) slot, shrinking while the big
+    //     title-book format cross-fades into the small tilted shelf format —
+    //     the cross-fade (with a soft blur to mask it) completes by the HALFWAY
+    //     point of the flight, so the rest is just a clean scale-down. Hands off
+    //     to the real shelf book on landing.
     _bookToShelf(targetId) {
       const gsap = window.gsap;
-      const coverBook = document.querySelector('.page-area .cover-book');
+      const area = document.querySelector('.page-area');
+      const coverBook = area && area.querySelector('.cover-book');
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (!gsap || !coverBook || !targetId || reduce) { this._exitToLibrary(targetId); return; }
+      if (!gsap || !coverBook || !targetId || reduce) { this.coverShift = false; this._exitToLibrary(targetId); return; }
 
-      // Clear any stray transition clones from an interrupted previous run.
-      document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());
+      document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());   // sweep strays
 
-      const sr = coverBook.getBoundingClientRect();   // start: big centred book
+      const half = coverBook.getBoundingClientRect();                 // current pose (book-in-half, or centred on the cover)
+      const pa = area.getBoundingClientRect();
+      const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2, width: half.width, height: half.height };
 
-      // dark layer that hides the view swap (matches the reader stage), and a
-      // clone of the big book pinned over it. (.book-fly-temp = swept on cleanup.)
       const dark = document.createElement('div');
       dark.className = 'book-fly-temp';
       Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '1', pointerEvents: 'none' });
       const big = coverBook.cloneNode(true);
       big.classList.add('book-fly-temp');
-      Object.assign(big.style, { position: 'fixed', left: sr.left + 'px', top: sr.top + 'px', width: sr.width + 'px', height: sr.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none' });
+      Object.assign(big.style, { position: 'fixed', left: half.left + 'px', top: half.top + 'px', width: half.width + 'px', height: half.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none' });
       document.body.appendChild(dark);
       document.body.appendChild(big);
 
-      // bring up the library behind the dark layer
       this.view = 'library';
       this.currentPageIndex = 0;
+      this.coverShift = false;
       this.$nextTick(() => {
         const cleanup = () => { document.querySelectorAll('.book-fly-temp').forEach(el => el.remove()); };
         let slot = null;
@@ -1886,13 +1891,10 @@ createApp({
         if (!bookEl) { gsap.to(dark, { opacity: 0, duration: 0.3, onComplete: cleanup }); return; }
 
         if (bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });
-        // measure after the scroll settles
         requestAnimationFrame(() => {
-          const er = bookEl.getBoundingClientRect();   // end: the shelf slot
-          bookEl.style.visibility = 'hidden';          // leave the gap where the book belongs
+          const er = bookEl.getBoundingClientRect();   // the shelf slot
+          bookEl.style.visibility = 'hidden';          // leave the gap
 
-          // shelf-format clone, its own box at the slot; the .book keeps its own
-          // perspective/tilt, the wrapper does the FLIP.
           const shelf = document.createElement('div');
           shelf.className = 'book-fly-temp';
           Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', opacity: '0' });
@@ -1903,20 +1905,27 @@ createApp({
           shelf.appendChild(bookClone);
           document.body.appendChild(shelf);
 
-          const sx = er.width / sr.width, sy = er.height / sr.height;
-          // start the shelf clone scaled up + shifted to overlap the big book
-          gsap.set(shelf, { x: sr.left - er.left, y: sr.top - er.top, scaleX: 1 / sx, scaleY: 1 / sy });
+          // poses are transforms relative to each clone's home box (big=half, shelf=slot)
+          const bigCen  = { x: cen.left - half.left, y: cen.top - half.top, scaleX: 1, scaleY: 1 };
+          const bigSlot = { x: er.left - half.left, y: er.top - half.top, scaleX: er.width / half.width, scaleY: er.height / half.height };
+          const shelfCen = { x: cen.left - er.left, y: cen.top - er.top, scaleX: half.width / er.width, scaleY: half.height / er.height };
 
-          const D = 0.6;
+          const A = 0.34, B = 0.6;             // travel-to-centre, then fly-to-slot
+          const FADE = B * 0.5;                // cross-fade finishes by the halfway point of the flight
           const done = () => { bookEl.style.visibility = ''; cleanup(); };
           const tl = gsap.timeline({ onComplete: done });
-          setTimeout(done, (0.16 + D) * 1000 + 700);   // backstop if onComplete never fires
-          tl.to(dark, { opacity: 0, duration: 0.24, ease: 'power1.out' }, 0);
-          // fly + shrink the big book into the slot, fading it out as the shelf clone fades in
-          tl.to(big,   { x: er.left - sr.left, y: er.top - sr.top, scaleX: sx, scaleY: sy, duration: D, ease: 'power3.inOut' }, 0.16);
-          tl.to(big,   { opacity: 0, duration: D * 0.5, ease: 'power1.in' }, 0.16 + D * 0.4);
-          tl.to(shelf, { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: D, ease: 'power3.inOut' }, 0.16);
-          tl.to(shelf, { opacity: 1, duration: D * 0.45, ease: 'power1.out' }, 0.16 + D * 0.22);
+          setTimeout(done, (A + B) * 1000 + 800);   // backstop
+
+          // Phase A: travel to centre while the dark melts to reveal the shelf
+          tl.to(big,  { x: bigCen.x, y: bigCen.y, duration: A, ease: 'power2.inOut' }, 0);
+          tl.to(dark, { opacity: 0, duration: A, ease: 'power1.out' }, 0);
+          tl.set(shelf, shelfCen, 0);          // park the shelf clone over the centre (hidden)
+
+          // Phase B: fly to the slot; cross-fade (with a soft blur) done by half-way
+          tl.to(big,   { x: bigSlot.x, y: bigSlot.y, scaleX: bigSlot.scaleX, scaleY: bigSlot.scaleY, duration: B, ease: 'power3.inOut' }, A);
+          tl.to(shelf, { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: B, ease: 'power3.inOut' }, A);
+          tl.to(big,   { opacity: 0, filter: 'blur(3px)', duration: FADE, ease: 'power1.in' }, A);
+          tl.fromTo(shelf, { filter: 'blur(3px)' }, { opacity: 1, filter: 'blur(0px)', duration: FADE, ease: 'power1.out' }, A);
         });
       });
     },
