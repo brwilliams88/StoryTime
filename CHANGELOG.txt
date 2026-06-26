@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.24 — 2026-06-25 — Close from a deep page goes straight to the cover (no page-1 flash)
+  • Closing the book from a deep page no longer flashes the first spread. The close turn is now driven straight from whatever page you're on onto the cover (the current page is the turning leaf), then it settles and fades to the shelf. (Page-turn engine gained a destination override so a turn can land on the cover from any page.)
+
+--------------------------
 v0.9.23 — 2026-06-25 — Back-arrow close uses the real turn; image continuity across pages
   • The back-arrow close now plays the EXACT same animation as turning page 1 back to the cover (it briefly jumps to the first spread, then closes), so it's correct in both orientations — fixes the portrait "swinging inside-out" and the landscape "cover stretched too big". Speed matches the normal turn too.
   • Already on the cover + back arrow → no close animation, just the fade across to the shelf.

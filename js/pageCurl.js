@@ -68,18 +68,20 @@ window.PageCurl = (function () {
     finish(g.prog > COMMIT || (g.speed || 0) > FLICK);
   }
 
-  function animate(forward) {
+  // destOverride: land on a specific page instead of ±1 (used to close the book
+  // straight from a deep page to the cover, with the current page as the leaf).
+  function animate(forward, destOverride) {
     if (animating || g || !cfg) return;
     const area = document.querySelector('.page-area');
     if (!area) { forward ? cfg.goNext() : cfg.goPrev(); return; }
     if (!(forward ? cfg.canNext() : cfg.canPrev())) return;
-    g = { area, axis: cfg.isPortrait() ? 'y' : 'x', forward, started: true, prog: 0 };
+    g = { area, axis: cfg.isPortrait() ? 'y' : 'x', forward, started: true, prog: 0, destOverride: (destOverride == null ? null : destOverride) };
     if (!safeBegin()) { commitInstant(); return; }
     finish(true);
   }
 
   function safeBegin() { try { begin(); return true; } catch (e) { console.warn('curl begin failed', e); return false; } }
-  function commitInstant() { cfg.setIndex(cfg.index() + (g.forward ? 1 : -1)); cleanup(); }
+  function commitInstant() { cfg.setIndex(g.destOverride != null ? g.destOverride : cfg.index() + (g.forward ? 1 : -1)); cleanup(); }
 
   // geometry for one half (wrap-relative): box, clone offset, spine origin, rotation
   function halfGeom(side, W, H) {
@@ -113,7 +115,8 @@ window.PageCurl = (function () {
   }
 
   function begin() {
-    g.origIndex = cfg.index(); g.destIndex = g.origIndex + (g.forward ? 1 : -1);
+    g.origIndex = cfg.index();
+    g.destIndex = (g.destOverride != null) ? g.destOverride : g.origIndex + (g.forward ? 1 : -1);
     const r = g.area.getBoundingClientRect(); const W = r.width, H = r.height;
     const horiz = g.axis === 'x';
     g.turnSide = horiz ? (g.forward ? 'right' : 'left') : (g.forward ? 'bottom' : 'top');

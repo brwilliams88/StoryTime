@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.23',
+      version: 'v0.9.24',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -414,9 +414,10 @@ createApp({
       window.PageCurl.init({
         index: () => self.currentPageIndex,
         setIndex: (i) => {
-          // Turning back to the cover (1→0) = closing the book: render the cover
+          // A turn landing on the cover = closing the book: render the cover
           // already slid into its half so the turn reveals it book-in-half.
-          if (i === 0 && self.currentPageIndex === 1) self.coverShift = true;
+          // (Turns only reach index 0 via a close, so this is safe.)
+          if (i === 0) self.coverShift = true;
           self.currentPageIndex = i;
         },
         canNext: () => self.canGoNext(),
@@ -1826,11 +1827,11 @@ createApp({
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
     goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
 
-    // Reader back arrow: play the SAME close as page 1 → cover (swing the book
-    // shut, settle to centre), then fade across to the library scrolled so this
-    // book sits as centred on the shelf as the limits allow. From a deep page we
-    // first jump to the first spread so the close is identical everywhere. If
-    // we're already on the cover, skip the close and just fade out.
+    // Reader back arrow: close the book with the same turn used for page 1 →
+    // cover, but driven STRAIGHT from whatever page you're on to the cover (the
+    // current page is the turning leaf), so you never flash past page 1. Then
+    // fade across to the library, scrolled so this book sits as centred on the
+    // shelf as the limits allow. Already on the cover → skip the close, just fade.
     closeBook() {
       if (this._coverAnim) return;
       const story = this.currentStory;
@@ -1840,8 +1841,7 @@ createApp({
       if (!curl || !curl.animate) { this._exitToLibrary(targetId); return; }
       this._coverAnim = true;
       this._closingToLibrary = targetId;    // afterTurn() fades to the shelf once the close settles
-      this.currentPageIndex = 1;            // jump to first spread → close is identical to page 1 → cover
-      this.$nextTick(() => { curl.animate(false); });
+      curl.animate(false, 0);               // turn the current page straight onto the cover
     },
     // Fade to black, switch to the library (scrolled to the book), fade back in.
     _fadeToLibrary(targetId) {
