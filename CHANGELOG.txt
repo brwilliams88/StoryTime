@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.18 — 2026-06-25 — Bigger text again; cover is a real shelf-style book that opens/closes
+  • Text size: bumped the boost again (+6) so it reads a point larger across books (still capped to fit with a sliver of margin).
+  • Cover redesigned to match the bookshelf book: cover art + cream title plate + a small "By …" byline, with a spine on the HINGE edge and no page-edge stack / no shelf lean. It's sized to exactly ONE interior page and centred.
+  • Open animation: on turn the book slides so its hinge meets the centre crease (portrait: down so the top edge is centred; landscape: right so the left edge is centred), then the front swings open about that hinge to reveal the first spread — same feel as the interior page turns, just with the slide first.
+  • Added the mirror CLOSE animation: going back from page 1 to the cover swings the book shut and slides it back to centre.
+  • Notes: rotate signs (portrait/landscape) may need a flip on device; turning from page 1 → 2 now plays as a triggered turn (not finger-following) because the cover gestures are intercepted there — easy to revisit.
+
+--------------------------
 v0.9.17 — 2026-06-25 — Bigger text (for real), text nudge, cover opens like a book
   • Text size: the +4 bump in v0.9.16 was a no-op (its cap reused the same margin the fit was already limited by, so it had no room to grow). Fixed: the boost floor is now below the fit's margin, so the text actually grows — now bumps +5 (capped so the tallest page still keeps a sliver of top/bottom margin and never overflows).
   • Landscape text: shifted ~1 character closer to the centre crease, with ~1 character more margin on the outer (right) edge.

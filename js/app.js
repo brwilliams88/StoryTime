@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.17',
+      version: 'v0.9.18',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -464,10 +464,11 @@ createApp({
       // Arrow keys play the same turn animation (fall back to instant nav).
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
-        if (this.isOnCover) { this.animateCoverOpen(); return; }
+        if (this.isOnCover) { this.animateCover(true); return; }   // open the book
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
+        if (this.currentPageIndex === 1) { this.animateCover(false); return; }   // close the book
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(false); else this.prevPage();
       }
     };
@@ -1176,7 +1177,7 @@ createApp({
       // is BELOW the fit's snug ceiling (1.5) so the boost actually has room to
       // grow — using 1.5 here is what made the previous +4 a no-op. The cap is
       // never below `best`, so we never end up smaller than the fit.
-      const BONUS = 5;
+      const BONUS = 6;
       const MIN_ROWS = 0.8;   // boosted size floor: >=0.4 row clear top & bottom
       const fitsBoost = (fs) => {
         meas.style.fontSize = fs + 'px';
@@ -1433,11 +1434,12 @@ createApp({
     canGoNext() { return this.currentStory && this.currentPageIndex < this.totalReadingPages - 1; },
     canGoPrev() { return this.currentPageIndex > 0; },
 
-    // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area)
-    // On the cover, gestures trigger the book-open animation (not a page curl);
-    // everywhere else the finger-following curl handles the turn.
+    // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area).
+    // The cover (index 0) and the first spread (index 1) are special: the cover
+    // OPENS like a book and CLOSES back, so we capture those gestures ourselves;
+    // every other turn uses the finger-following curl.
     curlStart(e) {
-      if (this.isOnCover) { this._coverDown(e); return; }
+      if (this.currentPageIndex <= 1) { this._coverDown(e); return; }
       if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
     },
     curlMove(e) {
@@ -1476,56 +1478,88 @@ createApp({
       if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
       this._cg = null;
       if (Math.abs(g.primary || 0) < 40) { this.pokeReaderUi(); return; }   // tap → just reveal controls
-      if (g.primary < 0) this.animateCoverOpen();                            // forward swipe → open the book
-      // (a backward swipe on the cover does nothing — there's nothing before it)
+      const forward = g.primary < 0;
+      if (this.isOnCover) { if (forward) this.animateCover(true); return; }  // cover: forward = open
+      // first spread (index 1): forward = normal turn to page 2, backward = close the book
+      if (forward) { if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage(); }
+      else this.animateCover(false);
     },
 
-    // Slide the closed book so its hinge meets the centre crease, then swing the
-    // front cover open to reveal the first spread underneath. GSAP if available,
-    // otherwise just jump to page 1. (Signs/durations are easy to tune.)
-    animateCoverOpen() {
-      if (this._coverAnim || !this.isOnCover) return;
+    // The book opening (cover→spread) and closing (spread→cover). Slides the
+    // book so its HINGE edge meets the centre crease (down/right), then swings
+    // the front cover open about that hinge to reveal the first spread — and the
+    // reverse on close. GSAP if available, else an instant jump. Knobs: OPEN_DEG,
+    // durations, and the rotate signs (portrait rotX / landscape rotY).
+    animateCover(forward) {
+      if (this._coverAnim) return;
       const area = document.querySelector('.page-area');
-      const coverEl = area && area.querySelector('.cover-page');
-      const front = coverEl && coverEl.querySelector('.cover-front');
       const gsap = window.gsap;
-      if (!area || !coverEl || !front || !gsap) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
-
+      if (!area || !gsap) { this.currentPageIndex = forward ? 1 : 0; this.pokeReaderUi(); return; }
       this._coverAnim = true;
-      const rect = area.getBoundingClientRect();
       const portrait = this.isPortrait;
-      const fr = front.getBoundingClientRect();   // book face, measured before we switch pages
+      const rect = area.getBoundingClientRect();
+      const OPEN_DEG = 122;                     // a touch past vertical (backface hides the rest)
 
-      // Clone the cover into a fixed overlay (above the crease); reveal the spread beneath.
-      const wrap = document.createElement('div');
-      Object.assign(wrap.style, {
-        position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
-        width: rect.width + 'px', height: rect.height + 'px',
-        zIndex: 52, pointerEvents: 'none', perspective: '1800px', overflow: 'hidden',
-      });
-      const clone = coverEl.cloneNode(true);
-      Object.assign(clone.style, { position: 'absolute', inset: '0', margin: '0', transformStyle: 'preserve-3d' });
-      wrap.appendChild(clone);
-      document.body.appendChild(wrap);
-      const cloneFront = clone.querySelector('.cover-front');
+      const run = (coverEl, underClone) => {
+        const front = coverEl.querySelector('.cover-front');
+        if (!front) { this._coverAnim = false; this.currentPageIndex = forward ? 1 : 0; return; }
+        const fr = front.getBoundingClientRect();
 
-      this.currentPageIndex = 1;   // first spread renders live under the overlay
+        const wrap = document.createElement('div');
+        Object.assign(wrap.style, {
+          position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+          width: rect.width + 'px', height: rect.height + 'px',
+          zIndex: 52, pointerEvents: 'none', perspective: '2000px', overflow: 'hidden',
+        });
+        if (underClone) { Object.assign(underClone.style, { position: 'absolute', inset: '0', margin: '0' }); wrap.appendChild(underClone); }
+        const clone = coverEl.cloneNode(true);
+        Object.assign(clone.style, { position: 'absolute', inset: '0', margin: '0', transformStyle: 'preserve-3d' });
+        wrap.appendChild(clone);
+        document.body.appendChild(wrap);
+        const leaf = clone.querySelector('.cover-front');
 
-      // slide so the hinge edge lands on the screen centre
-      let slideX = 0, slideY = 0;
-      if (portrait) slideY = (rect.height / 2) - (fr.top - rect.top);                 // top edge → centre Y
-      else          slideX = (rect.width / 2) - ((fr.left - rect.left) + fr.width);   // right edge → centre X
-      cloneFront.style.transformOrigin = portrait ? 'center top' : 'right center';
+        // slide so the hinge edge meets the screen centre (portrait: top→centre,
+        // book moves down; landscape: left→centre, book moves right)
+        const slideX = portrait ? 0 : (rect.width / 2) - (fr.left - rect.left);
+        const slideY = portrait ? (rect.height / 2) - (fr.top - rect.top) : 0;
+        leaf.style.transformOrigin = portrait ? 'center top' : 'left center';
+        const rotKey = portrait ? 'rotationX' : 'rotationY';
+        const openRot = -OPEN_DEG;              // lift the free edge toward the viewer
 
-      const tl = gsap.timeline({
-        onComplete: () => { wrap.remove(); this._coverAnim = false; this.pokeReaderUi(); },
-      });
-      const openVars = portrait
-        ? { rotateX: -118, duration: 0.55, ease: 'power2.in' }
-        : { rotateY: 118, duration: 0.55, ease: 'power2.in' };
-      tl.to(clone, { x: slideX, y: slideY, duration: 0.4, ease: 'power2.inOut' });
-      tl.to(cloneFront, openVars, '>-0.04');
-      tl.to(clone, { autoAlpha: 0, duration: 0.2 }, '>-0.18');
+        const done = () => { wrap.remove(); this._coverAnim = false; this.pokeReaderUi(); };
+
+        if (forward) {
+          this.currentPageIndex = 1;            // spread renders under the overlay
+          const tl = gsap.timeline({ onComplete: done });
+          tl.to(clone, { x: slideX, y: slideY, duration: 0.36, ease: 'power2.inOut' });
+          tl.to(leaf, { [rotKey]: openRot, duration: 0.5, ease: 'power2.in' }, '>-0.03');
+          tl.to(clone, { autoAlpha: 0, duration: 0.18 }, '>-0.16');
+        } else {
+          // close: start open (slid + rotated + invisible), settle to closed + centred
+          gsap.set(clone, { x: slideX, y: slideY, autoAlpha: 0 });
+          gsap.set(leaf, { [rotKey]: openRot });
+          const tl = gsap.timeline({ onComplete: done });
+          tl.to(clone, { autoAlpha: 1, duration: 0.16 });
+          tl.to(leaf, { [rotKey]: 0, duration: 0.5, ease: 'power2.out' }, '>-0.02');
+          tl.to(clone, { x: 0, y: 0, duration: 0.34, ease: 'power2.inOut' }, '>-0.06');
+        }
+      };
+
+      if (forward) {
+        const coverEl = area.querySelector('.cover-page');
+        if (!coverEl) { this._coverAnim = false; this.currentPageIndex = 1; return; }
+        run(coverEl, null);
+      } else {
+        // closing: keep the spread visible (cloned) while the cover swings shut over it
+        const spreadEl = area.querySelector('.story-spread');
+        const underClone = spreadEl ? spreadEl.cloneNode(true) : null;
+        this.currentPageIndex = 0;              // render the real cover (behind the overlay)
+        this.$nextTick(() => {
+          const coverEl = area.querySelector('.cover-page');
+          if (!coverEl) { this._coverAnim = false; return; }
+          run(coverEl, underClone);
+        });
+      }
     },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {

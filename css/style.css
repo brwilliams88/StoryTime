@@ -2792,64 +2792,61 @@ body:has(.app-main-reading) {
 /* (Page-stack edge lines removed at the user's request.) */
 
 /* ===================================================================
-   v0.9.17 — COVER AS AN OPENABLE BOOK
-   The cover page is a centred closed book (front cover art + title +
-   author, spine + page edges) on the dark reader stage. On turn, JS
-   slides it so its hinge meets the centre crease, then swings the front
-   cover open to reveal the first spread (see animateCoverOpen in app.js).
+   v0.9.18 — COVER AS AN OPENABLE BOOK (matches the shelf book look)
+   The cover is a closed book — cover art + cream title plate + a small
+   "By …" byline + a spine on the HINGE edge (top in portrait, left in
+   landscape), no page-edge stack, no shelf lean. Sized to exactly ONE
+   page and centred, so when JS slides it to the crease and swings the
+   front open (animateCover in app.js), it lays onto the matching half.
    =================================================================== */
 .cover-page {
   display: flex; align-items: center; justify-content: center;
   padding: 0; gap: 0; overflow: hidden;
   background: var(--bg-deep);
-  perspective: 1800px;            /* gives the resting book a hint of depth */
+  perspective: 2000px;
 }
-.cover-book {
-  position: relative;
-  width: min(64vw, 48vh);         /* portrait: a tall-ish book */
-  aspect-ratio: 3 / 4;
-  max-height: 80%;
-  transform-style: preserve-3d;
-  border-radius: 3px 7px 7px 3px;
-  box-shadow: 0 22px 46px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.4);
-}
-.reading-view:not(.portrait-mode) .cover-book { width: min(42vh, 36vw); max-height: 84%; }
-/* spine down the left, page block down the right */
-.cover-book::before {
-  content: ''; position: absolute; left: -3px; top: 0; bottom: 0; width: 9px;
-  border-radius: 3px 0 0 3px;
-  background: linear-gradient(to right, #150d06, #3c2a1a 70%, #4a3520 100%);
-  box-shadow: inset -2px 0 4px rgba(0,0,0,0.5);
-}
-.cover-book::after {
-  content: ''; position: absolute; right: -5px; top: 2.5%; bottom: 2.5%; width: 6px;
-  border-radius: 0 2px 2px 0;
-  background: repeating-linear-gradient(to bottom, #f3ead6 0, #f3ead6 2px, #d9ccb1 2px, #d9ccb1 3px);
-  box-shadow: 1px 0 3px rgba(0,0,0,0.35);
-}
+/* sized to exactly one interior page, centred on the stage */
+.cover-book { position: relative; }
+.cover-page.portrait .cover-book      { width: 100%; height: 50%; }   /* one page = full width, half height */
+.cover-page:not(.portrait) .cover-book { width: 50%; height: 100%; }  /* one page = half width, full height */
+
 .cover-front {
-  position: absolute; inset: 0; border-radius: inherit; overflow: hidden;
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  background: #241a10; overflow: hidden;
+  box-shadow: 0 16px 38px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.4);
   transform-style: preserve-3d; backface-visibility: hidden;
-  background: #241a10;
 }
-/* cover art FILLS the face (covers, unlike interior pages which letterbox) */
-.cover-front .cover-image-wrap { position: absolute; inset: 0; display: block; }
-.cover-front .image-frame {
+.cover-art { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.cover-art .image-frame {
   position: absolute; inset: 0; aspect-ratio: auto; max-width: none; max-height: none;
   width: 100%; height: 100%; display: block;
 }
-.cover-front .page-image { width: 100%; height: 100%; object-fit: cover; }
-/* title + author sit over the art with soft scrims (override the dark-ink rule) */
-.cover-front .cover-title {
-  position: absolute; left: 0; right: 0; top: 0; z-index: 3; margin: 0;
-  padding: 0.7rem 0.8rem 1.4rem; max-width: none; color: #fff; font-weight: 700;
-  font-size: clamp(1.05rem, 2.7vh, 1.6rem); text-align: center; line-height: 1.18;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
-  background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0));
+.cover-art .page-image { width: 100%; height: 100%; object-fit: cover; }   /* cover art fills the face */
+.cover-art .image-placeholder { position: absolute; inset: 0; }
+/* cream title plate, like the shelf book's plate */
+.cover-plate {
+  flex: 0 0 auto; background: linear-gradient(#fbf3df, #ecdcbb);
+  border-top: 1px solid rgba(0,0,0,0.12);
+  padding: 7px 14px; display: flex; align-items: center; justify-content: center;
 }
-.cover-front .cover-by {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; margin: 0;
-  padding: 1.2rem 0.7rem 0.6rem; color: #f3e9d6; font-size: 0.82rem; text-align: center;
-  text-shadow: 0 1px 5px rgba(0,0,0,0.55);
-  background: linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0));
+.cover-plate-text {
+  text-align: center; font-weight: 700; color: #463115; line-height: 1.15;
+  font-size: clamp(0.85rem, 2.3vh, 1.2rem);
+  overflow: hidden; -webkit-line-clamp: 3; -webkit-box-orient: vertical; display: -webkit-box;
+}
+/* small "By …" line under the plate */
+.cover-byline {
+  flex: 0 0 auto; background: #ecdcbb; color: #6b5128; text-align: center;
+  font-size: clamp(0.62rem, 1.5vh, 0.82rem); padding: 0 12px 7px;
+}
+/* spine sits on the HINGE edge so the cover swings off it like a real binding */
+.cover-book.portrait::before {       /* portrait hinge = TOP edge */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 10px; z-index: 4;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(255,255,255,0.28) 55%, rgba(0,0,0,0.18));
+}
+.cover-book:not(.portrait)::before { /* landscape hinge = LEFT edge */
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; z-index: 4;
+  border-radius: 4px 0 0 4px;
+  background: linear-gradient(to right, rgba(0,0,0,0.5), rgba(255,255,255,0.28) 55%, rgba(0,0,0,0.18));
 }
