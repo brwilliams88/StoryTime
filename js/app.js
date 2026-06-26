@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.28',
+      version: 'v0.9.29',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1905,6 +1905,13 @@ createApp({
           const shelf = document.createElement('div');
           shelf.className = 'book-fly-temp';
           Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2099', pointerEvents: 'none', transformOrigin: '0 0', opacity: '0' });
+          // The shelf-book sizes (--book-w, --plate-h) live on .shelf-grid; the
+          // clone moves out to <body>, so without these the cloned plate has no
+          // fixed height (collapses to one line) and the book "grows" on landing.
+          // Copy them so the flying clone matches the real book exactly.
+          const csBook = getComputedStyle(bookEl);
+          shelf.style.setProperty('--book-w', csBook.getPropertyValue('--book-w'));
+          shelf.style.setProperty('--plate-h', csBook.getPropertyValue('--plate-h'));
           const bookClone = bookEl.cloneNode(true);
           bookClone.style.visibility = 'visible';
           bookClone.style.margin = '0';
