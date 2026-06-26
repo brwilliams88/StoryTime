@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.21',
+      version: 'v0.9.22',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1807,6 +1807,67 @@ createApp({
     // ---- Navigation between the 3 areas ----
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
     goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
+
+    // Reader back arrow: from ANY page, play the close-book animation (jump to
+    // the cover, swing it shut, centred), then fade across to the library
+    // scrolled so this book sits as centred on the shelf as the limits allow.
+    closeBook() {
+      if (this._coverAnim) return;
+      const story = this.currentStory;
+      const targetId = story && story.id;
+      const gsap = window.gsap;
+      if (!gsap) { this._exitToLibrary(targetId); return; }   // no animation lib → just go
+      this._coverAnim = true;
+      this.coverShift = false;
+      this.currentPageIndex = 0;            // jump to the cover (centred, closed)
+      this.$nextTick(() => {
+        const area = document.querySelector('.page-area');
+        const front = area && area.querySelector('.cover-front');
+        const finishClose = () => { this._coverAnim = false; this._fadeToLibrary(targetId); };
+        if (!front) { finishClose(); return; }
+        const portrait = this.isPortrait;
+        front.style.transformOrigin = portrait ? 'center top' : 'left center';
+        // swing the front cover shut (open → closed) about its hinge, onto the spine
+        gsap.from(front, {
+          [portrait ? 'rotationX' : 'rotationY']: -112,
+          transformPerspective: 1500,
+          duration: 0.5, ease: 'power2.out',
+          onComplete: finishClose,
+        });
+      });
+    },
+    // Fade to black, switch to the library (scrolled to the book), fade back in.
+    _fadeToLibrary(targetId) {
+      const gsap = window.gsap;
+      const fade = document.createElement('div');
+      Object.assign(fade.style, {
+        position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)',
+        zIndex: '2000', opacity: '0', pointerEvents: 'none',
+      });
+      document.body.appendChild(fade);
+      if (!gsap) { this._exitToLibrary(targetId); fade.remove(); return; }
+      gsap.to(fade, { opacity: 1, duration: 0.25, onComplete: () => {
+        this._exitToLibrary(targetId);
+        this.$nextTick(() => {
+          gsap.to(fade, { opacity: 0, duration: 0.35, delay: 0.05, onComplete: () => fade.remove() });
+        });
+      }});
+    },
+    _exitToLibrary(targetId) {
+      this.view = 'library';
+      this.currentPageIndex = 0;
+      this.$nextTick(() => this._scrollShelfTo(targetId));
+    },
+    _scrollShelfTo(targetId) {
+      if (!targetId) { window.scrollTo(0, 0); return; }
+      let el = null;
+      try {
+        const sel = '[data-book-id="' + (window.CSS && CSS.escape ? CSS.escape(targetId) : targetId) + '"]';
+        el = document.querySelector(sel);
+      } catch (e) { /* ignore */ }
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      else window.scrollTo(0, 0);
+    },
 
     // Re-sync the shelf from the cloud (covers the "made on another device" case)
     async refreshLibrary() {

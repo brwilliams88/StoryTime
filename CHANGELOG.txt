@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.22 — 2026-06-25 — Back arrow closes the book & returns you to its spot on the shelf
+  • Tapping the reader back arrow (from any page) now plays the close-book animation — it jumps to the cover, swings the front cover shut, centred — then fades across to the Library scrolled so the book you just closed sits as centred on the shelf as the top/bottom limits allow. Falls back to a plain jump if the animation lib is missing.
+
+--------------------------
 v0.9.21 — 2026-06-25 — Fix stuck close-swipe on phone; looser swipe-to-turn
   • FIXED the freeze: swiping from page 1 back to the cover on a phone removed the page element mid-swipe, which stops iOS touch events and locked up the reader (couldn't turn pages or tap back). The close is now played as a triggered animation (swipe back → it plays + settles to centre) instead of finger-following, so the page element is never yanked out from under your finger. Added an "ignore touch while a turn is animating" guard too.
   • Dropped the strict swipe ZONES. Now any directional swipe turns the page (forward = swipe toward the spine, back = swipe outward), and a natural grab-and-drag of a page still finger-follows. Nothing "does nothing" anymore. Turn speed unchanged (slow enough to see flicks).

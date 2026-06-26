@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.21" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.22" />
 </head>
 <body>
 
@@ -320,7 +320,7 @@
               </div>
 
               <!-- Books -->
-              <div v-for="book in displayedBooks" :key="book.id" class="book-slot">
+              <div v-for="book in displayedBooks" :key="book.id" class="book-slot" :data-book-id="book.id">
                 <button class="book"
                         :class="{ 'book-selected': manageMode && isBookSelectedForDelete(book.id), 'book-offline': isOffline && !isBookCachedLocal(book.id) }"
                         :disabled="isOffline && !isBookCachedLocal(book.id)"
@@ -365,7 +365,7 @@
 
           <!-- Floating controls: back (top-left) + page count (top-right). They
                only appear when you tap the screen, and hide while turning pages. -->
-          <button @click="goLibrary" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
+          <button @click="closeBook" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
           <div v-if="currentStoryPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageShortLabel }}</div>
 
           <!-- Persistent book binding down the centre (so it never pops in after a turn) -->
@@ -1005,12 +1005,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.21"></script>
-  <script src="js/imageStorage.js?v=0.9.21"></script>
-  <script src="js/api.js?v=0.9.21"></script>
-  <script src="js/sync.js?v=0.9.21"></script>
-  <script src="js/pageCurl.js?v=0.9.21"></script>
-  <script src="js/app.js?v=0.9.21"></script>
+  <script src="js/storage.js?v=0.9.22"></script>
+  <script src="js/imageStorage.js?v=0.9.22"></script>
+  <script src="js/api.js?v=0.9.22"></script>
+  <script src="js/sync.js?v=0.9.22"></script>
+  <script src="js/pageCurl.js?v=0.9.22"></script>
+  <script src="js/app.js?v=0.9.22"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
