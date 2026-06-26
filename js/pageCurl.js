@@ -30,11 +30,6 @@ window.PageCurl = (function () {
     if (e.target.closest && e.target.closest('button, a, input, textarea, .inspect-btn')) return;
     const p = point(e);
     g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false };
-    // Which page did you grab? Forward turns the right (landscape) / bottom
-    // (portrait) page; back turns the left / top page. You must grab the
-    // matching page AND swipe the matching way, or nothing happens.
-    const r = areaEl.getBoundingClientRect();
-    g.forwardZone = (g.axis === 'x') ? (p.x > r.left + r.width / 2) : (p.y > r.top + r.height / 2);
     if (e.type === 'mousedown') {
       g.mm = (ev) => move(ev); g.mu = (ev) => end(ev);
       document.addEventListener('mousemove', g.mm); document.addEventListener('mouseup', g.mu);
@@ -42,14 +37,17 @@ window.PageCurl = (function () {
   }
 
   function move(e) {
-    if (!g) return;
+    if (!g || animating) return;
     const p = point(e);
     const dx = p.x - g.x0, dy = p.y - g.y0;
     const primary = g.axis === 'x' ? dx : dy, cross = g.axis === 'x' ? dy : dx;
     if (!g.started) {
       if (Math.abs(primary) < START || Math.abs(cross) > Math.abs(primary)) return;
       g.forward = primary < 0;
-      if (g.forward !== g.forwardZone) { cleanup(); return; }   // grabbed the wrong page → no turn
+      // The app can veto a finger-follow turn (e.g. the close, which must be a
+      // triggered animation — finger-following it swaps the page mid-touch and
+      // freezes iOS). beforeTurn returning false aborts; the app does the rest.
+      if (cfg.beforeTurn && cfg.beforeTurn(g.forward) === false) { cleanup(); return; }
       if (!(g.forward ? cfg.canNext() : cfg.canPrev())) { cleanup(); return; }
       g.started = true;
       g.dim = g.axis === 'x' ? g.area.clientWidth : g.area.clientHeight;
@@ -64,7 +62,7 @@ window.PageCurl = (function () {
   }
 
   function end() {
-    if (!g) return;
+    if (!g || animating) return;
     if (!g.started) { if (cfg && cfg.onTap) cfg.onTap(); cleanup(); return; }
     if (!g.wrap) { cleanup(); return; }
     finish(g.prog > COMMIT || (g.speed || 0) > FLICK);

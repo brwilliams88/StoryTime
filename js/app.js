@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.20',
+      version: 'v0.9.21',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -426,6 +426,18 @@ createApp({
         isPortrait: () => self.isPortrait,
         onTap: () => self.pokeReaderUi(),
         afterRender: (fn) => self.$nextTick(fn),
+        // Veto finger-following the CLOSE (page 1 → cover). Finger-following it
+        // swaps the spread for the cover mid-touch, which freezes iOS (touch
+        // events stop once the touched element is removed). Instead play the
+        // close as a triggered animation — safe, since it's not driven by the
+        // live touch — on the next tick (after the curl has cleaned up).
+        beforeTurn: (forward) => {
+          if (!forward && self.currentPageIndex === 1) {
+            setTimeout(() => { if (window.PageCurl) window.PageCurl.animate(false); }, 0);
+            return false;
+          }
+          return true;
+        },
         // After any turn settles, drop coverShift. On a close (landed on the
         // cover) that slides the book home to centre; otherwise it's a no-op.
         afterTurn: () => { self.coverShift = false; self._coverAnim = false; },
