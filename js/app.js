@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.24',
+      version: 'v0.9.25',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -447,7 +447,7 @@ createApp({
           self._coverAnim = false;
           if (landed === 0 && self._closingToLibrary != null) {
             const id = self._closingToLibrary; self._closingToLibrary = null;
-            setTimeout(() => self._fadeToLibrary(id), 520);   // wait for the settle-to-centre slide
+            setTimeout(() => self._bookToShelf(id), 520);   // wait for the settle-to-centre slide
           }
         },
       });
@@ -1836,29 +1836,81 @@ createApp({
       if (this._coverAnim) return;
       const story = this.currentStory;
       const targetId = story && story.id;
-      if (this.isOnCover) { this._fadeToLibrary(targetId); return; }   // already closed → just fade
+      if (this.isOnCover) { this._bookToShelf(targetId); return; }   // already closed → straight to the shelf morph
       const curl = window.PageCurl;
       if (!curl || !curl.animate) { this._exitToLibrary(targetId); return; }
       this._coverAnim = true;
-      this._closingToLibrary = targetId;    // afterTurn() fades to the shelf once the close settles
+      this._closingToLibrary = targetId;    // afterTurn() runs the shelf morph once the close settles
       curl.animate(false, 0);               // turn the current page straight onto the cover
     },
-    // Fade to black, switch to the library (scrolled to the book), fade back in.
-    _fadeToLibrary(targetId) {
+
+    // The "put the book back on the shelf" transition. The closed book is
+    // centred on the dark stage; we melt the dark away to reveal the library
+    // behind (scrolled so this book's slot is centred, with the slot left
+    // EMPTY), then fly the book from centre into that slot — shrinking and
+    // cross-fading from the big title-book format to the small tilted shelf
+    // format — and hand off to the real shelf book on landing.
+    _bookToShelf(targetId) {
       const gsap = window.gsap;
-      const fade = document.createElement('div');
-      Object.assign(fade.style, {
-        position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)',
-        zIndex: '2000', opacity: '0', pointerEvents: 'none',
-      });
-      document.body.appendChild(fade);
-      if (!gsap) { this._exitToLibrary(targetId); fade.remove(); return; }
-      gsap.to(fade, { opacity: 1, duration: 0.25, onComplete: () => {
-        this._exitToLibrary(targetId);
-        this.$nextTick(() => {
-          gsap.to(fade, { opacity: 0, duration: 0.35, delay: 0.05, onComplete: () => fade.remove() });
+      const coverBook = document.querySelector('.page-area .cover-book');
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!gsap || !coverBook || !targetId || reduce) { this._exitToLibrary(targetId); return; }
+
+      const sr = coverBook.getBoundingClientRect();   // start: big centred book
+
+      // dark layer that hides the view swap (matches the reader stage), and a
+      // clone of the big book pinned over it.
+      const dark = document.createElement('div');
+      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '1', pointerEvents: 'none' });
+      const big = coverBook.cloneNode(true);
+      Object.assign(big.style, { position: 'fixed', left: sr.left + 'px', top: sr.top + 'px', width: sr.width + 'px', height: sr.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none' });
+      document.body.appendChild(dark);
+      document.body.appendChild(big);
+
+      // bring up the library behind the dark layer
+      this.view = 'library';
+      this.currentPageIndex = 0;
+      this.$nextTick(() => {
+        const cleanup = () => { dark.remove(); big.remove(); };
+        let slot = null;
+        try {
+          const sel = '[data-book-id="' + (window.CSS && CSS.escape ? CSS.escape(targetId) : targetId) + '"]';
+          slot = document.querySelector(sel);
+        } catch (e) { /* ignore */ }
+        const bookEl = (slot && slot.querySelector('.book')) || slot;
+        if (!bookEl) { gsap.to(dark, { opacity: 0, duration: 0.3, onComplete: cleanup }); return; }
+
+        if (bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });
+        // measure after the scroll settles
+        requestAnimationFrame(() => {
+          const er = bookEl.getBoundingClientRect();   // end: the shelf slot
+          bookEl.style.visibility = 'hidden';          // leave the gap where the book belongs
+
+          // shelf-format clone, its own box at the slot; the .book keeps its own
+          // perspective/tilt, the wrapper does the FLIP.
+          const shelf = document.createElement('div');
+          Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', opacity: '0' });
+          const bookClone = bookEl.cloneNode(true);
+          bookClone.style.visibility = 'visible';
+          bookClone.style.margin = '0';
+          bookClone.style.width = '100%';
+          shelf.appendChild(bookClone);
+          document.body.appendChild(shelf);
+
+          const sx = er.width / sr.width, sy = er.height / sr.height;
+          // start the shelf clone scaled up + shifted to overlap the big book
+          gsap.set(shelf, { x: sr.left - er.left, y: sr.top - er.top, scaleX: 1 / sx, scaleY: 1 / sy });
+
+          const D = 0.6;
+          const tl = gsap.timeline({ onComplete: () => { bookEl.style.visibility = ''; cleanup(); } });
+          tl.to(dark, { opacity: 0, duration: 0.24, ease: 'power1.out' }, 0);
+          // fly + shrink the big book into the slot, fading it out as the shelf clone fades in
+          tl.to(big,   { x: er.left - sr.left, y: er.top - sr.top, scaleX: sx, scaleY: sy, duration: D, ease: 'power3.inOut' }, 0.16);
+          tl.to(big,   { opacity: 0, duration: D * 0.5, ease: 'power1.in' }, 0.16 + D * 0.4);
+          tl.to(shelf, { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: D, ease: 'power3.inOut' }, 0.16);
+          tl.to(shelf, { opacity: 1, duration: D * 0.45, ease: 'power1.out' }, 0.16 + D * 0.22);
         });
-      }});
+      });
     },
     _exitToLibrary(targetId) {
       this.view = 'library';
