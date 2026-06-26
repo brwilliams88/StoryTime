@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.20 — 2026-06-25 — Grab-the-page swipes, finger-following fixed, slower turns, glossy cover
+  • SWIPE ZONES: page turns now respond to which page you "grab" — swipe the RIGHT page (landscape) / BOTTOM page (portrait) to go forward, the LEFT/TOP page to go back. Swiping the wrong page or wrong direction does nothing. More book-like, and it makes finger-following reliable.
+  • FIXED page 1 → 2 not finger-following: the cover-close interception on page 1 was forcing flick-only turns. Now only the cover itself is intercepted; every interior turn (and the close) goes straight to the finger-following engine.
+  • Close the book (page 1 → cover) is now a normal finger-following back-turn that reveals the book and settles it to centre (via new setIndex/afterTurn hooks in the turn engine).
+  • SLOWER turns so you can actually watch them: page-turn commit 300ms → 520ms; cover open/close slide 0.36s → 0.5s.
+  • COVER realism: gently rounded corners + a glossy diagonal sheen, matching the bookshelf books (which use a gloss highlight + spine ridge + rounded corners + shadow).
+
+--------------------------
 v0.9.19 — 2026-06-25 — Cover open reuses the real page-turn; thicker scaling spine
   • Spine on the cover is now ~2.5x thicker and scales with the book (6.5% of the book's short side) instead of a fixed pixel size, so it stays proportional as the image grows.
   • Cover open/close reworked to REUSE the normal page-turn engine: the closed book first slides into its hinge-side half (down in portrait, right in landscape) while only the book + dark stage show (no early peek at the spread), then pageCurl turns it exactly like an interior page — the cover lifts and the first spread's half lays down on the other side. Close runs the same turn in reverse, then slides the book back to centre. This makes the open/close identical in feel to regular page turns and fixes the landscape "next page shows before it opens" bug.

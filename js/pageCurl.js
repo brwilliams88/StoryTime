@@ -30,6 +30,11 @@ window.PageCurl = (function () {
     if (e.target.closest && e.target.closest('button, a, input, textarea, .inspect-btn')) return;
     const p = point(e);
     g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false };
+    // Which page did you grab? Forward turns the right (landscape) / bottom
+    // (portrait) page; back turns the left / top page. You must grab the
+    // matching page AND swipe the matching way, or nothing happens.
+    const r = areaEl.getBoundingClientRect();
+    g.forwardZone = (g.axis === 'x') ? (p.x > r.left + r.width / 2) : (p.y > r.top + r.height / 2);
     if (e.type === 'mousedown') {
       g.mm = (ev) => move(ev); g.mu = (ev) => end(ev);
       document.addEventListener('mousemove', g.mm); document.addEventListener('mouseup', g.mu);
@@ -44,6 +49,7 @@ window.PageCurl = (function () {
     if (!g.started) {
       if (Math.abs(primary) < START || Math.abs(cross) > Math.abs(primary)) return;
       g.forward = primary < 0;
+      if (g.forward !== g.forwardZone) { cleanup(); return; }   // grabbed the wrong page → no turn
       if (!(g.forward ? cfg.canNext() : cfg.canPrev())) { cleanup(); return; }
       g.started = true;
       g.dim = g.axis === 'x' ? g.area.clientWidth : g.area.clientHeight;
@@ -169,14 +175,16 @@ window.PageCurl = (function () {
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = 300, t0 = performance.now();
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 520, t0 = performance.now();   // slower = easier to see the turn
+    const dest = g.destIndex, orig = g.origIndex;
     const ease = (t) => 1 - Math.pow(1 - t, 3);
     const step = (now) => {
       const k = Math.min(1, (now - t0) / dur);
       apply(from + (to - from) * ease(k));
       if (k < 1) { requestAnimationFrame(step); return; }
-      if (!commit) cfg.setIndex(g.origIndex);
+      if (!commit) cfg.setIndex(orig);
       cleanup(); animating = false;
+      if (cfg.afterTurn) cfg.afterTurn(commit ? dest : orig);   // let the app settle (e.g. close-book slide)
     };
     requestAnimationFrame(step);
   }

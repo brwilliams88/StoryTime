@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.19',
+      version: 'v0.9.20',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -413,7 +413,12 @@ createApp({
       const self = this;
       window.PageCurl.init({
         index: () => self.currentPageIndex,
-        setIndex: (i) => { self.currentPageIndex = i; },
+        setIndex: (i) => {
+          // Turning back to the cover (1→0) = closing the book: render the cover
+          // already slid into its half so the turn reveals it book-in-half.
+          if (i === 0 && self.currentPageIndex === 1) self.coverShift = true;
+          self.currentPageIndex = i;
+        },
         canNext: () => self.canGoNext(),
         canPrev: () => self.canGoPrev(),
         goNext: () => self.nextPage(),
@@ -421,6 +426,9 @@ createApp({
         isPortrait: () => self.isPortrait,
         onTap: () => self.pokeReaderUi(),
         afterRender: (fn) => self.$nextTick(fn),
+        // After any turn settles, drop coverShift. On a close (landed on the
+        // cover) that slides the book home to centre; otherwise it's a no-op.
+        afterTurn: () => { self.coverShift = false; self._coverAnim = false; },
       });
     }
 
@@ -466,11 +474,11 @@ createApp({
       // Arrow keys play the same turn animation (fall back to instant nav).
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
-        if (this.isOnCover) { this.animateCover(true); return; }   // open the book
+        if (this.isOnCover) { this.openCover(); return; }   // open the book
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
-        if (this.currentPageIndex === 1) { this.animateCover(false); return; }   // close the book
+        // page 1 → cover close is handled by the curl's setIndex/afterTurn hooks
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(false); else this.prevPage();
       }
     };
@@ -1437,11 +1445,13 @@ createApp({
     canGoPrev() { return this.currentPageIndex > 0; },
 
     // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area).
-    // The cover (index 0) and the first spread (index 1) are special: the cover
-    // OPENS like a book and CLOSES back, so we capture those gestures ourselves;
-    // every other turn uses the finger-following curl.
+    // Only the COVER (index 0) is special — a swipe there opens the book. Every
+    // other turn (including page 1 → 2 forward, and page 1 → cover close) goes
+    // straight to the finger-following curl, which is zone-aware (grab the right
+    // page to go forward, the left/top page to go back) and triggers the
+    // close-book slide via the setIndex / afterTurn hooks above.
     curlStart(e) {
-      if (this.currentPageIndex <= 1) { this._coverDown(e); return; }
+      if (this.isOnCover) { this._coverDown(e); return; }
       if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
     },
     curlMove(e) {
@@ -1480,49 +1490,28 @@ createApp({
       if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
       this._cg = null;
       if (Math.abs(g.primary || 0) < 40) { this.pokeReaderUi(); return; }   // tap → just reveal controls
-      const forward = g.primary < 0;
-      if (this.isOnCover) { if (forward) this.animateCover(true); return; }  // cover: forward = open
-      // first spread (index 1): forward = normal turn to page 2, backward = close the book
-      if (forward) { if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage(); }
-      else this.animateCover(false);
+      if (g.primary < 0) this.openCover();   // forward swipe on the cover → open the book
     },
 
-    // Book open (cover→spread) and close (spread→cover). Trick: first SLIDE the
-    // closed book into the half it will hinge from (down in portrait, right in
-    // landscape) via a CSS transition on .cover-book — during which only the
-    // book + dark stage show (no spread peeking through). THEN hand off to the
-    // normal page-turn (pageCurl): with the book sitting in the turn-side half,
-    // pageCurl lifts it like any page and lays the first spread's half down on
-    // the other side — exactly like a regular turn. Close runs it in reverse,
-    // then slides the book back to centre. Falls back to an instant jump.
-    // Knob: COVER_SLIDE_MS (must match the .cover-book CSS transition).
-    animateCover(forward) {
-      if (this._coverAnim) return;
+    // Open the book (cover → first spread). First SLIDE the closed book into the
+    // half it will hinge from (down in portrait, right in landscape) via the
+    // .cover-book CSS transition — during which only the book + dark stage show
+    // (no spread peeking through). THEN hand off to the normal page-turn, which
+    // lifts the cover like a page and lays the first spread's half down on the
+    // other side — exactly like a regular turn. afterTurn() clears coverShift.
+    // (The reverse — close — is just a normal back-turn to the cover; see the
+    // setIndex / afterTurn hooks in mounted.) Falls back to an instant jump.
+    openCover() {
+      if (this._coverAnim || !this.isOnCover) return;
       const curl = window.PageCurl;
-      if (!curl || !curl.animate) { this.currentPageIndex = forward ? 1 : 0; this.pokeReaderUi(); return; }
+      if (!curl || !curl.animate) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
       this._coverAnim = true;
-      const SLIDE = 380;   // keep >= the .cover-book transition (0.36s)
-
-      if (forward) {
-        // open: slide the book into the hinge-side half, then turn it like a page
-        this.coverShift = true;
-        setTimeout(() => {
-          curl.animate(true);
-          // reset once we're safely on the spread (cover no longer visible)
-          setTimeout(() => { this.coverShift = false; this._coverAnim = false; }, 650);
-        }, SLIDE);
-      } else {
-        // close: render the cover already in the half, turn the spread back onto
-        // it, then slide the book home to centre
-        this.coverShift = true;
-        this.$nextTick(() => {
-          curl.animate(false);
-          setTimeout(() => {
-            this.coverShift = false;                              // slide book back to centre
-            setTimeout(() => { this._coverAnim = false; }, SLIDE);
-          }, 380);
-        });
-      }
+      this.coverShift = true;                       // slide the book into its hinge-side half
+      const SLIDE = 540;                            // keep >= the .cover-book CSS transition (0.5s)
+      setTimeout(() => {
+        curl.animate(true);                         // then turn the cover like a page
+        setTimeout(() => { this._coverAnim = false; }, 2000);   // backstop if the turn bailed
+      }, SLIDE);
     },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {

@@ -2806,7 +2806,7 @@ body:has(.app-main-reading) {
   perspective: 2000px;
 }
 /* sized to exactly one interior page, centred on the stage */
-.cover-book { position: relative; transition: transform 0.36s ease-in-out; }
+.cover-book { position: relative; transition: transform 0.5s ease-in-out; }
 .cover-page.portrait .cover-book      { width: 100%; height: 50%; }   /* one page = full width, half height */
 .cover-page:not(.portrait) .cover-book { width: 50%; height: 100%; }  /* one page = half width, full height */
 /* slide the book into its hinge-side half before the open turn (down / right) */
@@ -2817,8 +2817,15 @@ body:has(.app-main-reading) {
 .cover-front {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   background: #241a10; overflow: hidden;
+  border-radius: 4px 7px 7px 4px;   /* gently rounded, like the shelf books */
   box-shadow: 0 16px 38px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.4);
   transform-style: preserve-3d; backface-visibility: hidden;
+}
+.cover-page:not(.portrait) .cover-front { border-radius: 4px 8px 8px 4px; }
+/* glossy printed-cover sheen sweeping from the top-left, like the shelf book */
+.cover-front::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.05) 30%, rgba(255,255,255,0) 46%);
 }
 .cover-art { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .cover-art .image-frame {
