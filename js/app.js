@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.29',
+      version: 'v0.9.30',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1918,9 +1918,16 @@ createApp({
           shelf.appendChild(bookClone);
           document.body.appendChild(shelf);
 
+          // Measure the CLONE's own cover rect (after it's in the DOM). The book
+          // is tilted, so its rendered cover doesn't sit where the untransformed
+          // box math would predict — using the real measured position is what
+          // makes the clone land EXACTLY on the real book (no snap at the end).
+          const ccEl = shelf.querySelector('.book-cover');
+          const ccr = ccEl ? ccEl.getBoundingClientRect() : { left: er.left, top: er.top, width: er.width, height: er.width };
+
           // each clone's cover-image sub-rect within its own (untransformed) box
           const bigSub = { lx: 0, ly: 0, w: cen.width, h: cen.height };    // big image fills its box
-          const shelfSub = { lx: cr.left - er.left, ly: cr.top - er.top, w: cr.width, h: cr.height };
+          const shelfSub = { lx: ccr.left - er.left, ly: ccr.top - er.top, w: ccr.width, h: ccr.height };
           // transform a clone so its sub-rect maps onto target rect t (transform-origin 0 0)
           const mapSub = (el, home, sub, t) => {
             const sx = t.width / sub.w, sy = t.height / sub.h;

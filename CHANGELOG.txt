@@ -9,6 +9,10 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.30 — 2026-06-26 — Fix the book landing low then snapping up (tilt offset)
+  • The shelf book is tilted (rotateX), so its measured bounding box sits higher than where the flat-positioned clone actually rendered the tilted book — the clone landed slightly low, then the real book revealed and it snapped up. Now the flight anchors on the clone's ACTUAL measured cover position, so on landing the clone's cover sits exactly on the real book's cover (tops aligned with the neighbouring books) — no last-moment jump.
+
+--------------------------
 v0.9.29 — 2026-06-26 — Fix the cream-plate growth at landing (clone CSS vars)
   • Root cause of the final "bump": the shelf-book sizes (--book-w, --plate-h) are CSS variables defined on .shelf-grid, but the flying clone is moved out to <body>, so during flight its title plate had no fixed height (collapsed to one line) and then jumped to the real 3-line plate on landing — shoving the image up. Now those variables are copied onto the clone, so the flying book is sized identically to the real shelf book and lands with no plate growth or upward shift.
 
