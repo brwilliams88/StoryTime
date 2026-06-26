@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.19 — 2026-06-25 — Cover open reuses the real page-turn; thicker scaling spine
+  • Spine on the cover is now ~2.5x thicker and scales with the book (6.5% of the book's short side) instead of a fixed pixel size, so it stays proportional as the image grows.
+  • Cover open/close reworked to REUSE the normal page-turn engine: the closed book first slides into its hinge-side half (down in portrait, right in landscape) while only the book + dark stage show (no early peek at the spread), then pageCurl turns it exactly like an interior page — the cover lifts and the first spread's half lays down on the other side. Close runs the same turn in reverse, then slides the book back to centre. This makes the open/close identical in feel to regular page turns and fixes the landscape "next page shows before it opens" bug.
+
+--------------------------
 v0.9.18 — 2026-06-25 — Bigger text again; cover is a real shelf-style book that opens/closes
   • Text size: bumped the boost again (+6) so it reads a point larger across books (still capped to fit with a sliver of margin).
   • Cover redesigned to match the bookshelf book: cover art + cream title plate + a small "By …" byline, with a spine on the HINGE edge and no page-edge stack / no shelf lean. It's sized to exactly ONE interior page and centred.

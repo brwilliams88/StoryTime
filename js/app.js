@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.18',
+      version: 'v0.9.19',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -57,6 +57,8 @@ createApp({
       inspectingImage: null,
 
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
+
+      coverShift: false,   // true = closed book slid into its hinge-side half (for the open/close turn)
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -1485,79 +1487,40 @@ createApp({
       else this.animateCover(false);
     },
 
-    // The book opening (cover→spread) and closing (spread→cover). Slides the
-    // book so its HINGE edge meets the centre crease (down/right), then swings
-    // the front cover open about that hinge to reveal the first spread — and the
-    // reverse on close. GSAP if available, else an instant jump. Knobs: OPEN_DEG,
-    // durations, and the rotate signs (portrait rotX / landscape rotY).
+    // Book open (cover→spread) and close (spread→cover). Trick: first SLIDE the
+    // closed book into the half it will hinge from (down in portrait, right in
+    // landscape) via a CSS transition on .cover-book — during which only the
+    // book + dark stage show (no spread peeking through). THEN hand off to the
+    // normal page-turn (pageCurl): with the book sitting in the turn-side half,
+    // pageCurl lifts it like any page and lays the first spread's half down on
+    // the other side — exactly like a regular turn. Close runs it in reverse,
+    // then slides the book back to centre. Falls back to an instant jump.
+    // Knob: COVER_SLIDE_MS (must match the .cover-book CSS transition).
     animateCover(forward) {
       if (this._coverAnim) return;
-      const area = document.querySelector('.page-area');
-      const gsap = window.gsap;
-      if (!area || !gsap) { this.currentPageIndex = forward ? 1 : 0; this.pokeReaderUi(); return; }
+      const curl = window.PageCurl;
+      if (!curl || !curl.animate) { this.currentPageIndex = forward ? 1 : 0; this.pokeReaderUi(); return; }
       this._coverAnim = true;
-      const portrait = this.isPortrait;
-      const rect = area.getBoundingClientRect();
-      const OPEN_DEG = 122;                     // a touch past vertical (backface hides the rest)
-
-      const run = (coverEl, underClone) => {
-        const front = coverEl.querySelector('.cover-front');
-        if (!front) { this._coverAnim = false; this.currentPageIndex = forward ? 1 : 0; return; }
-        const fr = front.getBoundingClientRect();
-
-        const wrap = document.createElement('div');
-        Object.assign(wrap.style, {
-          position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
-          width: rect.width + 'px', height: rect.height + 'px',
-          zIndex: 52, pointerEvents: 'none', perspective: '2000px', overflow: 'hidden',
-        });
-        if (underClone) { Object.assign(underClone.style, { position: 'absolute', inset: '0', margin: '0' }); wrap.appendChild(underClone); }
-        const clone = coverEl.cloneNode(true);
-        Object.assign(clone.style, { position: 'absolute', inset: '0', margin: '0', transformStyle: 'preserve-3d' });
-        wrap.appendChild(clone);
-        document.body.appendChild(wrap);
-        const leaf = clone.querySelector('.cover-front');
-
-        // slide so the hinge edge meets the screen centre (portrait: top→centre,
-        // book moves down; landscape: left→centre, book moves right)
-        const slideX = portrait ? 0 : (rect.width / 2) - (fr.left - rect.left);
-        const slideY = portrait ? (rect.height / 2) - (fr.top - rect.top) : 0;
-        leaf.style.transformOrigin = portrait ? 'center top' : 'left center';
-        const rotKey = portrait ? 'rotationX' : 'rotationY';
-        const openRot = -OPEN_DEG;              // lift the free edge toward the viewer
-
-        const done = () => { wrap.remove(); this._coverAnim = false; this.pokeReaderUi(); };
-
-        if (forward) {
-          this.currentPageIndex = 1;            // spread renders under the overlay
-          const tl = gsap.timeline({ onComplete: done });
-          tl.to(clone, { x: slideX, y: slideY, duration: 0.36, ease: 'power2.inOut' });
-          tl.to(leaf, { [rotKey]: openRot, duration: 0.5, ease: 'power2.in' }, '>-0.03');
-          tl.to(clone, { autoAlpha: 0, duration: 0.18 }, '>-0.16');
-        } else {
-          // close: start open (slid + rotated + invisible), settle to closed + centred
-          gsap.set(clone, { x: slideX, y: slideY, autoAlpha: 0 });
-          gsap.set(leaf, { [rotKey]: openRot });
-          const tl = gsap.timeline({ onComplete: done });
-          tl.to(clone, { autoAlpha: 1, duration: 0.16 });
-          tl.to(leaf, { [rotKey]: 0, duration: 0.5, ease: 'power2.out' }, '>-0.02');
-          tl.to(clone, { x: 0, y: 0, duration: 0.34, ease: 'power2.inOut' }, '>-0.06');
-        }
-      };
+      const SLIDE = 380;   // keep >= the .cover-book transition (0.36s)
 
       if (forward) {
-        const coverEl = area.querySelector('.cover-page');
-        if (!coverEl) { this._coverAnim = false; this.currentPageIndex = 1; return; }
-        run(coverEl, null);
+        // open: slide the book into the hinge-side half, then turn it like a page
+        this.coverShift = true;
+        setTimeout(() => {
+          curl.animate(true);
+          // reset once we're safely on the spread (cover no longer visible)
+          setTimeout(() => { this.coverShift = false; this._coverAnim = false; }, 650);
+        }, SLIDE);
       } else {
-        // closing: keep the spread visible (cloned) while the cover swings shut over it
-        const spreadEl = area.querySelector('.story-spread');
-        const underClone = spreadEl ? spreadEl.cloneNode(true) : null;
-        this.currentPageIndex = 0;              // render the real cover (behind the overlay)
+        // close: render the cover already in the half, turn the spread back onto
+        // it, then slide the book home to centre
+        this.coverShift = true;
         this.$nextTick(() => {
-          const coverEl = area.querySelector('.cover-page');
-          if (!coverEl) { this._coverAnim = false; return; }
-          run(coverEl, underClone);
+          curl.animate(false);
+          setTimeout(() => {
+            this.coverShift = false;                              // slide book back to centre
+            setTimeout(() => { this._coverAnim = false; }, SLIDE);
+          }, 380);
         });
       }
     },

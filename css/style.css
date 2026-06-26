@@ -2806,9 +2806,13 @@ body:has(.app-main-reading) {
   perspective: 2000px;
 }
 /* sized to exactly one interior page, centred on the stage */
-.cover-book { position: relative; }
+.cover-book { position: relative; transition: transform 0.36s ease-in-out; }
 .cover-page.portrait .cover-book      { width: 100%; height: 50%; }   /* one page = full width, half height */
 .cover-page:not(.portrait) .cover-book { width: 50%; height: 100%; }  /* one page = half width, full height */
+/* slide the book into its hinge-side half before the open turn (down / right) */
+.cover-page.portrait.cover-shift .cover-book      { transform: translateY(50%); }
+.cover-page:not(.portrait).cover-shift .cover-book { transform: translateX(50%); }
+@media (prefers-reduced-motion: reduce) { .cover-book { transition: none; } }
 
 .cover-front {
   position: absolute; inset: 0; display: flex; flex-direction: column;
@@ -2839,14 +2843,15 @@ body:has(.app-main-reading) {
   flex: 0 0 auto; background: #ecdcbb; color: #6b5128; text-align: center;
   font-size: clamp(0.62rem, 1.5vh, 0.82rem); padding: 0 12px 7px;
 }
-/* spine sits on the HINGE edge so the cover swings off it like a real binding */
+/* spine sits on the HINGE edge so the cover swings off it like a real binding.
+   Thickness scales with the book (≈6.5% of the short side) instead of a fixed px. */
 .cover-book.portrait::before {       /* portrait hinge = TOP edge */
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 10px; z-index: 4;
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6.5%; z-index: 4;
   border-radius: 4px 4px 0 0;
   background: linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(255,255,255,0.28) 55%, rgba(0,0,0,0.18));
 }
 .cover-book:not(.portrait)::before { /* landscape hinge = LEFT edge */
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; z-index: 4;
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6.5%; z-index: 4;
   border-radius: 4px 0 0 4px;
   background: linear-gradient(to right, rgba(0,0,0,0.5), rgba(255,255,255,0.28) 55%, rgba(0,0,0,0.18));
 }
