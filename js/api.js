@@ -393,10 +393,21 @@ Make the character memorable, specific, charming. Avoid generic archetypes.`;
 // Cheap call to gpt-4o-mini that turns a basic scene prompt into a
 // detail-rich one matching ChatGPT-style background expansion.
 // =====================================================================
-async function enrichImagePrompt(styleAnchor, basicPrompt, pageText, characters, password) {
+async function enrichImagePrompt(styleAnchor, basicPrompt, pageText, characters, password, storySoFar) {
   const charBlock = (characters && characters.length > 0)
     ? characters.map(c => `- ${c.name}: ${c.visual_description}`).join('\n')
     : '(none — generic scene)';
+
+  const continuityBlock = `
+CONTINUITY — keep the pictures consistent across the book (use the story so far below):
+- If the story established that a character gained, was given, or is wearing/holding a specific item (a hat, a flower in her hair, a gift, a sword, a balloon, etc.), keep that SAME item — same look and colour — on/with that character here too, WHENEVER that character appears — unless the story says it was removed, lost, given away, used up, or left behind. Match how the item was described earlier.
+- Do NOT invent items the story hasn't established, and do NOT force an item into a scene where it wouldn't naturally still be. Use judgment — carry things over only when it makes sense.
+- If a character has left, said goodbye, gone to sleep, been defeated, or is otherwise no longer present according to the story so far, do NOT show them in this image — UNLESS this page's text brings them back.
+- Only depict the characters and objects that this page's text and the story so far actually support.
+
+Story so far (earlier pages — for continuity ONLY; illustrate THIS page's text):
+${storySoFar && storySoFar.trim() ? storySoFar : '(this is the first page)'}
+`;
 
   const prompt = `Take this basic illustration brief and turn it into a vivid, detail-rich prompt for an AI image model.
 
@@ -407,7 +418,7 @@ ADD these enrichments:
 - Sensory details (textures, colors, atmosphere)
 - Keep the SAME scene, characters, and key visual elements — don't change the content
 - Stay in the specified illustration style
-
+${continuityBlock}
 OUTPUT: a single paragraph prompt for the image model. No JSON, no commentary, just the prompt.
 
 Illustration style: ${styleAnchor}

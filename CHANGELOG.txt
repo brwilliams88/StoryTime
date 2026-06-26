@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.23 — 2026-06-25 — Back-arrow close uses the real turn; image continuity across pages
+  • The back-arrow close now plays the EXACT same animation as turning page 1 back to the cover (it briefly jumps to the first spread, then closes), so it's correct in both orientations — fixes the portrait "swinging inside-out" and the landscape "cover stretched too big". Speed matches the normal turn too.
+  • Already on the cover + back arrow → no close animation, just the fade across to the shelf.
+  • IMAGE CONTINUITY: each page's illustration prompt now gets the "story so far" plus rules — persistent items a character picked up/wears (a flower in her hair, a hat, a gift…) carry forward consistently on later pages where that character appears, and characters who have left / been defeated / gone to sleep stop appearing — unless the page's text says otherwise. Deliberately not forced: items only carry over when it makes sense. (No Worker/SQL change.)
+
+--------------------------
 v0.9.22 — 2026-06-25 — Back arrow closes the book & returns you to its spot on the shelf
   • Tapping the reader back arrow (from any page) now plays the close-book animation — it jumps to the cover, swings the front cover shut, centred — then fades across to the Library scrolled so the book you just closed sits as centred on the shelf as the top/bottom limits allow. Falls back to a plain jump if the animation lib is missing.
 

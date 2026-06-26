@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.22',
+      version: 'v0.9.23',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -439,8 +439,16 @@ createApp({
           return true;
         },
         // After any turn settles, drop coverShift. On a close (landed on the
-        // cover) that slides the book home to centre; otherwise it's a no-op.
-        afterTurn: () => { self.coverShift = false; self._coverAnim = false; },
+        // cover) that slides the book home to centre. If this close was the back
+        // arrow exiting the book, fade to the library once it's settled.
+        afterTurn: (landed) => {
+          self.coverShift = false;
+          self._coverAnim = false;
+          if (landed === 0 && self._closingToLibrary != null) {
+            const id = self._closingToLibrary; self._closingToLibrary = null;
+            setTimeout(() => self._fadeToLibrary(id), 520);   // wait for the settle-to-centre slide
+          }
+        },
       });
     }
 
@@ -1241,6 +1249,15 @@ createApp({
       let basicScene = this.applyNameFallback(slot.image_prompt, charsForPrompt);
       let enrichedScene = basicScene;
 
+      // Build the "story so far" (earlier pages) so the enrichment can carry
+      // persistent items forward and drop characters who have left the story.
+      let storySoFar = '';
+      if (target !== 'cover' && storyData.pages) {
+        storySoFar = storyData.pages.slice(0, target)
+          .map((p, i) => `Page ${i + 1}: ${this.applyNameFallback(p.text || '', charsForPrompt)}`)
+          .join('\n');
+      }
+
       try {
         if (basicScene) {
           // For page text used in enrichment context, also apply name fallback
@@ -1250,7 +1267,8 @@ createApp({
             basicScene,
             safePageText,
             charsForPrompt,
-            this.password
+            this.password,
+            storySoFar
           );
           enrichedScene = enrich.enriched;
           slot.enriched_prompt = enrichedScene;
@@ -1808,33 +1826,22 @@ createApp({
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
     goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
 
-    // Reader back arrow: from ANY page, play the close-book animation (jump to
-    // the cover, swing it shut, centred), then fade across to the library
-    // scrolled so this book sits as centred on the shelf as the limits allow.
+    // Reader back arrow: play the SAME close as page 1 → cover (swing the book
+    // shut, settle to centre), then fade across to the library scrolled so this
+    // book sits as centred on the shelf as the limits allow. From a deep page we
+    // first jump to the first spread so the close is identical everywhere. If
+    // we're already on the cover, skip the close and just fade out.
     closeBook() {
       if (this._coverAnim) return;
       const story = this.currentStory;
       const targetId = story && story.id;
-      const gsap = window.gsap;
-      if (!gsap) { this._exitToLibrary(targetId); return; }   // no animation lib → just go
+      if (this.isOnCover) { this._fadeToLibrary(targetId); return; }   // already closed → just fade
+      const curl = window.PageCurl;
+      if (!curl || !curl.animate) { this._exitToLibrary(targetId); return; }
       this._coverAnim = true;
-      this.coverShift = false;
-      this.currentPageIndex = 0;            // jump to the cover (centred, closed)
-      this.$nextTick(() => {
-        const area = document.querySelector('.page-area');
-        const front = area && area.querySelector('.cover-front');
-        const finishClose = () => { this._coverAnim = false; this._fadeToLibrary(targetId); };
-        if (!front) { finishClose(); return; }
-        const portrait = this.isPortrait;
-        front.style.transformOrigin = portrait ? 'center top' : 'left center';
-        // swing the front cover shut (open → closed) about its hinge, onto the spine
-        gsap.from(front, {
-          [portrait ? 'rotationX' : 'rotationY']: -112,
-          transformPerspective: 1500,
-          duration: 0.5, ease: 'power2.out',
-          onComplete: finishClose,
-        });
-      });
+      this._closingToLibrary = targetId;    // afterTurn() fades to the shelf once the close settles
+      this.currentPageIndex = 1;            // jump to first spread → close is identical to page 1 → cover
+      this.$nextTick(() => { curl.animate(false); });
     },
     // Fade to black, switch to the library (scrolled to the book), fade back in.
     _fadeToLibrary(targetId) {
