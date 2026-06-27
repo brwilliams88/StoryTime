@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.40 — 2026-06-27 — Cover-open polish + edge-treatment diagnostic mode
+  • FIXED: the cover no longer goes see-through near 90° (you used to see page-1 text through it) — it stays solid until it reaches the edge, then vanishes.
+  • FIXED: the inner picture page no longer fades in past 90° (you used to see blue through it) — it appears solid the instant it passes the centre and just un-distorts as it lays down. Both fixes apply to opening AND closing.
+  • FIXED: the centre-crease shading on page 1 is now present the moment the inner pages reveal and stays until the cover closes over it (no more sudden appear/disappear) — on open and close.
+  • Edge thickness now SCALES with screen size (12px on an iPhone-sized screen → proportionally thicker on a big laptop window), so it looks right on every device.
+  • NEW dev DIAGNOSTIC (only when inspect mode "Show ⓘ" is on): a 🧪 button in the reader opens a panel to try cover-edge looks live — classic / paper / cardboard / dark-core / image-bleed, a dark outline toggle, a cast-shadow toggle, and base-thickness + scale sliders, plus a Replay open/close button. For dialing in the final treatment.
+
+--------------------------
 v0.9.39 — 2026-06-27 — Edge sits exactly on the cover edge; finger-following close
   • The thickness bar now sits EXACTLY on the rendered cover/page edge through the whole open and close — the earlier "drifts to the left then realigns at centre" wobble is gone. (Cause: the bar used a flat projection, but the book is drawn in 3D perspective, which pushes the tilted edge outward. The bar now uses the same perspective, verified pixel-exact in both portrait and landscape.)
   • The book CLOSE now FOLLOWS YOUR FINGER (and a quick swipe flicks it shut), exactly like the open — so you can close slowly and watch it. A backward swipe on page 1 closes; a forward swipe still turns to page 2.

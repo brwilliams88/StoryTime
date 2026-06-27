@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.39',
+      version: 'v0.9.40',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -59,6 +59,18 @@ createApp({
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
 
       coverShift: false,   // true = closed book slid into its hinge-side half (for the close turn)
+
+      // Cover-edge DIAGNOSTIC (dev only, gated on showInspect). Lets us toggle
+      // edge-treatment options live + tune thickness scaling, then down-select.
+      showCoverDiag: false,
+      coverDiag: {
+        edgeStyle: 'classic',   // classic | paper | cardboard | darkcore | bleed
+        outline: false,         // thin dark line where the band meets cover / inner page
+        shadow: false,          // soft cast shadow around the lifted edge
+        edgeBase: 12,           // px thickness at the iPhone baseline short-side
+        edgeRef: 390,           // baseline short-side (iPhone logical px)
+        edgeScale: 1,           // extra multiplier for tuning
+      },
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -1566,6 +1578,17 @@ createApp({
     // Arrow key / programmatic open: play it through.
     coverOpen() { this.coverOpenStart(true); },
 
+    // DEV diagnostic: jump to the cover, play the open, then auto-close — so the
+    // whole open→close cycle can be watched hands-free while tuning edge options.
+    diagReplay() {
+      if (this._coverAnim) return;
+      this.currentPageIndex = 0;
+      this.$nextTick(() => {
+        this.coverOpen();
+        setTimeout(() => { if (this.currentPageIndex === 1 && !this._coverAnim) this.coverClose(true); }, 1200);
+      });
+    },
+
     // Build the book-open overlay (NOT the page-turn engine), as a progress
     // controller this._coverFx with apply(p): p=0 closed cover, p=1 open spread.
     // Over a dark stage (nothing peeks early): the front cover slides to centre
@@ -1590,8 +1613,18 @@ createApp({
       const cClosed = axisLen / 2 - half / 2;
       const center = axisLen / 2;
       const dark = (getComputedStyle(document.documentElement).getPropertyValue('--bg-deep') || '').trim() || '#1a1208';
-      const EDGE = 12;
       const PERSP = 1500;   // must match the wrap's CSS perspective below
+      const minSide = Math.min(W, H);   // edge thickness scales off this (12px @ ~390px baseline)
+
+      // Sample the average colour of the cover + page-1 images (1×1 canvas) for the
+      // 'bleed' edge treatment — async, used by apply() once ready.
+      const fxColors = { cover: null, page: null };
+      const sampleColor = (url, key) => {
+        if (!url) return;
+        const im = new Image();
+        im.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = 1; const x = c.getContext('2d'); x.drawImage(im, 0, 0, 1, 1); const px = x.getImageData(0, 0, 1, 1).data; fxColors[key] = 'rgb(' + px[0] + ',' + px[1] + ',' + px[2] + ')'; } catch (e) {} };
+        im.src = url;
+      };
 
       const pg = (story.pages && story.pages[0]) || {};
       const imgUrl = this.getImageURL(pg.image_id);
@@ -1634,6 +1667,29 @@ createApp({
         return cb;
       };
 
+      // Gutter/crease shading on a half's CENTRE-facing edge. Present from the
+      // moment the half is visible and tilts with it, so the crease never "pops"
+      // in/out. The two halves together (~30px each) reproduce the real fixed
+      // .book-crease (60px) for a seamless hand-off when the overlay is removed.
+      const creaseStrip = (which) => {
+        const s = document.createElement('div');
+        Object.assign(s.style, { position: 'absolute', pointerEvents: 'none', zIndex: '6' });
+        const STRIP = 30, dir = portrait ? 'to bottom' : 'to right';
+        if (which === 'image') {   // inner edge = right (landscape) / bottom (portrait), dark TOWARD centre
+          s.style.background = 'linear-gradient(' + dir + ', rgba(74,54,24,0) 0%, rgba(74,54,24,0.17) 62%, rgba(40,28,12,0.21) 88%, rgba(23,15,6,0.53) 100%)';
+          if (portrait) Object.assign(s.style, { left: '0', right: '0', bottom: '0', height: STRIP + 'px' });
+          else Object.assign(s.style, { top: '0', bottom: '0', right: '0', width: STRIP + 'px' });
+        } else {                   // text half inner edge = left/top, dark AT centre fading out
+          s.style.background = 'linear-gradient(' + dir + ', rgba(23,15,6,0.53) 0%, rgba(40,28,12,0.21) 12%, rgba(74,54,24,0.17) 38%, rgba(74,54,24,0) 100%)';
+          if (portrait) Object.assign(s.style, { left: '0', right: '0', top: '0', height: STRIP + 'px' });
+          else Object.assign(s.style, { top: '0', bottom: '0', left: '0', width: STRIP + 'px' });
+        }
+        return s;
+      };
+
+      sampleColor(this.getImageURL((story.cover || {}).image_id), 'cover');
+      sampleColor(imgUrl, 'page');
+
       const wrap = document.createElement('div');
       wrap.className = 'cover-open-temp';
       Object.assign(wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', zIndex: '60', pointerEvents: 'none', overflow: 'hidden', perspective: PERSP + 'px' });
@@ -1648,6 +1704,7 @@ createApp({
       const tcs = buildSpread();
       Object.assign(tcs.style, { left: (portrait ? 0 : -center) + 'px', top: (portrait ? -center : 0) + 'px' });
       textPage.appendChild(tcs);
+      textPage.appendChild(creaseStrip('text'));
       wrap.appendChild(textPage);
 
       const imageFace = document.createElement('div');
@@ -1655,6 +1712,7 @@ createApp({
       if (portrait) Object.assign(imageFace.style, { left: '0', top: '0', width: W + 'px', height: half + 'px', transformOrigin: '50% 100%' });
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
       imageFace.appendChild(buildSpread());
+      imageFace.appendChild(creaseStrip('image'));
       wrap.appendChild(imageFace);
 
       const coverFace = document.createElement('div');
@@ -1666,11 +1724,12 @@ createApp({
       coverFace.appendChild(cbc);
       wrap.appendChild(coverFace);
 
-      // single centre thickness bar — the book edge seen at the binding
+      // single thickness bar = the book edge seen at the fore edge of the leaf.
+      // Sits ABOVE everything; appearance is set live in apply() from coverDiag.
       const spineEdge = document.createElement('div');
-      Object.assign(spineEdge.style, { position: 'absolute', zIndex: '4', pointerEvents: 'none' });
-      if (portrait) Object.assign(spineEdge.style, { left: '0', width: '100%', background: 'linear-gradient(to bottom,#c8a86c,#f3ead3 45%,#8a673a)' });
-      else Object.assign(spineEdge.style, { top: '0', height: '100%', background: 'linear-gradient(to right,#c8a86c,#f3ead3 45%,#8a673a)' });
+      Object.assign(spineEdge.style, { position: 'absolute', zIndex: '7', pointerEvents: 'none', borderRadius: '1px' });
+      if (portrait) Object.assign(spineEdge.style, { left: '0', width: '100%' });
+      else Object.assign(spineEdge.style, { top: '0', height: '100%' });
       wrap.appendChild(spineEdge);
 
       document.body.appendChild(wrap);
@@ -1685,14 +1744,14 @@ createApp({
         coverFace.style.transform = portrait
           ? 'translateY(' + ((center - cClosed) * e1) + 'px) rotateX(' + (90 * e1) + 'deg)'
           : 'translateX(' + ((center - cClosed) * e1) + 'px) rotateY(' + (-90 * e1) + 'deg)';
-        coverFace.style.opacity = p < 0.42 ? '1' : (p < 0.5 ? String((0.5 - p) / 0.08) : '0');
+        coverFace.style.opacity = p < 0.5 ? '1' : '0';   // fully opaque until 90° (no see-through), then gone
         // text slides into the bottom/right half
         const ts = -(center - cClosed) * (1 - e1);
         textPage.style.transform = portrait ? 'translateY(' + ts + 'px)' : 'translateX(' + ts + 'px)';
         // image lays from 90°→0° toward the viewer; appears only AFTER 90°
         const ang2 = 90 * (1 - e2);
         imageFace.style.transform = portrait ? 'rotateX(' + (-ang2) + 'deg)' : 'rotateY(' + ang2 + 'deg)';
-        imageFace.style.opacity = p <= 0.5 ? '0' : (p < 0.58 ? String((p - 0.5) / 0.08) : '1');
+        imageFace.style.opacity = p <= 0.5 ? '0' : '1';   // fully opaque the instant it passes 90° (no fade-in)
         // single thickness bar: 0 → EDGE at 90° → 0, positioned at the FREE (fore)
         // edge of the turning leaf — the cover's outer edge up to 90°, then the
         // image page's outer edge as it lays down. Centre only at exactly 90°.
@@ -1712,7 +1771,25 @@ createApp({
         // free edge as it lifts; centre is the perspective origin on this axis).
         const z = half * Math.sin(ang * DEG);
         edgePos = center + (edgePos - center) * PERSP / (PERSP - z);
+        // thickness scales with the screen (12px @ ~390px short side baseline) so
+        // it stays proportional on a big laptop window; live-tunable via coverDiag.
+        const d = this.coverDiag;
+        const EDGE = (d.edgeBase || 12) * (minSide / (d.edgeRef || 390)) * (d.edgeScale || 1);
         const th = EDGE * Math.sin(p * Math.PI);
+        const across = portrait ? 'to bottom' : 'to right';
+        let bg;
+        switch (d.edgeStyle) {
+          case 'paper':     bg = 'repeating-linear-gradient(' + across + ', #fdfaf0 0px, #fdfaf0 1.4px, #d9cca7 1.4px, #d9cca7 2.8px)'; break;
+          case 'cardboard': bg = 'linear-gradient(' + across + ', #5e421f, #c79a5d 50%, #5e421f)'; break;
+          case 'darkcore':  bg = 'linear-gradient(' + across + ', #efe3c6, #2a1d0e 50%, #efe3c6)'; break;
+          case 'bleed':     bg = 'linear-gradient(' + across + ', ' + (fxColors.cover || '#c8a86c') + ', #f3ead3 48%, ' + (fxColors.page || '#8a673a') + ')'; break;
+          default:          bg = 'linear-gradient(' + across + ', #c8a86c, #f3ead3 45%, #8a673a)';
+        }
+        spineEdge.style.background = bg;
+        const shadows = [];
+        if (d.outline) shadows.push(portrait ? 'inset 0 1px 0 rgba(0,0,0,0.55), inset 0 -1px 0 rgba(0,0,0,0.55)' : 'inset 1px 0 0 rgba(0,0,0,0.55), inset -1px 0 0 rgba(0,0,0,0.55)');
+        if (d.shadow) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
+        spineEdge.style.boxShadow = shadows.join(', ');
         if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';

@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.39" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.40" />
 </head>
 <body>
 
@@ -370,6 +370,25 @@
 
           <!-- Persistent book binding down the centre (so it never pops in after a turn) -->
           <div v-if="currentStoryPage" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
+
+          <!-- DEV: cover-edge diagnostic toggle + panel (only when inspect mode is on) -->
+          <button v-if="showInspect" class="cover-diag-toggle" @click="showCoverDiag = !showCoverDiag" aria-label="Cover edge diagnostics">🧪</button>
+          <div v-if="showInspect && showCoverDiag" class="cover-diag-panel">
+            <div class="cdg-title">Cover edge</div>
+            <div class="cdg-row">
+              <button v-for="s in ['classic','paper','cardboard','darkcore','bleed']" :key="s"
+                      :class="['cdg-pill', { on: coverDiag.edgeStyle === s }]" @click="coverDiag.edgeStyle = s">{{ s }}</button>
+            </div>
+            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.outline"> Dark outline</label>
+            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.shadow"> Cast shadow</label>
+            <div class="cdg-slider">Base {{ coverDiag.edgeBase }}px
+              <input type="range" min="6" max="24" step="1" v-model.number="coverDiag.edgeBase"></div>
+            <div class="cdg-slider">Scale ×{{ coverDiag.edgeScale.toFixed(2) }}
+              <input type="range" min="0.5" max="3" step="0.05" v-model.number="coverDiag.edgeScale"></div>
+            <div class="cdg-row">
+              <button class="cdg-pill" @click="diagReplay()">▶ Replay open/close</button>
+            </div>
+          </div>
 
           <div class="page-area"
                @touchstart.passive="curlStart" @touchmove="curlMove" @touchend="curlEnd" @touchcancel="curlEnd"
@@ -1005,12 +1024,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.39"></script>
-  <script src="js/imageStorage.js?v=0.9.39"></script>
-  <script src="js/api.js?v=0.9.39"></script>
-  <script src="js/sync.js?v=0.9.39"></script>
-  <script src="js/pageCurl.js?v=0.9.39"></script>
-  <script src="js/app.js?v=0.9.39"></script>
+  <script src="js/storage.js?v=0.9.40"></script>
+  <script src="js/imageStorage.js?v=0.9.40"></script>
+  <script src="js/api.js?v=0.9.40"></script>
+  <script src="js/sync.js?v=0.9.40"></script>
+  <script src="js/pageCurl.js?v=0.9.40"></script>
+  <script src="js/app.js?v=0.9.40"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
