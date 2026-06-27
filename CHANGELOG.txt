@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.35 — 2026-06-26 — Book-open: swings the right way + finger-following
+  • Fixed the cover swinging DOWN into the screen — it now swings UP and outward (toward you) like a real book opening (flipped the rotate direction in both orientations; nudged the 3D edge to match).
+  • The custom open is now FINGER-FOLLOWING: drag to open slowly, move back and forth, release to commit or spring back to closed; a flick opens it. (Built a progress controller: coverOpenStart / coverOpenFinish, driven by the cover drag or a timed tween for the arrow key.)
+
+--------------------------
 v0.9.34 — 2026-06-26 — Custom book-open animation (fixes premature reveal + crease)
   • Replaced the page-turn-engine open with a purpose-built open animation over a dark stage, so nothing peeks early. The front cover slides toward centre and swings up around its hinge (fading at 90°); the inner TEXT page slides into the bottom/right half (covering the blue by 90°); past 90° the IMAGE page lays down onto the top/left half; the binding crease appears ONLY past 90°. The cover carries a small literal 3D edge so it reads as a thick cover. Played for now (finger-following comes once the look is confirmed). Reverted the open-specific hacks from the turn engine (it's clean again for pages + close).
 

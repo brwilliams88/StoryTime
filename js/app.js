@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.34',
+      version: 'v0.9.35',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -1478,7 +1478,7 @@ createApp({
     canGoPrev() { return this.currentPageIndex > 0; },
 
     // Page turns go to the finger-curl engine. The COVER (index 0) is special:
-    // a forward swipe there plays the custom book-OPEN animation (coverOpen).
+    // a forward drag/flick there plays the custom, FINGER-FOLLOWING book-open.
     curlStart(e) {
       if (this.isOnCover) { this._coverDown(e); return; }
       if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
@@ -1498,7 +1498,7 @@ createApp({
     _coverDown(e) {
       if (e.target.closest && e.target.closest('button, a, .inspect-btn')) return;
       const p = this._coverPoint(e);
-      this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0 };
+      this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0, started: false };
       if (e.type === 'mousedown') {
         this._cg.mm = (ev) => this._coverMoveGesture(ev);
         this._cg.mu = (ev) => this._coverUpGesture(ev);
@@ -1507,27 +1507,46 @@ createApp({
       }
     },
     _coverMoveGesture(e) {
-      if (!this._cg) return;
+      const g = this._cg; if (!g) return;
       const p = this._coverPoint(e);
-      this._cg.primary = this._cg.axis === 'x' ? p.x - this._cg.x0 : p.y - this._cg.y0;
-      if (Math.abs(this._cg.primary) > 8 && e.cancelable) e.preventDefault();
+      const primary = g.axis === 'x' ? p.x - g.x0 : p.y - g.y0;
+      const now = Date.now();
+      g.speed = (Math.abs(primary) - (g.last || 0)) / Math.max(1, now - (g.lastT || now));
+      g.last = Math.abs(primary); g.lastT = now; g.primary = primary;
+      if (Math.abs(primary) > 8 && e.cancelable) e.preventDefault();
+      if (!g.started) {
+        if (Math.abs(primary) < 8 || primary >= 0) return;   // need a forward (open) drag
+        g.started = true;
+        this.coverOpenStart(false);   // finger-driven (no auto-play)
+      }
+      if (g.started && this._coverFx) {
+        const range = (this.isPortrait ? window.innerHeight : window.innerWidth) * 0.55;
+        const prog = Math.min(1, Math.max(0, (-primary) / range));
+        this._coverFx.p = prog;
+        this._coverFx.apply(prog);
+      }
     },
     _coverUpGesture() {
       const g = this._cg; if (!g) return;
       if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
       this._cg = null;
-      if (Math.abs(g.primary || 0) < 40) { this.pokeReaderUi(); return; }   // tap → reveal controls
-      if (g.primary < 0) this.coverOpen();   // forward swipe → open the book
+      if (!g.started) { this.pokeReaderUi(); return; }      // tap → reveal controls
+      if (!this._coverFx) { this._coverAnim = false; return; }
+      const commit = this._coverFx.p > 0.3 || (g.speed || 0) > 0.4;
+      this.coverOpenFinish(commit);
     },
 
-    // Custom book-OPEN animation (NOT the page-turn engine). Over a dark stage
-    // (so nothing peeks early): the front cover slides toward centre and swings
-    // up around its hinge (0→90°, fading at 90°); the inner TEXT page slides
-    // into the bottom/right half; past 90° the IMAGE page lays down onto the
-    // top/left half; the binding crease appears only past 90°. The cover carries
-    // a small 3D edge so it reads as a thick cover. Played (not finger-following
-    // yet — that comes once the look is confirmed). Falls back to an instant jump.
-    coverOpen() {
+    // Arrow key / programmatic open: play it through.
+    coverOpen() { this.coverOpenStart(true); },
+
+    // Custom book-OPEN (NOT the page-turn engine), finger-followable. Over a dark
+    // stage (so nothing peeks early): the front cover slides toward centre and
+    // swings UP and outward (toward you) around its hinge, fading at 90°; the
+    // inner TEXT page slides into the bottom/right half; past 90° the IMAGE page
+    // lays down onto the top/left half; the binding crease appears only past 90°.
+    // Builds a progress controller (this._coverFx) driven by the finger or, when
+    // autoPlay, by a timed tween. Falls back to an instant jump.
+    coverOpenStart(autoPlay) {
       if (this._coverAnim || !this.isOnCover) return;
       const area = document.querySelector('.page-area');
       const coverBook = area && area.querySelector('.cover-book');
@@ -1538,9 +1557,9 @@ createApp({
       const portrait = this.isPortrait;
       const W = r.width, H = r.height;
       const axisLen = portrait ? H : W;
-      const half = axisLen / 2;                 // one page along the open axis
-      const cClosed = axisLen / 2 - half / 2;   // closed book near-edge (¼ of the axis)
-      const center = axisLen / 2;               // hinge lands here
+      const half = axisLen / 2;
+      const cClosed = axisLen / 2 - half / 2;
+      const center = axisLen / 2;
       const dark = (getComputedStyle(document.documentElement).getPropertyValue('--bg-deep') || '').trim() || '#1a1208';
 
       const wrap = document.createElement('div');
@@ -1550,7 +1569,6 @@ createApp({
       Object.assign(stage.style, { position: 'absolute', inset: '0', background: dark });
       wrap.appendChild(stage);
 
-      // front cover (one-page box at the closed/centred position)
       const coverFace = document.createElement('div');
       Object.assign(coverFace.style, { position: 'absolute', zIndex: '3', transformStyle: 'preserve-3d', backfaceVisibility: 'hidden' });
       if (portrait) Object.assign(coverFace.style, { left: '0', top: cClosed + 'px', width: W + 'px', height: half + 'px', transformOrigin: '50% 0%' });
@@ -1561,12 +1579,11 @@ createApp({
       // small literal 3D edge on the leading (free) edge → reads as a thick cover
       const edge = document.createElement('div');
       const EDGE = 6;
-      if (portrait) Object.assign(edge.style, { position: 'absolute', left: '0', bottom: '0', width: '100%', height: EDGE + 'px', transformOrigin: '50% 0%', transform: 'rotateX(90deg)', background: 'linear-gradient(#e9dcbe,#7c5a33)' });
-      else Object.assign(edge.style, { position: 'absolute', right: '0', top: '0', width: EDGE + 'px', height: '100%', transformOrigin: '100% 50%', transform: 'rotateY(-90deg)', background: 'linear-gradient(to right,#e9dcbe,#7c5a33)' });
+      if (portrait) Object.assign(edge.style, { position: 'absolute', left: '0', bottom: '0', width: '100%', height: EDGE + 'px', transformOrigin: '50% 100%', transform: 'rotateX(-90deg)', background: 'linear-gradient(#e9dcbe,#7c5a33)' });
+      else Object.assign(edge.style, { position: 'absolute', right: '0', top: '0', width: EDGE + 'px', height: '100%', transformOrigin: '0% 50%', transform: 'rotateY(90deg)', background: 'linear-gradient(to right,#e9dcbe,#7c5a33)' });
       coverFace.appendChild(edge);
       wrap.appendChild(coverFace);
 
-      // binding crease (appears only past 90°)
       const crease = document.createElement('div');
       crease.className = 'book-crease' + (portrait ? ' portrait' : '');
       Object.assign(crease.style, { position: 'absolute', zIndex: '4', opacity: '0' });
@@ -1575,13 +1592,47 @@ createApp({
       wrap.appendChild(crease);
 
       document.body.appendChild(wrap);
-      this.currentPageIndex = 1;   // render the spread (hidden behind the dark stage) so we can clone its halves
+      this.currentPageIndex = 1;   // render the spread (hidden behind the stage) for cloning
+
+      let textPage = null, imageFace = null;
+      const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+      const easeO = (t) => 1 - Math.pow(1 - t, 2);
+      const apply = (p) => {
+        const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
+        const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
+        const slide = (center - cClosed) * e1;
+        const ang1 = 90 * e1;
+        // swing UP/outward (toward the viewer): rotateX(+) portrait, rotateY(-) landscape
+        coverFace.style.transform = portrait
+          ? 'translateY(' + slide + 'px) rotateX(' + ang1 + 'deg)'
+          : 'translateX(' + slide + 'px) rotateY(' + (-ang1) + 'deg)';
+        coverFace.style.opacity = p < 0.46 ? '1' : (p < 0.54 ? String((0.54 - p) / 0.08) : '0');
+        if (textPage) {
+          const ts = -(center - cClosed) * (1 - e1);
+          textPage.style.transform = portrait ? 'translateY(' + ts + 'px)' : 'translateX(' + ts + 'px)';
+        }
+        if (imageFace) {
+          const ang2 = 90 * (1 - e2);
+          imageFace.style.transform = portrait ? 'rotateX(' + ang2 + 'deg)' : 'rotateY(' + (-ang2) + 'deg)';
+          imageFace.style.opacity = p < 0.46 ? '0' : (p < 0.54 ? String((p - 0.46) / 0.08) : '1');
+        }
+        crease.style.opacity = String(Math.max(0, Math.min(1, (p - 0.5) / 0.3)));
+      };
+      const fx = { p: 0, apply, raf: null };
+      fx.destroy = (commit) => {
+        if (fx.raf) cancelAnimationFrame(fx.raf);
+        if (wrap.parentNode) wrap.remove();
+        this._coverAnim = false; this._coverFx = null;
+        if (!commit) this.currentPageIndex = 0;   // cancelled → back to the cover
+        this.pokeReaderUi();
+      };
+      this._coverFx = fx;
+      apply(0);
 
       this.$nextTick(() => {
+        if (this._coverFx !== fx) return;   // already cleaned up
         const page = area.querySelector('.book-page');
-        let textPage = null, imageFace = null;
         if (page) {
-          // TEXT page (bottom / right half) — slides into place
           textPage = document.createElement('div');
           Object.assign(textPage.style, { position: 'absolute', overflow: 'hidden', zIndex: '1' });
           if (portrait) Object.assign(textPage.style, { left: '0', top: center + 'px', width: W + 'px', height: half + 'px' });
@@ -1591,7 +1642,6 @@ createApp({
           textPage.appendChild(tc);
           wrap.insertBefore(textPage, coverFace);
 
-          // IMAGE page (top / left half) — lays down past 90°
           imageFace = document.createElement('div');
           Object.assign(imageFace.style, { position: 'absolute', overflow: 'hidden', zIndex: '2', backfaceVisibility: 'hidden', opacity: '0' });
           if (portrait) Object.assign(imageFace.style, { left: '0', top: '0', width: W + 'px', height: half + 'px', transformOrigin: '50% 100%' });
@@ -1601,44 +1651,26 @@ createApp({
           imageFace.appendChild(ic);
           wrap.insertBefore(imageFace, coverFace);
         }
-
-        const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-        const easeO = (t) => 1 - Math.pow(1 - t, 2);
-        const apply = (p) => {
-          const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
-          const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
-          const slide = (center - cClosed) * e1;
-          const ang1 = 90 * e1;
-          coverFace.style.transform = portrait
-            ? 'translateY(' + slide + 'px) rotateX(' + (-ang1) + 'deg)'
-            : 'translateX(' + slide + 'px) rotateY(' + ang1 + 'deg)';
-          coverFace.style.opacity = p < 0.46 ? '1' : (p < 0.54 ? String((0.54 - p) / 0.08) : '0');
-          if (textPage) {
-            const ts = -(center - cClosed) * (1 - e1);
-            textPage.style.transform = portrait ? 'translateY(' + ts + 'px)' : 'translateX(' + ts + 'px)';
-          }
-          if (imageFace) {
-            const ang2 = 90 * (1 - e2);
-            imageFace.style.transform = portrait ? 'rotateX(' + ang2 + 'deg)' : 'rotateY(' + (-ang2) + 'deg)';
-            imageFace.style.opacity = p < 0.46 ? '0' : (p < 0.54 ? String((p - 0.46) / 0.08) : '1');
-          }
-          crease.style.opacity = String(Math.max(0, Math.min(1, (p - 0.5) / 0.3)));
-        };
-
-        apply(0);
-        const DUR = 820, t0 = performance.now();
-        const ce = (t) => 1 - Math.pow(1 - t, 3);
-        const step = (now) => {
-          const k = Math.min(1, (now - t0) / DUR);
-          apply(ce(k));
-          if (k < 1) { requestAnimationFrame(step); return; }
-          wrap.remove();
-          this._coverAnim = false;
-          this.pokeReaderUi();
-        };
-        requestAnimationFrame(step);
-        setTimeout(() => { if (wrap.parentNode) { wrap.remove(); this._coverAnim = false; } }, DUR + 900);  // backstop
+        apply(fx.p);
+        if (autoPlay) this.coverOpenFinish(true);
       });
+    },
+    // Animate the open from its current progress to fully open (commit) or back
+    // to the closed cover (cancel), then clean up.
+    coverOpenFinish(commit) {
+      const fx = this._coverFx; if (!fx) return;
+      const from = fx.p, to = commit ? 1 : 0;
+      const dur = 820 * Math.max(0.18, Math.abs(to - from));   // scale with remaining distance
+      const t0 = performance.now();
+      const ce = (t) => 1 - Math.pow(1 - t, 3);
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / dur);
+        const p = from + (to - from) * ce(k);
+        fx.p = p; fx.apply(p);
+        if (k < 1) { fx.raf = requestAnimationFrame(step); return; }
+        fx.destroy(commit);
+      };
+      fx.raf = requestAnimationFrame(step);
     },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {
