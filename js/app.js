@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.42',
+      version: 'v0.9.43',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -429,6 +429,8 @@ createApp({
     if (typeof window.PageCurl !== 'undefined') {
       const self = this;
       window.PageCurl.init({
+        // moving cast shadow config (shared with the cover-open animation)
+        pageShadow: () => ({ on: self.coverDiag.pageShadow, strength: self.coverDiag.shadowStrength != null ? self.coverDiag.shadowStrength : 0.6 }),
         index: () => self.currentPageIndex,
         setIndex: (i) => {
           // A turn landing on the cover = closing the book: render the cover

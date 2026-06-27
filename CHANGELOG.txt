@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.43 — 2026-06-27 — Page cast shadow now on every page turn
+  • The moving page cast shadow now plays on ALL interior page turns, not just the first cover-open spread. As a page lifts it shadows the page revealed beneath it, and as the next page lays down it casts a shadow that swells then fades — same look as the cover open.
+  • It's governed by the same 🧪 controls (Enable + Intensity), so one setting covers the cover-open and every page turn.
+
+--------------------------
 v0.9.42 — 2026-06-27 — Lock in edge look; cast-shadow now adjustable; trim diagnostics
   • Cover-edge look is locked in (paper, subtle outline, edge shadow, ×1.2) — removed its now-unneeded tuning controls from the 🧪 panel.
   • Dropped the "landing settle" and "light sweep" experiments.
