@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.42 — 2026-06-27 — Lock in edge look; cast-shadow now adjustable; trim diagnostics
+  • Cover-edge look is locked in (paper, subtle outline, edge shadow, ×1.2) — removed its now-unneeded tuning controls from the 🧪 panel.
+  • Dropped the "landing settle" and "light sweep" experiments.
+  • Page cast shadow kept and made adjustable: stronger gradient + an Intensity slider (0–100%, default 60%) so it can be dialed to taste. The 🧪 panel is now just Enable + Intensity + Replay.
+
+--------------------------
 v0.9.41 — 2026-06-27 — Real-book edge defaults, physics-correct thickness, magical-effect diagnostics
   • Cover edge defaults set to the chosen look: "paper" page-stack treatment, subtle dark-brown outline (softened, not black), edge shadow on, thickness scale ×1.2.
   • Edge thickness now uses the PHYSICS-correct formula: apparent thickness = true board thickness × sin(open angle). It tracks the real opening angle of the leaf instead of raw progress, so it's thin when the cover is nearly flat and full only at 90° — more convincingly like a solid board.

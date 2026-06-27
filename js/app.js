@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.41',
+      version: 'v0.9.42',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -65,16 +65,16 @@ createApp({
       diagMode: false,
       showCoverDiag: false,
       coverDiag: {
-        edgeStyle: 'paper',     // classic | paper | cardboard | darkcore | bleed
-        outline: true,          // thin dark line where the band meets cover / inner page
-        shadow: true,           // soft cast shadow around the lifted edge
+        // DIALED-IN edge look (fixed — no longer user-tunable):
+        edgeStyle: 'paper',     // paper page-stack treatment
+        outline: true,          // subtle dark-brown line where the band meets cover / inner page
+        shadow: true,           // soft shadow around the lifted edge
         edgeBase: 12,           // px = true board thickness T at the iPhone baseline short-side
         edgeRef: 390,           // baseline short-side (iPhone logical px)
-        edgeScale: 1.2,         // extra multiplier for tuning
-        // experimental "magical" effects (down-select):
-        pageShadow: false,      // (1) soft moving shadow the lifting/laying leaf casts on the page
-        landingBounce: false,   // (2) tiny settle/overshoot as the page lands flat
-        lightSweep: false,      // (3) highlight sweep as the leaf passes vertical
+        edgeScale: 1.2,         // thickness multiplier
+        // STILL EVALUATING — moving cast shadow with adjustable intensity:
+        pageShadow: true,       // soft moving shadow the lifting/laying leaf casts on the page
+        shadowStrength: 0.6,    // 0..1 intensity
       },
 
       showSettings: false,
@@ -1696,15 +1696,15 @@ createApp({
       sampleColor(this.getImageURL((story.cover || {}).image_id), 'cover');
       sampleColor(imgUrl, 'page');
 
-      // Full-face overlays for the experimental effects (sheen / cast shadow).
-      // opacity is driven live in apply(); start at 0 so they're inert when off.
+      // Full-face dark overlay for the moving cast shadow. opacity driven live in
+      // apply() (0 when off). Gradient goes to near-black so the intensity slider
+      // has real range.
       const mkOverlay = (bg) => { const o = document.createElement('div'); Object.assign(o.style, { position: 'absolute', inset: '0', pointerEvents: 'none', opacity: '0', background: bg, zIndex: '8' }); return o; };
-      const SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0) 38%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 62%)';
       const gutterDark = (fromCentre) => {   // dark gradient; fromCentre=true → darkest at the inner (gutter) edge
         const dir = portrait ? 'to bottom' : 'to right';
         return fromCentre
-          ? 'linear-gradient(' + dir + ', rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 62%)'   // text half: gutter at start
-          : 'linear-gradient(' + dir + ', rgba(0,0,0,0) 38%, rgba(0,0,0,0.55) 100%)'; // image half: gutter at end
+          ? 'linear-gradient(' + dir + ', rgba(0,0,0,0.92) 0%, rgba(0,0,0,0) 70%)'   // text half: gutter at start
+          : 'linear-gradient(' + dir + ', rgba(0,0,0,0) 30%, rgba(0,0,0,0.92) 100%)'; // image half: gutter at end
       };
 
       const wrap = document.createElement('div');
@@ -1732,7 +1732,6 @@ createApp({
       imageFace.appendChild(buildSpread());
       imageFace.appendChild(creaseStrip('image'));
       const imgShadow = mkOverlay(gutterDark(false)); imageFace.appendChild(imgShadow);
-      const imgSheen = mkOverlay(SHEEN); imageFace.appendChild(imgSheen);
       wrap.appendChild(imageFace);
 
       const coverFace = document.createElement('div');
@@ -1742,7 +1741,6 @@ createApp({
       const cbc = buildCoverFace();
       Object.assign(cbc.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0' });
       coverFace.appendChild(cbc);
-      const coverSheen = mkOverlay(SHEEN); coverFace.appendChild(coverSheen);
       wrap.appendChild(coverFace);
 
       // single thickness bar = the book edge seen at the fore edge of the leaf.
@@ -1757,16 +1755,12 @@ createApp({
 
       const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
       const easeO = (t) => 1 - Math.pow(1 - t, 2);
-      // ease-out-BACK: overshoots slightly past 1 then settles — gives the page a
-      // tiny "settle" as it lands flat (experimental landingBounce).
-      const easeBack = (t) => { const c1 = 0.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
       const apply = (p) => {
         p = Math.max(0, Math.min(1, p));
         const d = this.coverDiag;
         const DEG = Math.PI / 180;
         const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
-        const s2 = Math.max(0, (p - 0.5) / 0.5);
-        const e2 = d.landingBounce ? easeBack(s2) : easeO(s2);
+        const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
         // cover: slide to centre + swing up/out; gone BY 90°
         coverFace.style.transform = portrait
           ? 'translateY(' + ((center - cClosed) * e1) + 'px) rotateX(' + (90 * e1) + 'deg)'
@@ -1820,14 +1814,13 @@ createApp({
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
 
-        // ---- experimental "magical" effects (driven live) ----
-        // (1) moving cast shadow: lifting cover shades the revealing text (phase 1);
-        //     laying image carries a shadow that shrinks as it flattens (phase 2).
-        textShadow.style.opacity = (d.pageShadow && p <= 0.5) ? String(0.85 * (1 - e1)) : '0';
-        imgShadow.style.opacity  = (d.pageShadow && p > 0.5) ? String(0.6 * (ang2 / 90)) : '0';
-        // (3) light sweep: a highlight that peaks as the leaf crosses vertical.
-        coverSheen.style.opacity = (d.lightSweep && p <= 0.5) ? String(0.8 * e1) : '0';
-        imgSheen.style.opacity   = (d.lightSweep && p > 0.5) ? String(0.8 * (1 - s2)) : '0';
+        // ---- moving cast shadow (adjustable) ----
+        // Lifting cover shades the revealing text (phase 1); the laying image
+        // carries a shadow that shrinks as it flattens (phase 2). Scaled by the
+        // intensity slider (shadowStrength).
+        const si = d.pageShadow ? (d.shadowStrength != null ? d.shadowStrength : 0.6) : 0;
+        textShadow.style.opacity = (si && p <= 0.5) ? String(si * (1 - e1)) : '0';
+        imgShadow.style.opacity  = (si && p > 0.5) ? String(si * (ang2 / 90)) : '0';
       };
 
       const fx = { p: 0, apply, raf: null, wrap };
