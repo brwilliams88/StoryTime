@@ -118,6 +118,13 @@ window.PageCurl = (function () {
   }
 
   function begin() {
+    // Let the app prep the page right before we snapshot it (used by the cover
+    // OPEN to slide the closed book into its hinge-side half and tell us the
+    // slide-in offset, so the open works on the finger-drag path too).
+    const cap = cfg.onBeginCapture && cfg.onBeginCapture(g.forward);
+    if (cap && cap.slide) g.slide = cap.slide;
+    if (cap && cap.cover) g.cover = true;
+
     g.origIndex = cfg.index();
     g.destIndex = (g.destOverride != null) ? g.destOverride : g.origIndex + (g.forward ? 1 : -1);
     const r = g.area.getBoundingClientRect(); const W = r.width, H = r.height;
@@ -170,8 +177,11 @@ window.PageCurl = (function () {
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
-    g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
-    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * 0.9);
+    // the cover is a thicker, heavier leaf than a normal page (deeper edge)
+    g.leaf1.el.style.boxShadow = g.cover
+      ? '0 0 ' + (9 + p1 * 30) + 'px rgba(0,0,0,' + (0.14 + p1 * 0.34) + ')'
+      : '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
+    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * (g.cover ? 1 : 0.9));
     if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(p1 * 0.8);
     // leaf2 lays 90→0 over the second half (ease-out gravity)
     if (g.leaf2) {
@@ -186,7 +196,7 @@ window.PageCurl = (function () {
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = 520, t0 = performance.now();   // slower = easier to see the turn
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = (g.cover ? 760 : 520), t0 = performance.now();   // cover opens slower
     const dest = g.destIndex, orig = g.origIndex;
     const ease = (t) => 1 - Math.pow(1 - t, 3);
     const step = (now) => {

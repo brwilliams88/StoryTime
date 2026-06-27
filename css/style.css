@@ -2813,9 +2813,6 @@ body:has(.app-main-reading) {
 .cover-page.portrait.cover-shift .cover-book      { transform: translateY(50%); }
 .cover-page:not(.portrait).cover-shift .cover-book { transform: translateX(50%); }
 @media (prefers-reduced-motion: reduce) { .cover-book { transition: none; } }
-/* during the open, the book is placed in its half INSTANTLY (the visible slide
-   is performed by the turn overlay), so suppress the CSS slide transition */
-.cover-page.cover-instant .cover-book { transition: none; }
 
 .cover-front {
   position: absolute; inset: 0; display: flex; flex-direction: column;

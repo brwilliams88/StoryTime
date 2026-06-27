@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.32',
+      version: 'v0.9.33',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -58,8 +58,7 @@ createApp({
 
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
 
-      coverShift: false,   // true = closed book slid into its hinge-side half (for the open/close turn)
-      coverInstant: false, // true = skip the .cover-book slide transition (the turn overlay does the slide)
+      coverShift: false,   // true = closed book slid into its hinge-side half (for the close turn)
 
       showSettings: false,
       nextStoryQuality: 'medium',
@@ -428,6 +427,24 @@ createApp({
         isPortrait: () => self.isPortrait,
         onTap: () => self.pokeReaderUi(),
         afterRender: (fn) => self.$nextTick(fn),
+        // Called by the engine right before it snapshots the page to turn. For
+        // the cover OPEN (forward from index 0) we slide the closed book into
+        // its hinge-side half instantly so the engine can grab the whole cover,
+        // and return a slide-in offset so the turn overlay starts at screen
+        // centre and eases into the half — i.e. the book slides into place WHILE
+        // it opens. Works on both finger-drag and flick. Returns null otherwise.
+        onBeginCapture: (forward) => {
+          if (self.currentPageIndex !== 0 || !forward) return null;
+          const area = document.querySelector('.page-area');
+          const cb = area && area.querySelector('.cover-book');
+          if (!area || !cb) return null;
+          cb.style.transition = 'none';
+          cb.style.transform = self.isPortrait ? 'translateY(50%)' : 'translateX(50%)';
+          const half = cb.getBoundingClientRect();   // forces reflow → measured in the half
+          const pa = area.getBoundingClientRect();
+          const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2 };
+          return { slide: { x: cen.left - half.left, y: cen.top - half.top }, cover: true };
+        },
         // Veto finger-following the CLOSE (page 1 → cover). Finger-following it
         // swaps the spread for the cover mid-touch, which freezes iOS (touch
         // events stop once the touched element is removed). Instead play the
@@ -446,7 +463,6 @@ createApp({
         // melt during that travel). For a normal close, settle to centre here.
         afterTurn: (landed) => {
           self._coverAnim = false;
-          self.coverInstant = false;
           if (landed === 0 && self._closingToLibrary != null) {
             const id = self._closingToLibrary; self._closingToLibrary = null;
             self.$nextTick(() => self._bookToShelf(id));
@@ -496,10 +512,10 @@ createApp({
       // Don't navigate while a modal is open over the story
       if (this.showSettings || this.showQuiz || this.inspectingImage ||
           this.copyrightModal || this.warningModal || this.showCharactersModal) return;
-      // Arrow keys play the same turn animation (fall back to instant nav).
+      // Arrow keys play the same turn animation (fall back to instant nav). The
+      // cover OPEN is handled by the engine's onBeginCapture hook (animate(true)).
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
-        if (this.isOnCover) { this.openCover(); return; }   // open the book
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -1480,81 +1496,13 @@ createApp({
     canGoPrev() { return this.currentPageIndex > 0; },
 
     // Finger-following page-turn (delegated to js/pageCurl.js, bound on .page-area).
-    // Only the COVER (index 0) is special — a swipe there opens the book. Every
-    // other turn (including page 1 → 2 forward, and page 1 → cover close) goes
-    // straight to the finger-following curl, which is zone-aware (grab the right
-    // page to go forward, the left/top page to go back) and triggers the
-    // close-book slide via the setIndex / afterTurn hooks above.
-    curlStart(e) {
-      if (this.isOnCover) { this._coverDown(e); return; }
-      if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
-    },
-    curlMove(e) {
-      if (this._cg) { this._coverMoveGesture(e); return; }
-      if (window.PageCurl) window.PageCurl.move(e);
-    },
-    curlEnd(e) {
-      if (this._cg) { this._coverUpGesture(e); return; }
-      if (window.PageCurl) window.PageCurl.end(e);
-    },
-
-    // ---- Cover (closed book) gesture → open animation ----
-    _coverPoint(e) {
-      const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
-      return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY };
-    },
-    _coverDown(e) {
-      if (e.target.closest && e.target.closest('button, a, .inspect-btn')) return;
-      const p = this._coverPoint(e);
-      this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0 };
-      if (e.type === 'mousedown') {
-        this._cg.mm = (ev) => this._coverMoveGesture(ev);
-        this._cg.mu = (ev) => this._coverUpGesture(ev);
-        document.addEventListener('mousemove', this._cg.mm);
-        document.addEventListener('mouseup', this._cg.mu);
-      }
-    },
-    _coverMoveGesture(e) {
-      if (!this._cg) return;
-      const p = this._coverPoint(e);
-      this._cg.primary = this._cg.axis === 'x' ? p.x - this._cg.x0 : p.y - this._cg.y0;
-      if (Math.abs(this._cg.primary) > 8 && e.cancelable) e.preventDefault();
-    },
-    _coverUpGesture() {
-      const g = this._cg; if (!g) return;
-      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
-      this._cg = null;
-      if (Math.abs(g.primary || 0) < 40) { this.pokeReaderUi(); return; }   // tap → just reveal controls
-      if (g.primary < 0) this.openCover();   // forward swipe on the cover → open the book
-    },
-
-    // Open the book (cover → first spread), with the slide and the page-turn
-    // happening TOGETHER. We place the book in its hinge-side half INSTANTLY
-    // (no CSS slide) so the turn engine can capture it, then play the normal
-    // two-faced turn while giving the turn overlay a slide-in entrance — it
-    // starts at screen centre and eases into the hinge position over the first
-    // part of the turn. So the book slides into place as it opens, you see the
-    // inner pages, and the lay-side page lays down past 90° — same engine,
-    // just sliding at the same time. Falls back to an instant jump.
-    openCover() {
-      if (this._coverAnim || !this.isOnCover) return;
-      const curl = window.PageCurl;
-      if (!curl || !curl.animate) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
-      this._coverAnim = true;
-      this.coverShift = true;        // book → hinge-side half...
-      this.coverInstant = true;      // ...instantly (the visible slide is done by the turn overlay)
-      this.$nextTick(() => {
-        const area = document.querySelector('.page-area');
-        const cb = area && area.querySelector('.cover-book');
-        if (!area || !cb) { this.currentPageIndex = 1; this.coverShift = false; this.coverInstant = false; this._coverAnim = false; return; }
-        const half = cb.getBoundingClientRect();
-        const pa = area.getBoundingClientRect();
-        const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2 };
-        // overlay starts shifted so the book appears at CENTRE, eases to the half
-        curl.animate(true, null, { x: cen.left - half.left, y: cen.top - half.top });
-        setTimeout(() => { this._coverAnim = false; }, 2000);   // backstop
-      });
-    },
+    // EVERY turn — including the cover OPEN — goes straight to the finger-curl, so
+    // you can drag it slowly, back and forth, or flick it. The cover open is made
+    // special by the onBeginCapture hook (slides the book into its hinge-side half
+    // + slide-in entrance) and the close by the setIndex / beforeTurn hooks above.
+    curlStart(e) { if (window.PageCurl) window.PageCurl.start(e, e.currentTarget); },
+    curlMove(e)  { if (window.PageCurl) window.PageCurl.move(e); },
+    curlEnd(e)   { if (window.PageCurl) window.PageCurl.end(e); },
     // Show the floating reader controls, then auto-fade after a few seconds.
     pokeReaderUi() {
       this.readerUiShow = true;
