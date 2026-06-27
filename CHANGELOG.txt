@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.37 — 2026-06-26 — Book edge as one centre bar; reverse close animation
+  • Replaced the two mismatched edge strips with a SINGLE thickness bar at the binding/centre: invisible when closed, grows to the full ~9px exactly at 90° (the only thing visible there — both faces are gone), then shrinks back to nothing as the page lays down. Consistent colour throughout. No more white bar appearing on the laying page.
+  • Timed the faces so at exactly 90° neither the cover nor the page-1 image shows — just the edge.
+  • Built the CLOSE as the reverse of the open: swiping back (or ← arrow) on page 1 now closes the book with the same animation in reverse (cover swings shut, page lifts away, edge grows then shrinks). (The back-arrow still exits all the way to the shelf.)
+
+--------------------------
 v0.9.36 — 2026-06-26 — Book-open fixes: one swipe, page-turn swipes, image lay, edges
   • Fixed needing TWO swipes to open + the weird page-1 swipes (swipe-up on the text page closing the book, etc.). Cause: the open switched to the spread mid-drag, which removed the element under your finger and froze the gesture (iOS), leaving stale state. Now the first spread is built from the story data during the open, and we only switch to the real spread on commit — so the gesture never breaks and page turns afterwards behave normally.
   • The inner IMAGE page now lays down from 90° toward you (same side the cover opened), not from behind the book.

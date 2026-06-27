@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.36',
+      version: 'v0.9.37',
       buildDate: '2026-06-25',
 
       showSplash: true,
@@ -433,8 +433,9 @@ createApp({
         // close as a triggered animation — safe, since it's not driven by the
         // live touch — on the next tick (after the curl has cleaned up).
         beforeTurn: (forward) => {
+          // Backward from page 1 = close the book → play the custom reverse open.
           if (!forward && self.currentPageIndex === 1) {
-            setTimeout(() => { if (window.PageCurl) window.PageCurl.animate(false); }, 0);
+            setTimeout(() => self.coverClose(true), 0);
             return false;
           }
           return true;
@@ -501,7 +502,7 @@ createApp({
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(true); else this.nextPage();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
-        // page 1 → cover close is handled by the curl's setIndex/afterTurn hooks
+        if (this.currentPageIndex === 1) { this.coverClose(true); return; }   // close the book (reverse open)
         if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(false); else this.prevPage();
       }
     };
@@ -1533,26 +1534,26 @@ createApp({
       if (!g.started) { this.pokeReaderUi(); return; }      // tap → reveal controls
       if (!this._coverFx) { this._coverAnim = false; return; }
       const commit = this._coverFx.p > 0.3 || (g.speed || 0) > 0.4;
-      this.coverOpenFinish(commit);
+      this._coverAnimateTo(commit ? 1 : 0);
     },
 
     // Arrow key / programmatic open: play it through.
     coverOpen() { this.coverOpenStart(true); },
 
-    // Custom book-OPEN (NOT the page-turn engine), finger-followable. Over a dark
-    // stage (so nothing peeks early): the front cover slides toward centre and
-    // swings UP and outward (toward you) around its hinge, fading at 90°; the
-    // inner TEXT page slides into the bottom/right half; past 90° the IMAGE page
-    // lays down onto the top/left half; the binding crease appears only past 90°.
-    // Builds a progress controller (this._coverFx) driven by the finger or, when
-    // autoPlay, by a timed tween. Falls back to an instant jump.
-    coverOpenStart(autoPlay) {
-      if (this._coverAnim || !this.isOnCover) return;
+    // Build the book-open overlay (NOT the page-turn engine), as a progress
+    // controller this._coverFx with apply(p): p=0 closed cover, p=1 open spread.
+    // Over a dark stage (nothing peeks early): the front cover slides to centre
+    // and swings UP/outward around its hinge (gone by 90°); the inner TEXT page
+    // slides into the bottom/right half; past 90° the IMAGE page lays down onto
+    // the top/left half. A SINGLE centre "thickness" bar (the book edge) grows
+    // 0→9px by 90° then shrinks back to 0 as the page lays — the only thing
+    // visible at exactly 90°. Built from story DATA so we never remove the
+    // element under the finger mid-drag. Returns fx, or null if it can't build.
+    _coverFxBuild() {
       const area = document.querySelector('.page-area');
       const coverBook = area && area.querySelector('.cover-book');
       const story = this.currentStory;
-      if (!area || !coverBook || !story) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
-      this._coverAnim = true;
+      if (!area || !coverBook || !story) return null;
 
       const r = area.getBoundingClientRect();
       const portrait = this.isPortrait;
@@ -1562,11 +1563,8 @@ createApp({
       const cClosed = axisLen / 2 - half / 2;
       const center = axisLen / 2;
       const dark = (getComputedStyle(document.documentElement).getPropertyValue('--bg-deep') || '').trim() || '#1a1208';
+      const EDGE = 9;
 
-      // Build the first spread from DATA (not by setIndex/cloning the live page) —
-      // so we never remove the element your finger is on mid-drag (that froze the
-      // gesture and needed a second swipe). We only switch to the real spread on
-      // commit, after the gesture is over.
       const pg = (story.pages && story.pages[0]) || {};
       const imgUrl = this.getImageURL(pg.image_id);
       const buildSpread = () => {
@@ -1594,9 +1592,6 @@ createApp({
       Object.assign(stage.style, { position: 'absolute', inset: '0', background: dark });
       wrap.appendChild(stage);
 
-      const EDGE = 9, PEDGE = 5;   // cover edge (thick), page edge (thin)
-
-      // TEXT page (bottom / right half) — slides into place; revealed by the cover lifting
       const textPage = document.createElement('div');
       Object.assign(textPage.style, { position: 'absolute', overflow: 'hidden', zIndex: '1' });
       if (portrait) Object.assign(textPage.style, { left: '0', top: center + 'px', width: W + 'px', height: half + 'px' });
@@ -1606,93 +1601,95 @@ createApp({
       textPage.appendChild(tcs);
       wrap.appendChild(textPage);
 
-      // IMAGE page (top / left half) — lays down past 90°, with a shrinking edge
       const imageFace = document.createElement('div');
-      Object.assign(imageFace.style, { position: 'absolute', overflow: 'visible', zIndex: '2', backfaceVisibility: 'hidden', opacity: '0', transformStyle: 'preserve-3d' });
+      Object.assign(imageFace.style, { position: 'absolute', overflow: 'hidden', zIndex: '2', backfaceVisibility: 'hidden', opacity: '0' });
       if (portrait) Object.assign(imageFace.style, { left: '0', top: '0', width: W + 'px', height: half + 'px', transformOrigin: '50% 100%' });
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
-      const iclip = document.createElement('div');
-      Object.assign(iclip.style, { position: 'absolute', inset: '0', overflow: 'hidden' });
-      iclip.appendChild(buildSpread());
-      imageFace.appendChild(iclip);
-      const iedge = document.createElement('div');
-      if (portrait) Object.assign(iedge.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: PEDGE + 'px', transformOrigin: '50% 100%', transform: 'rotateX(90deg)', background: 'linear-gradient(#efe6d2,#cbb88f)' });
-      else Object.assign(iedge.style, { position: 'absolute', left: '0', top: '0', width: PEDGE + 'px', height: '100%', transformOrigin: '100% 50%', transform: 'rotateY(90deg)', background: 'linear-gradient(to left,#efe6d2,#cbb88f)' });
-      imageFace.appendChild(iedge);
+      imageFace.appendChild(buildSpread());
       wrap.appendChild(imageFace);
 
-      // FRONT cover — one-page box at the closed/centred position; swings up/out
       const coverFace = document.createElement('div');
-      Object.assign(coverFace.style, { position: 'absolute', zIndex: '3', transformStyle: 'preserve-3d', backfaceVisibility: 'hidden' });
+      Object.assign(coverFace.style, { position: 'absolute', zIndex: '3', backfaceVisibility: 'hidden' });
       if (portrait) Object.assign(coverFace.style, { left: '0', top: cClosed + 'px', width: W + 'px', height: half + 'px', transformOrigin: '50% 0%' });
       else Object.assign(coverFace.style, { left: cClosed + 'px', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '0% 50%' });
       const cbc = coverBook.cloneNode(true);
       Object.assign(cbc.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0' });
       coverFace.appendChild(cbc);
-      const edge = document.createElement('div');
-      if (portrait) Object.assign(edge.style, { position: 'absolute', left: '0', bottom: '0', width: '100%', height: EDGE + 'px', transformOrigin: '50% 100%', transform: 'rotateX(-90deg)', background: 'linear-gradient(#e9dcbe,#7c5a33)' });
-      else Object.assign(edge.style, { position: 'absolute', right: '0', top: '0', width: EDGE + 'px', height: '100%', transformOrigin: '100% 50%', transform: 'rotateY(-90deg)', background: 'linear-gradient(to right,#e9dcbe,#7c5a33)' });
-      coverFace.appendChild(edge);
       wrap.appendChild(coverFace);
 
-      const crease = document.createElement('div');
-      crease.className = 'book-crease' + (portrait ? ' portrait' : '');
-      Object.assign(crease.style, { position: 'absolute', zIndex: '4', opacity: '0' });
-      if (portrait) Object.assign(crease.style, { left: '0', right: '0', top: '50%', height: '60px', transform: 'translateY(-50%)' });
-      else Object.assign(crease.style, { top: '0', bottom: '0', left: '50%', width: '60px', transform: 'translateX(-50%)' });
-      wrap.appendChild(crease);
+      // single centre thickness bar — the book edge seen at the binding
+      const spineEdge = document.createElement('div');
+      Object.assign(spineEdge.style, { position: 'absolute', zIndex: '4', pointerEvents: 'none' });
+      if (portrait) Object.assign(spineEdge.style, { left: '0', width: '100%', background: 'linear-gradient(to bottom,#c8a86c,#f3ead3 45%,#8a673a)' });
+      else Object.assign(spineEdge.style, { top: '0', height: '100%', background: 'linear-gradient(to right,#c8a86c,#f3ead3 45%,#8a673a)' });
+      wrap.appendChild(spineEdge);
 
       document.body.appendChild(wrap);
 
       const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
       const easeO = (t) => 1 - Math.pow(1 - t, 2);
       const apply = (p) => {
+        p = Math.max(0, Math.min(1, p));
         const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
         const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
-        const slide = (center - cClosed) * e1;
-        const ang1 = 90 * e1;
+        // cover: slide to centre + swing up/out; gone BY 90°
         coverFace.style.transform = portrait
-          ? 'translateY(' + slide + 'px) rotateX(' + ang1 + 'deg)'
-          : 'translateX(' + slide + 'px) rotateY(' + (-ang1) + 'deg)';
-        coverFace.style.opacity = p < 0.46 ? '1' : (p < 0.54 ? String((0.54 - p) / 0.08) : '0');
+          ? 'translateY(' + ((center - cClosed) * e1) + 'px) rotateX(' + (90 * e1) + 'deg)'
+          : 'translateX(' + ((center - cClosed) * e1) + 'px) rotateY(' + (-90 * e1) + 'deg)';
+        coverFace.style.opacity = p < 0.42 ? '1' : (p < 0.5 ? String((0.5 - p) / 0.08) : '0');
+        // text slides into the bottom/right half
         const ts = -(center - cClosed) * (1 - e1);
         textPage.style.transform = portrait ? 'translateY(' + ts + 'px)' : 'translateX(' + ts + 'px)';
-        // image lays from 90° → 0° on the SAME (viewer) side as the cover opened
+        // image lays from 90°→0° toward the viewer; appears only AFTER 90°
         const ang2 = 90 * (1 - e2);
         imageFace.style.transform = portrait ? 'rotateX(' + (-ang2) + 'deg)' : 'rotateY(' + ang2 + 'deg)';
-        imageFace.style.opacity = p < 0.46 ? '0' : (p < 0.54 ? String((p - 0.46) / 0.08) : '1');
-        crease.style.opacity = String(Math.max(0, Math.min(1, (p - 0.5) / 0.3)));
+        imageFace.style.opacity = p <= 0.5 ? '0' : (p < 0.58 ? String((p - 0.5) / 0.08) : '1');
+        // single thickness bar: 0 → EDGE at 90° → 0
+        const th = EDGE * Math.sin(p * Math.PI);
+        if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (center - th / 2) + 'px'; }
+        else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (center - th / 2) + 'px'; }
+        spineEdge.style.opacity = th > 0.4 ? '1' : '0';
       };
-      const fx = { p: 0, apply, raf: null };
-      fx.destroy = (commit) => {
-        if (fx.raf) cancelAnimationFrame(fx.raf);
-        if (commit) {
-          this.currentPageIndex = 1;   // now (gesture over) switch to the real spread
-          this.$nextTick(() => { if (wrap.parentNode) wrap.remove(); });
-        } else if (wrap.parentNode) {
-          wrap.remove();               // cancelled → stay on the cover (index 0)
-        }
-        this._coverAnim = false; this._coverFx = null;
-        this.pokeReaderUi();
-      };
+
+      const fx = { p: 0, apply, raf: null, wrap };
       this._coverFx = fx;
-      apply(0);
-      if (autoPlay) this.coverOpenFinish(true);
+      return fx;
     },
-    // Animate the open from its current progress to fully open (commit) or back
-    // to the closed cover (cancel), then clean up.
-    coverOpenFinish(commit) {
+    coverOpenStart(autoPlay) {
+      if (this._coverAnim || !this.isOnCover) return;
+      const fx = this._coverFxBuild();
+      if (!fx) { this.currentPageIndex = 1; this.pokeReaderUi(); return; }
+      this._coverAnim = true;
+      fx.p = 0; fx.apply(0);
+      if (autoPlay) this._coverAnimateTo(1);
+    },
+    // The reverse: close the open book back to the cover (triggered).
+    coverClose(autoPlay) {
+      if (this._coverAnim || this.currentPageIndex !== 1) return;
+      const fx = this._coverFxBuild();
+      if (!fx) { this.currentPageIndex = 0; this.pokeReaderUi(); return; }
+      this._coverAnim = true;
+      fx.p = 1; fx.apply(1);   // start fully open (matches the real spread behind it)
+      if (autoPlay !== false) this._coverAnimateTo(0);
+    },
+    // Animate the open controller from its current progress to target (1 = open,
+    // 0 = closed), set the matching page index, then remove the overlay.
+    _coverAnimateTo(target) {
       const fx = this._coverFx; if (!fx) return;
-      const from = fx.p, to = commit ? 1 : 0;
-      const dur = 820 * Math.max(0.18, Math.abs(to - from));   // scale with remaining distance
-      const t0 = performance.now();
+      const from = fx.p, t0 = performance.now();
+      const dur = 820 * Math.max(0.18, Math.abs(target - from));
       const ce = (t) => 1 - Math.pow(1 - t, 3);
+      const finish = () => {
+        this.currentPageIndex = target >= 1 ? 1 : 0;
+        this.$nextTick(() => { if (fx.wrap.parentNode) fx.wrap.remove(); });
+        this._coverAnim = false; this._coverFx = null; this.pokeReaderUi();
+      };
       const step = (now) => {
         const k = Math.min(1, (now - t0) / dur);
-        const p = from + (to - from) * ce(k);
-        fx.p = p; fx.apply(p);
+        fx.p = from + (target - from) * ce(k);
+        fx.apply(fx.p);
         if (k < 1) { fx.raf = requestAnimationFrame(step); return; }
-        fx.destroy(commit);
+        finish();
       };
       fx.raf = requestAnimationFrame(step);
     },
