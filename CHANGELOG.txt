@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.36 — 2026-06-26 — Book-open fixes: one swipe, page-turn swipes, image lay, edges
+  • Fixed needing TWO swipes to open + the weird page-1 swipes (swipe-up on the text page closing the book, etc.). Cause: the open switched to the spread mid-drag, which removed the element under your finger and froze the gesture (iOS), leaving stale state. Now the first spread is built from the story data during the open, and we only switch to the real spread on commit — so the gesture never breaks and page turns afterwards behave normally.
+  • The inner IMAGE page now lays down from 90° toward you (same side the cover opened), not from behind the book.
+  • The laying page now shows a thin edge that shrinks to nothing as it lies flat.
+  • Cover edge made ~50% thicker, and the landscape "white line across the cover" is fixed (the edge sat on the wrong side).
+
+--------------------------
 v0.9.35 — 2026-06-26 — Book-open: swings the right way + finger-following
   • Fixed the cover swinging DOWN into the screen — it now swings UP and outward (toward you) like a real book opening (flipped the rotate direction in both orientations; nudged the 3D edge to match).
   • The custom open is now FINGER-FOLLOWING: drag to open slowly, move back and forth, release to commit or spring back to closed; a flick opens it. (Built a progress controller: coverOpenStart / coverOpenFinish, driven by the cover drag or a timed tween for the arrow key.)
