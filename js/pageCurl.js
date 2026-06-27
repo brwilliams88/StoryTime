@@ -70,15 +70,12 @@ window.PageCurl = (function () {
 
   // destOverride: land on a specific page instead of ±1 (used to close the book
   // straight from a deep page to the cover, with the current page as the leaf).
-  // slide: {x,y} — give the whole turn overlay a slide-in entrance (starts at
-  // this offset, eases to 0 over the first 60% of the turn). Used by the cover
-  // OPEN so the book slides into position WHILE it's turning open.
-  function animate(forward, destOverride, slide) {
+  function animate(forward, destOverride) {
     if (animating || g || !cfg) return;
     const area = document.querySelector('.page-area');
     if (!area) { forward ? cfg.goNext() : cfg.goPrev(); return; }
     if (!(forward ? cfg.canNext() : cfg.canPrev())) return;
-    g = { area, axis: cfg.isPortrait() ? 'y' : 'x', forward, started: true, prog: 0, destOverride: (destOverride == null ? null : destOverride), slide: slide || null };
+    g = { area, axis: cfg.isPortrait() ? 'y' : 'x', forward, started: true, prog: 0, destOverride: (destOverride == null ? null : destOverride) };
     if (!safeBegin()) { commitInstant(); return; }
     finish(true);
   }
@@ -118,13 +115,6 @@ window.PageCurl = (function () {
   }
 
   function begin() {
-    // Let the app prep the page right before we snapshot it (used by the cover
-    // OPEN to slide the closed book into its hinge-side half and tell us the
-    // slide-in offset, so the open works on the finger-drag path too).
-    const cap = cfg.onBeginCapture && cfg.onBeginCapture(g.forward);
-    if (cap && cap.slide) g.slide = cap.slide;
-    if (cap && cap.cover) g.cover = true;
-
     g.origIndex = cfg.index();
     g.destIndex = (g.destOverride != null) ? g.destOverride : g.origIndex + (g.forward ? 1 : -1);
     const r = g.area.getBoundingClientRect(); const W = r.width, H = r.height;
@@ -135,7 +125,6 @@ window.PageCurl = (function () {
 
     g.wrap = document.createElement('div');
     Object.assign(g.wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', perspective: '1900px', pointerEvents: 'none', zIndex: 46 });
-    if (g.slide) g.wrap.style.transform = 'translate(' + g.slide.x + 'px,' + g.slide.y + 'px)';   // slide-in entrance start
     document.body.appendChild(g.wrap);
 
     // held current page on the side we lay onto (under leaf2)
@@ -167,21 +156,12 @@ window.PageCurl = (function () {
 
   function apply(p) {
     if (!g || !g.leaf1) return;
-    // slide-in entrance: ease the whole overlay from g.slide → 0 over the first
-    // 60% of the turn (so the book settles into position while it's still opening)
-    if (g.slide && g.wrap) {
-      const k = Math.min(1, p / 0.6), e = 1 - Math.pow(1 - k, 2);
-      g.wrap.style.transform = 'translate(' + (g.slide.x * (1 - e)) + 'px,' + (g.slide.y * (1 - e)) + 'px)';
-    }
     // leaf1 lifts 0→90 over the first half
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
-    // the cover is a thicker, heavier leaf than a normal page (deeper edge)
-    g.leaf1.el.style.boxShadow = g.cover
-      ? '0 0 ' + (9 + p1 * 30) + 'px rgba(0,0,0,' + (0.14 + p1 * 0.34) + ')'
-      : '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
-    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * (g.cover ? 1 : 0.9));
+    g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
+    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * 0.9);
     if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(p1 * 0.8);
     // leaf2 lays 90→0 over the second half (ease-out gravity)
     if (g.leaf2) {
@@ -196,7 +176,7 @@ window.PageCurl = (function () {
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = (g.cover ? 760 : 520), t0 = performance.now();   // cover opens slower
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 520, t0 = performance.now();   // slower = easier to see the turn
     const dest = g.destIndex, orig = g.origIndex;
     const ease = (t) => 1 - Math.pow(1 - t, 3);
     const step = (now) => {
