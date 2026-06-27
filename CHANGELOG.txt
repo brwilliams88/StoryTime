@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.41 — 2026-06-27 — Real-book edge defaults, physics-correct thickness, magical-effect diagnostics
+  • Cover edge defaults set to the chosen look: "paper" page-stack treatment, subtle dark-brown outline (softened, not black), edge shadow on, thickness scale ×1.2.
+  • Edge thickness now uses the PHYSICS-correct formula: apparent thickness = true board thickness × sin(open angle). It tracks the real opening angle of the leaf instead of raw progress, so it's thin when the cover is nearly flat and full only at 90° — more convincingly like a solid board.
+  • NEW experimental "magical" toggles in the 🧪 panel to try and down-select: ① a soft moving cast shadow (the lifting cover shades the page, the laying page carries a shrinking shadow), ② a tiny landing settle/overshoot as the page lands flat, ③ a light sweep that catches the cover as it passes vertical.
+  • Diagnostics mode now has a proper home: Settings → Developer → "🧪 Diagnostics mode" toggle (remembered), which reveals the 🧪 panel in the reader. (No longer tied to the picture-info toggle.)
+
+--------------------------
 v0.9.40 — 2026-06-27 — Cover-open polish + edge-treatment diagnostic mode
   • FIXED: the cover no longer goes see-through near 90° (you used to see page-1 text through it) — it stays solid until it reaches the edge, then vanishes.
   • FIXED: the inner picture page no longer fades in past 90° (you used to see blue through it) — it appears solid the instant it passes the centre and just un-distorts as it lays down. Both fixes apply to opening AND closing.

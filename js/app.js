@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.40',
+      version: 'v0.9.41',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -60,16 +60,21 @@ createApp({
 
       coverShift: false,   // true = closed book slid into its hinge-side half (for the close turn)
 
-      // Cover-edge DIAGNOSTIC (dev only, gated on showInspect). Lets us toggle
-      // edge-treatment options live + tune thickness scaling, then down-select.
+      // DIAGNOSTICS mode (dev). A master switch (Settings) that surfaces in-app
+      // tuning tools — currently the cover-edge panel; reused for future builds.
+      diagMode: false,
       showCoverDiag: false,
       coverDiag: {
-        edgeStyle: 'classic',   // classic | paper | cardboard | darkcore | bleed
-        outline: false,         // thin dark line where the band meets cover / inner page
-        shadow: false,          // soft cast shadow around the lifted edge
-        edgeBase: 12,           // px thickness at the iPhone baseline short-side
+        edgeStyle: 'paper',     // classic | paper | cardboard | darkcore | bleed
+        outline: true,          // thin dark line where the band meets cover / inner page
+        shadow: true,           // soft cast shadow around the lifted edge
+        edgeBase: 12,           // px = true board thickness T at the iPhone baseline short-side
         edgeRef: 390,           // baseline short-side (iPhone logical px)
-        edgeScale: 1,           // extra multiplier for tuning
+        edgeScale: 1.2,         // extra multiplier for tuning
+        // experimental "magical" effects (down-select):
+        pageShadow: false,      // (1) soft moving shadow the lifting/laying leaf casts on the page
+        landingBounce: false,   // (2) tiny settle/overshoot as the page lands flat
+        lightSweep: false,      // (3) highlight sweep as the leaf passes vertical
       },
 
       showSettings: false,
@@ -472,6 +477,7 @@ createApp({
     if (stored) this.password = stored;
 
     this.showInspect = getShowInspect();
+    try { this.diagMode = localStorage.getItem('storytime_diag_mode') === '1'; } catch (e) {}
     this.characters = getStoredCharacters();
 
     const sticky = getStickyPrefs();
@@ -1690,6 +1696,17 @@ createApp({
       sampleColor(this.getImageURL((story.cover || {}).image_id), 'cover');
       sampleColor(imgUrl, 'page');
 
+      // Full-face overlays for the experimental effects (sheen / cast shadow).
+      // opacity is driven live in apply(); start at 0 so they're inert when off.
+      const mkOverlay = (bg) => { const o = document.createElement('div'); Object.assign(o.style, { position: 'absolute', inset: '0', pointerEvents: 'none', opacity: '0', background: bg, zIndex: '8' }); return o; };
+      const SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0) 38%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 62%)';
+      const gutterDark = (fromCentre) => {   // dark gradient; fromCentre=true → darkest at the inner (gutter) edge
+        const dir = portrait ? 'to bottom' : 'to right';
+        return fromCentre
+          ? 'linear-gradient(' + dir + ', rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 62%)'   // text half: gutter at start
+          : 'linear-gradient(' + dir + ', rgba(0,0,0,0) 38%, rgba(0,0,0,0.55) 100%)'; // image half: gutter at end
+      };
+
       const wrap = document.createElement('div');
       wrap.className = 'cover-open-temp';
       Object.assign(wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', zIndex: '60', pointerEvents: 'none', overflow: 'hidden', perspective: PERSP + 'px' });
@@ -1705,6 +1722,7 @@ createApp({
       Object.assign(tcs.style, { left: (portrait ? 0 : -center) + 'px', top: (portrait ? -center : 0) + 'px' });
       textPage.appendChild(tcs);
       textPage.appendChild(creaseStrip('text'));
+      const textShadow = mkOverlay(gutterDark(true)); textPage.appendChild(textShadow);
       wrap.appendChild(textPage);
 
       const imageFace = document.createElement('div');
@@ -1713,6 +1731,8 @@ createApp({
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
       imageFace.appendChild(buildSpread());
       imageFace.appendChild(creaseStrip('image'));
+      const imgShadow = mkOverlay(gutterDark(false)); imageFace.appendChild(imgShadow);
+      const imgSheen = mkOverlay(SHEEN); imageFace.appendChild(imgSheen);
       wrap.appendChild(imageFace);
 
       const coverFace = document.createElement('div');
@@ -1722,6 +1742,7 @@ createApp({
       const cbc = buildCoverFace();
       Object.assign(cbc.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0' });
       coverFace.appendChild(cbc);
+      const coverSheen = mkOverlay(SHEEN); coverFace.appendChild(coverSheen);
       wrap.appendChild(coverFace);
 
       // single thickness bar = the book edge seen at the fore edge of the leaf.
@@ -1736,10 +1757,16 @@ createApp({
 
       const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
       const easeO = (t) => 1 - Math.pow(1 - t, 2);
+      // ease-out-BACK: overshoots slightly past 1 then settles — gives the page a
+      // tiny "settle" as it lands flat (experimental landingBounce).
+      const easeBack = (t) => { const c1 = 0.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
       const apply = (p) => {
         p = Math.max(0, Math.min(1, p));
+        const d = this.coverDiag;
+        const DEG = Math.PI / 180;
         const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
-        const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
+        const s2 = Math.max(0, (p - 0.5) / 0.5);
+        const e2 = d.landingBounce ? easeBack(s2) : easeO(s2);
         // cover: slide to centre + swing up/out; gone BY 90°
         coverFace.style.transform = portrait
           ? 'translateY(' + ((center - cClosed) * e1) + 'px) rotateX(' + (90 * e1) + 'deg)'
@@ -1752,17 +1779,15 @@ createApp({
         const ang2 = 90 * (1 - e2);
         imageFace.style.transform = portrait ? 'rotateX(' + (-ang2) + 'deg)' : 'rotateY(' + ang2 + 'deg)';
         imageFace.style.opacity = p <= 0.5 ? '0' : '1';   // fully opaque the instant it passes 90° (no fade-in)
-        // single thickness bar: 0 → EDGE at 90° → 0, positioned at the FREE (fore)
-        // edge of the turning leaf — the cover's outer edge up to 90°, then the
-        // image page's outer edge as it lays down. Centre only at exactly 90°.
-        const DEG = Math.PI / 180;
+        // free (fore) edge of the visible leaf: cover's outer edge up to 90°, then
+        // the image page's outer edge as it lays down. ang = the leaf's tilt angle.
         let edgePos, ang;
         if (p <= 0.5) {                          // cover phase: hinge slides in, edge swings from outer→centre
           const hinge = cClosed + (center - cClosed) * e1;
           ang = 90 * e1;
           edgePos = hinge + half * Math.cos(ang * DEG);
         } else {                                 // image phase: edge swings centre→far side as the page lays flat
-          ang = 90 * (1 - e2);
+          ang = ang2;
           edgePos = center - half * Math.cos(ang * DEG);
         }
         // The faces render through CSS perspective, which pushes the tilted edge
@@ -1771,11 +1796,11 @@ createApp({
         // free edge as it lifts; centre is the perspective origin on this axis).
         const z = half * Math.sin(ang * DEG);
         edgePos = center + (edgePos - center) * PERSP / (PERSP - z);
-        // thickness scales with the screen (12px @ ~390px short side baseline) so
-        // it stays proportional on a big laptop window; live-tunable via coverDiag.
-        const d = this.coverDiag;
+        // GEOMETRY: apparent edge thickness = true board thickness T · sin(tilt).
+        // T = edgeBase, scaled by screen size (12px @ ~390px short side) so it stays
+        // proportional on a big laptop window; live-tunable via coverDiag.
         const EDGE = (d.edgeBase || 12) * (minSide / (d.edgeRef || 390)) * (d.edgeScale || 1);
-        const th = EDGE * Math.sin(p * Math.PI);
+        const th = EDGE * Math.max(0, Math.sin(ang * DEG));
         const across = portrait ? 'to bottom' : 'to right';
         let bg;
         switch (d.edgeStyle) {
@@ -1787,12 +1812,22 @@ createApp({
         }
         spineEdge.style.background = bg;
         const shadows = [];
-        if (d.outline) shadows.push(portrait ? 'inset 0 1px 0 rgba(0,0,0,0.55), inset 0 -1px 0 rgba(0,0,0,0.55)' : 'inset 1px 0 0 rgba(0,0,0,0.55), inset -1px 0 0 rgba(0,0,0,0.55)');
+        // subtle dark-brown outline (not pure black) where the band meets the faces
+        if (d.outline) shadows.push(portrait ? 'inset 0 1px 0 rgba(40,28,14,0.42), inset 0 -1px 0 rgba(40,28,14,0.42)' : 'inset 1px 0 0 rgba(40,28,14,0.42), inset -1px 0 0 rgba(40,28,14,0.42)');
         if (d.shadow) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
         spineEdge.style.boxShadow = shadows.join(', ');
         if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
+
+        // ---- experimental "magical" effects (driven live) ----
+        // (1) moving cast shadow: lifting cover shades the revealing text (phase 1);
+        //     laying image carries a shadow that shrinks as it flattens (phase 2).
+        textShadow.style.opacity = (d.pageShadow && p <= 0.5) ? String(0.85 * (1 - e1)) : '0';
+        imgShadow.style.opacity  = (d.pageShadow && p > 0.5) ? String(0.6 * (ang2 / 90)) : '0';
+        // (3) light sweep: a highlight that peaks as the leaf crosses vertical.
+        coverSheen.style.opacity = (d.lightSweep && p <= 0.5) ? String(0.8 * e1) : '0';
+        imgSheen.style.opacity   = (d.lightSweep && p > 0.5) ? String(0.8 * (1 - s2)) : '0';
       };
 
       const fx = { p: 0, apply, raf: null, wrap };
@@ -2052,6 +2087,10 @@ createApp({
     toggleShowInspect() {
       this.showInspect = !this.showInspect;
       setShowInspect(this.showInspect);
+    },
+    toggleDiagMode() {
+      this.diagMode = !this.diagMode;
+      try { localStorage.setItem('storytime_diag_mode', this.diagMode ? '1' : '0'); } catch (e) {}
     },
     toggleSkipImages() { this.skipImages = !this.skipImages; },
 
