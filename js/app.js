@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.37',
-      buildDate: '2026-06-25',
+      version: 'v0.9.38',
+      buildDate: '2026-06-27',
 
       showSplash: true,
 
@@ -1545,15 +1545,16 @@ createApp({
     // Over a dark stage (nothing peeks early): the front cover slides to centre
     // and swings UP/outward around its hinge (gone by 90°); the inner TEXT page
     // slides into the bottom/right half; past 90° the IMAGE page lays down onto
-    // the top/left half. A SINGLE centre "thickness" bar (the book edge) grows
-    // 0→9px by 90° then shrinks back to 0 as the page lays — the only thing
-    // visible at exactly 90°. Built from story DATA so we never remove the
-    // element under the finger mid-drag. Returns fx, or null if it can't build.
+    // the top/left half. A SINGLE "thickness" bar (the book edge) grows
+    // 0→12px by 90° then shrinks back to 0 as the page lays, and TRACKS the free
+    // (fore) edge of the turning leaf — at screen centre only at exactly 90°.
+    // Built ENTIRELY from story DATA (cover + spread), so it works whether or
+    // not the live cover is in the DOM (needed for the close, which fires from
+    // the page-1 spread). Returns fx, or null if it can't build.
     _coverFxBuild() {
       const area = document.querySelector('.page-area');
-      const coverBook = area && area.querySelector('.cover-book');
       const story = this.currentStory;
-      if (!area || !coverBook || !story) return null;
+      if (!area || !story) return null;
 
       const r = area.getBoundingClientRect();
       const portrait = this.isPortrait;
@@ -1563,7 +1564,7 @@ createApp({
       const cClosed = axisLen / 2 - half / 2;
       const center = axisLen / 2;
       const dark = (getComputedStyle(document.documentElement).getPropertyValue('--bg-deep') || '').trim() || '#1a1208';
-      const EDGE = 9;
+      const EDGE = 12;
 
       const pg = (story.pages && story.pages[0]) || {};
       const imgUrl = this.getImageURL(pg.image_id);
@@ -1583,6 +1584,27 @@ createApp({
         st.appendChild(para);
         sp.appendChild(si); sp.appendChild(st);
         return sp;
+      };
+
+      // Build the closed-cover book FROM DATA (mirrors the template markup), so
+      // the close animation works even when the live .cover-book isn't rendered.
+      const buildCoverFace = () => {
+        const cover = story.cover || {};
+        const cImg = cover.image_status === 'ready' ? this.getImageURL(cover.image_id) : null;
+        const cb = document.createElement('div'); cb.className = 'cover-book' + (portrait ? ' portrait' : '');
+        const cf = document.createElement('div'); cf.className = 'cover-front';
+        const art = document.createElement('div'); art.className = 'cover-art';
+        if (cImg) { const blur = document.createElement('div'); blur.className = 'image-blur'; blur.style.backgroundImage = 'url("' + cImg + '")'; art.appendChild(blur); }
+        const frame = document.createElement('div'); frame.className = 'image-frame';
+        if (cImg) { const img = document.createElement('img'); img.className = 'page-image'; img.src = cImg; img.draggable = false; frame.appendChild(img); }
+        art.appendChild(frame);
+        const plate = document.createElement('div'); plate.className = 'cover-plate';
+        const pt = document.createElement('span'); pt.className = 'cover-plate-text'; pt.textContent = story.title || '';
+        plate.appendChild(pt);
+        cf.appendChild(art); cf.appendChild(plate);
+        if (story.created_by) { const by = document.createElement('div'); by.className = 'cover-byline'; by.textContent = 'By ' + story.created_by; cf.appendChild(by); }
+        cb.appendChild(cf);
+        return cb;
       };
 
       const wrap = document.createElement('div');
@@ -1612,7 +1634,7 @@ createApp({
       Object.assign(coverFace.style, { position: 'absolute', zIndex: '3', backfaceVisibility: 'hidden' });
       if (portrait) Object.assign(coverFace.style, { left: '0', top: cClosed + 'px', width: W + 'px', height: half + 'px', transformOrigin: '50% 0%' });
       else Object.assign(coverFace.style, { left: cClosed + 'px', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '0% 50%' });
-      const cbc = coverBook.cloneNode(true);
+      const cbc = buildCoverFace();
       Object.assign(cbc.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0' });
       coverFace.appendChild(cbc);
       wrap.appendChild(coverFace);
@@ -1644,10 +1666,20 @@ createApp({
         const ang2 = 90 * (1 - e2);
         imageFace.style.transform = portrait ? 'rotateX(' + (-ang2) + 'deg)' : 'rotateY(' + ang2 + 'deg)';
         imageFace.style.opacity = p <= 0.5 ? '0' : (p < 0.58 ? String((p - 0.5) / 0.08) : '1');
-        // single thickness bar: 0 → EDGE at 90° → 0
+        // single thickness bar: 0 → EDGE at 90° → 0, positioned at the FREE (fore)
+        // edge of the turning leaf — the cover's outer edge up to 90°, then the
+        // image page's outer edge as it lays down. Centre only at exactly 90°.
+        const DEG = Math.PI / 180;
+        let edgePos;
+        if (p <= 0.5) {                          // cover phase: hinge slides in, edge swings from outer→centre
+          const hinge = cClosed + (center - cClosed) * e1;
+          edgePos = hinge + half * Math.cos((90 * e1) * DEG);
+        } else {                                 // image phase: edge swings centre→far side as the page lays flat
+          edgePos = center - half * Math.cos((90 * (1 - e2)) * DEG);
+        }
         const th = EDGE * Math.sin(p * Math.PI);
-        if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (center - th / 2) + 'px'; }
-        else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (center - th / 2) + 'px'; }
+        if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
+        else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
       };
 

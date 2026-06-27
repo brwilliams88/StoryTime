@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.38 — 2026-06-27 — Book edge tracks the cover edge; fix the close animation
+  • The thickness bar now stays ATTACHED to the free (fore) edge of the turning leaf as it travels — the cover's outer edge up to 90°, then the inner image page's outer edge as it lays flat — instead of sitting at screen centre the whole time. It's only at centre at exactly 90° (where it's fullest), and ends at the far edge of the screen as the page lays down.
+  • Edge bumped from 9px to 12px (a touch thicker).
+  • FIXED the book CLOSE doing nothing (it just jumped to the closed cover with no animation). Cause: the close animation cloned the live cover element, which doesn't exist while you're on a story page — so it silently fell back to an instant jump. The cover is now built from the story data, so closing plays the full reverse-open animation.
+
+--------------------------
 v0.9.37 — 2026-06-26 — Book edge as one centre bar; reverse close animation
   • Replaced the two mismatched edge strips with a SINGLE thickness bar at the binding/centre: invisible when closed, grows to the full ~9px exactly at 90° (the only thing visible there — both faces are gone), then shrinks back to nothing as the page lays down. Consistent colour throughout. No more white bar appearing on the laying page.
   • Timed the faces so at exactly 90° neither the cover nor the page-1 image shows — just the edge.
