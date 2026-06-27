@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.38',
+      version: 'v0.9.39',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -1478,10 +1478,13 @@ createApp({
     canGoNext() { return this.currentStory && this.currentPageIndex < this.totalReadingPages - 1; },
     canGoPrev() { return this.currentPageIndex > 0; },
 
-    // Page turns go to the finger-curl engine. The COVER (index 0) is special:
-    // a forward drag/flick there plays the custom, FINGER-FOLLOWING book-open.
+    // The COVER (index 0) and PAGE 1 are special and use the custom, FINGER-
+    // FOLLOWING book animation: on the cover a forward drag OPENS; on page 1 a
+    // backward drag CLOSES (reverse). A forward drag on page 1 (turn to page 2)
+    // is handed off to the page-curl engine once we know the direction. Every
+    // other page goes straight to the page-curl engine.
     curlStart(e) {
-      if (this.isOnCover) { this._coverDown(e); return; }
+      if (this.isOnCover || this.currentPageIndex === 1) { this._coverDown(e); return; }
       if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
     },
     curlMove(e) {
@@ -1499,7 +1502,10 @@ createApp({
     _coverDown(e) {
       if (e.target.closest && e.target.closest('button, a, .inspect-btn')) return;
       const p = this._coverPoint(e);
-      this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0, started: false };
+      const area = (e.currentTarget && e.currentTarget.classList && e.currentTarget.classList.contains('page-area'))
+        ? e.currentTarget : (e.target.closest && e.target.closest('.page-area'));
+      this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0, started: false,
+                   mode: this.isOnCover ? 'open' : 'close', startEvt: e, area, dir: null };
       if (e.type === 'mousedown') {
         this._cg.mm = (ev) => this._coverMoveGesture(ev);
         this._cg.mu = (ev) => this._coverUpGesture(ev);
@@ -1516,13 +1522,29 @@ createApp({
       g.last = Math.abs(primary); g.lastT = now; g.primary = primary;
       if (Math.abs(primary) > 8 && e.cancelable) e.preventDefault();
       if (!g.started) {
-        if (Math.abs(primary) < 8 || primary >= 0) return;   // need a forward (open) drag
-        g.started = true;
-        this.coverOpenStart(false);   // finger-driven (no auto-play)
+        if (Math.abs(primary) < 8) return;
+        if (g.mode === 'open') {
+          if (primary >= 0) return;          // need a forward (open) drag
+          g.started = true; g.dir = 'cover';
+          this.coverOpenStart(false);        // build at p=0, finger-driven
+        } else {                              // on page 1
+          g.started = true;
+          if (primary > 0) {                  // backward = CLOSE the book (finger-driven reverse)
+            g.dir = 'cover';
+            this.coverClose(false);           // build at p=1, finger-driven (no auto-play)
+          } else {                            // forward = turn to page 2 → hand to the curl engine
+            g.dir = 'curl';
+            if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+            this._cg = null;
+            if (window.PageCurl) { window.PageCurl.start(g.startEvt, g.area); window.PageCurl.move(e); }
+            return;
+          }
+        }
       }
-      if (g.started && this._coverFx) {
+      if (g.dir === 'cover' && this._coverFx) {
         const range = (this.isPortrait ? window.innerHeight : window.innerWidth) * 0.55;
-        const prog = Math.min(1, Math.max(0, (-primary) / range));
+        const drag = Math.min(1, Math.max(0, Math.abs(primary) / range));
+        const prog = g.mode === 'open' ? drag : (1 - drag);   // close runs p from 1→0
         this._coverFx.p = prog;
         this._coverFx.apply(prog);
       }
@@ -1531,10 +1553,14 @@ createApp({
       const g = this._cg; if (!g) return;
       if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
       this._cg = null;
-      if (!g.started) { this.pokeReaderUi(); return; }      // tap → reveal controls
-      if (!this._coverFx) { this._coverAnim = false; return; }
-      const commit = this._coverFx.p > 0.3 || (g.speed || 0) > 0.4;
-      this._coverAnimateTo(commit ? 1 : 0);
+      if (!g.started) { this.pokeReaderUi(); return; }       // tap → reveal controls
+      if (g.dir !== 'cover' || !this._coverFx) { this._coverAnim = false; return; }
+      const fast = (g.speed || 0) > 0.4;
+      if (g.mode === 'open') {
+        this._coverAnimateTo(this._coverFx.p > 0.3 || fast ? 1 : 0);   // commit open
+      } else {
+        this._coverAnimateTo(this._coverFx.p < 0.7 || fast ? 0 : 1);   // commit close
+      }
     },
 
     // Arrow key / programmatic open: play it through.
@@ -1565,6 +1591,7 @@ createApp({
       const center = axisLen / 2;
       const dark = (getComputedStyle(document.documentElement).getPropertyValue('--bg-deep') || '').trim() || '#1a1208';
       const EDGE = 12;
+      const PERSP = 1500;   // must match the wrap's CSS perspective below
 
       const pg = (story.pages && story.pages[0]) || {};
       const imgUrl = this.getImageURL(pg.image_id);
@@ -1609,7 +1636,7 @@ createApp({
 
       const wrap = document.createElement('div');
       wrap.className = 'cover-open-temp';
-      Object.assign(wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', zIndex: '60', pointerEvents: 'none', overflow: 'hidden', perspective: '1500px' });
+      Object.assign(wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', zIndex: '60', pointerEvents: 'none', overflow: 'hidden', perspective: PERSP + 'px' });
       const stage = document.createElement('div');
       Object.assign(stage.style, { position: 'absolute', inset: '0', background: dark });
       wrap.appendChild(stage);
@@ -1670,13 +1697,21 @@ createApp({
         // edge of the turning leaf — the cover's outer edge up to 90°, then the
         // image page's outer edge as it lays down. Centre only at exactly 90°.
         const DEG = Math.PI / 180;
-        let edgePos;
+        let edgePos, ang;
         if (p <= 0.5) {                          // cover phase: hinge slides in, edge swings from outer→centre
           const hinge = cClosed + (center - cClosed) * e1;
-          edgePos = hinge + half * Math.cos((90 * e1) * DEG);
+          ang = 90 * e1;
+          edgePos = hinge + half * Math.cos(ang * DEG);
         } else {                                 // image phase: edge swings centre→far side as the page lays flat
-          edgePos = center - half * Math.cos((90 * (1 - e2)) * DEG);
+          ang = 90 * (1 - e2);
+          edgePos = center - half * Math.cos(ang * DEG);
         }
+        // The faces render through CSS perspective, which pushes the tilted edge
+        // OUTWARD (toward the viewer) vs. a flat projection. Project edgePos the
+        // same way so the bar sits exactly on the rendered edge (z = depth of the
+        // free edge as it lifts; centre is the perspective origin on this axis).
+        const z = half * Math.sin(ang * DEG);
+        edgePos = center + (edgePos - center) * PERSP / (PERSP - z);
         const th = EDGE * Math.sin(p * Math.PI);
         if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }

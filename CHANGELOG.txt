@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.39 — 2026-06-27 — Edge sits exactly on the cover edge; finger-following close
+  • The thickness bar now sits EXACTLY on the rendered cover/page edge through the whole open and close — the earlier "drifts to the left then realigns at centre" wobble is gone. (Cause: the bar used a flat projection, but the book is drawn in 3D perspective, which pushes the tilted edge outward. The bar now uses the same perspective, verified pixel-exact in both portrait and landscape.)
+  • The book CLOSE now FOLLOWS YOUR FINGER (and a quick swipe flicks it shut), exactly like the open — so you can close slowly and watch it. A backward swipe on page 1 closes; a forward swipe still turns to page 2.
+
+--------------------------
 v0.9.38 — 2026-06-27 — Book edge tracks the cover edge; fix the close animation
   • The thickness bar now stays ATTACHED to the free (fore) edge of the turning leaf as it travels — the cover's outer edge up to 90°, then the inner image page's outer edge as it lays flat — instead of sitting at screen centre the whole time. It's only at centre at exactly 90° (where it's fullest), and ends at the far edge of the screen as the page lays down.
   • Edge bumped from 9px to 12px (a touch thicker).
