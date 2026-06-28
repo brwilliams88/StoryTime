@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.48 — 2026-06-28 — Page-turn shadow: visible + seamless (leading-edge, fades on landing)
+  • Fixed the cast shadow being invisible: it was anchored at the spine, which is hidden UNDER the falling page. It now sits at the falling page's LEADING EDGE — in the visible gap — and projects outward across the page beneath. This is the same on cover-open, interior turns, and book-close.
+  • Fixed the "shadow pops off" on landing: the shadow now peaks just before the page seats, then fades to nothing as it lands flat (seamless). Applies everywhere.
+  • Projection slider now reaches much further (the shadow can race out to the far edge of the page beneath as the page lays).
+
+--------------------------
 v0.9.47 — 2026-06-28 — Realistic page-turn shadow model + close/turn fixes
   • Rebuilt the page-turn shadow to be physically realistic: at 90° it's light and symmetric; as the page lays down onto the page beneath, the shadow GROWS, PROJECTS outward, and darkens (deepest just before it lands, but never fully black); the page being revealed gets a small shadow that fades away. Same model for the cover open/close (plus the slide).
   • Removed the outer page-edge shadow entirely (it's now never used).

@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.47',
+      version: 'v0.9.48',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -1826,6 +1826,8 @@ createApp({
 
         // ---- moving cast shadow (same model as interior turns) ----
         const cv = (x) => { x = Math.max(0, Math.min(1, x)); return d.shadowCurve === 'latest' ? Math.pow(x, 5) : d.shadowCurve === 'later' ? Math.pow(x, 3.5) : Math.pow(x, 2.5); };
+        // peak late then fade to 0 as the page seats flat → seamless landing (no pop)
+        const shp = (lay) => cv(lay) * (lay > 0.85 ? Math.max(0, 1 - (lay - 0.85) / 0.15) : 1);
         const si = d.pageShadow ? (d.shadowStrength != null ? d.shadowStrength : 0.4) : 0;
         const rev = d.revealedShadow != null ? d.revealedShadow : 0.25;
         if (closing) {
@@ -1834,10 +1836,10 @@ createApp({
           textShadow.style.opacity = si ? String(si * cv(ang2 / 90)) : '0';
           imgShadow.style.opacity = '0';
         } else {
-          // OPEN: the laying image gets the covered-page shadow (grows as it lays);
-          // the revealing text gets a small fading shadow.
+          // OPEN: the laying image's shadow grows then fades to nothing as it lands
+          // (seamless); the revealing text gets a small fading shadow.
           textShadow.style.opacity = (si && p <= 0.5) ? String(si * rev * cv(1 - e1)) : '0';
-          imgShadow.style.opacity  = (si && p > 0.5) ? String(si * cv(e2)) : '0';
+          imgShadow.style.opacity  = (si && p > 0.5) ? String(si * shp(e2)) : '0';
         }
       };
 

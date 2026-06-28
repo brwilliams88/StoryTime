@@ -187,23 +187,33 @@ window.PageCurl = (function () {
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
     g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 16) + 'px rgba(0,0,0,' + (0.06 + p1 * 0.14) + ')';
 
-    // REVEALED page (under leaf1): small cast shadow that FADES as leaf1 lifts away.
+    // A contact-shadow band on the page BENEATH, sitting at the falling leaf's
+    // LEADING EDGE (edge = fraction covered from the spine) and projecting OUT into
+    // the still-visible gap. This is the only spot you actually SEE (the spine side
+    // is hidden under the leaf), which is why the old spine-anchored shadow was
+    // invisible. opacity is shaped to peak late then fade to 0 as it seats (seamless).
+    const band = (dir, edge, projW) => {
+      const e = Math.max(0, Math.min(1, edge)) * 100, end = Math.min(100, edge * 100 + projW * 100);
+      return 'linear-gradient(' + dir + ', rgba(0,0,0,0) ' + Math.max(0, e - 1) + '%, rgba(0,0,0,' + MAXA + ') ' + e + '%, rgba(0,0,0,0) ' + end + '%)';
+    };
+    const shape = (lay) => { const land = lay > 0.85 ? Math.max(0, 1 - (lay - 0.85) / 0.15) : 1; return gcurve(lay, g.shadowCurve) * land; };
+
+    // REVEALED page (under leaf1): small band at leaf1's edge, fades as it lifts away.
     if (g.revealShade) {
-      const rv = str * g.revealedAmt * gcurve(1 - p1, g.shadowCurve);
-      g.revealShade.style.opacity = String(rv);
-      const ext = 22 + g.shadowProj * 30;   // modest, near the spine
-      g.revealShade.style.background = 'linear-gradient(' + g.revealOuterDir + ', rgba(0,0,0,' + MAXA + ') 0%, rgba(0,0,0,0) ' + ext + '%)';
+      const fRev = Math.cos(p1 * Math.PI / 2);   // leaf1 covers [spine, fRev]; 1→0 as it lifts
+      const projW = 0.12 + g.shadowProj * 0.45;
+      g.revealShade.style.opacity = String(str * g.revealedAmt * gcurve(fRev, g.shadowCurve));
+      g.revealShade.style.background = band(g.revealOuterDir, fRev, projW);
     }
 
-    // COVERED page (static, under leaf2): the dominant cast shadow — grows, PROJECTS
-    // outward from the spine, and darkens as leaf2 lays flat (phase 2 only).
+    // COVERED page (static, under leaf2): the dominant shadow — at leaf2's leading
+    // edge, projecting outward across the gap, darkening then fading to 0 as it seats.
     if (g.static && g.static.gutter) {
       let lay = 0;
       if (g.leaf2) { const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)); lay = easeOut(p2); }
-      const a = str * gcurve(lay, g.shadowCurve);
-      const ext = 18 + g.shadowProj * 70 * lay;   // projects further out as it lays
-      g.static.gutter.style.opacity = String(a);
-      g.static.gutter.style.background = 'linear-gradient(' + g.static.outerDir + ', rgba(0,0,0,' + MAXA + ') 0%, rgba(0,0,0,0) ' + ext + '%)';
+      const projW = 0.15 + g.shadowProj * 0.75;   // higher projection → reaches the page's outer edge sooner
+      g.static.gutter.style.opacity = String(str * shape(lay));
+      g.static.gutter.style.background = band(g.static.outerDir, lay, projW);
     }
 
     // leaf2 lays 90→0 over the second half (ease-out gravity); top face lit — no shadow ON it
