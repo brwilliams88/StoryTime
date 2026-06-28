@@ -116,7 +116,9 @@ window.PageCurl = (function () {
       // page so it's clearly visible as it turns / while it's held.
       const inner = gm.outer === 'right' ? 'to left' : gm.outer === 'left' ? 'to right' : gm.outer === 'bottom' ? 'to top' : 'to bottom';
       gutter = document.createElement('div');
-      Object.assign(gutter.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + inner + ', rgba(0,0,0,0) 55%, rgba(0,0,0,0.85))' });
+      // z-index ABOVE the picture (.image-frame is z-index:1) so the shadow lands on
+      // the actual image, not just the blurred letterbox behind it.
+      Object.assign(gutter.style, { position: 'absolute', inset: 0, zIndex: '8', pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + inner + ', rgba(0,0,0,0) 55%, rgba(0,0,0,0.85))' });
       el.appendChild(gutter);
     }
     return { el, gm, shade, sheen, gutter, setAngle(a) { el.style.transform = gm.rot(a); } };

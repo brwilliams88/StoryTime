@@ -1441,6 +1441,13 @@ body:has(.app-main-reading) {
   overflow: hidden;
   touch-action: none;   /* we own the drag for page turns (both orientations) */
 }
+/* No text selection anywhere in the reader — a finger-swipe on the story text used
+   to start a text selection instead of turning the page (iOS), which is why the
+   first swipe only "nudged" the page. Disable selection + the iOS callout menu. */
+.reading-view, .reading-view * {
+  -webkit-user-select: none; -moz-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
 /* No iOS long-press "save/copy/enlarge" on any book image; taps pass through to
    the page so turning still works. */
 .page-image {

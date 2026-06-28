@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.45',
+      version: 'v0.9.46',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -1629,6 +1629,7 @@ createApp({
       const dark = (getComputedStyle(document.documentElement).getPropertyValue('--bg-deep') || '').trim() || '#1a1208';
       const PERSP = 1500;   // must match the wrap's CSS perspective below
       const minSide = Math.min(W, H);   // edge thickness scales off this (12px @ ~390px baseline)
+      let closing = false;  // set via fx.setClosing — flips the cast-shadow to the opposite page on close
 
       // Sample the average colour of the cover + page-1 images (1×1 canvas) for the
       // 'bleed' edge treatment — async, used by apply() once ready.
@@ -1823,15 +1824,22 @@ createApp({
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
 
         // ---- moving cast shadow (adjustable) ----
-        // Lifting cover shades the revealing text (phase 1); the laying image
-        // carries a shadow that shrinks as it flattens (phase 2). Scaled by the
-        // intensity slider (shadowStrength).
-        const si = d.pageShadow ? (d.shadowStrength != null ? d.shadowStrength : 0.6) : 0;
-        textShadow.style.opacity = (si && p <= 0.5) ? String(si * (1 - e1)) : '0';
-        imgShadow.style.opacity  = (si && p > 0.5) ? String(si * (ang2 / 90)) : '0';
+        const si = d.pageShadow ? (d.shadowStrength != null ? d.shadowStrength : 0.4) : 0;
+        if (closing) {
+          // CLOSE: the inner image LIFTS off, casting a shadow on the OPPOSITE
+          // text page (like a page lifting in a normal turn). None on the lifting
+          // image. The shadow rides the text page as the book slides to centre.
+          textShadow.style.opacity = si ? String(si * (ang2 / 90)) : '0';
+          imgShadow.style.opacity = '0';
+        } else {
+          // OPEN: lifting cover shades the revealing text (phase 1); the laying
+          // image carries a shadow that fades as it flattens (phase 2).
+          textShadow.style.opacity = (si && p <= 0.5) ? String(si * (1 - e1)) : '0';
+          imgShadow.style.opacity  = (si && p > 0.5) ? String(si * (ang2 / 90)) : '0';
+        }
       };
 
-      const fx = { p: 0, apply, raf: null, wrap, stage };
+      const fx = { p: 0, apply, raf: null, wrap, stage, setClosing: (v) => { closing = v; } };
       this._coverFx = fx;
       return fx;
     },
@@ -1849,6 +1857,7 @@ createApp({
       const fx = this._coverFxBuild();
       if (!fx) { this.currentPageIndex = 0; this.pokeReaderUi(); return; }
       this._coverAnim = true;
+      fx.setClosing(true);
       fx.p = 1; fx.apply(1);   // start fully open (matches the real spread behind it)
       if (autoPlay !== false) this._coverAnimateTo(0);
     },
@@ -1863,8 +1872,8 @@ createApp({
         this.currentPageIndex = target >= 1 ? 1 : 0;
         this._coverAnim = false; this._coverFx = null;
         this.$nextTick(() => {
-          if (fx.wrap.parentNode) fx.wrap.remove();
-          if (onDone) onDone(); else this.pokeReaderUi();   // hand off (e.g. close → shelf morph)
+          if (onDone) { onDone(fx.wrap); }   // hand off (e.g. close → shelf morph); onDone owns the overlay
+          else { if (fx.wrap.parentNode) fx.wrap.remove(); this.pokeReaderUi(); }
         });
       };
       const step = (now) => {
@@ -2176,14 +2185,25 @@ createApp({
       // Part 1: the SAME simultaneous close as a regular book-close (book slides +
       // cover swings shut together), built from data so it runs from any page.
       // Part 2 (unchanged): hand to _bookToShelf for the shrink-onto-shelf morph.
+      const area = document.querySelector('.page-area');
+      const pa = area ? area.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
       const fx = this._coverFxBuild();
       if (!fx) { this._exitToLibrary(targetId); return; }
       this._coverAnim = true;
-      // Don't flash the blue reading background as the cover closes — show the warm
-      // shelf tone behind it (toggle). The shelf morph then reveals the real shelf.
-      if (this.coverDiag.closeShowShelf && fx.stage) fx.stage.style.background = '#8f6526';
+      fx.setClosing(true);
+      // Render the REAL library behind the fixed, self-contained close overlay so
+      // the area outside the closing cover shows the shelf (toggle: transparent
+      // stage = real shelf; off = the old dark background).
+      const showShelf = !!this.coverDiag.closeShowShelf;
+      this.view = 'library';
+      this.currentPageIndex = 0;
+      if (fx.stage) fx.stage.style.background = showShelf ? 'transparent' : 'var(--bg-deep, #1a1208)';
       fx.p = 1; fx.apply(1);
-      this._coverAnimateTo(0, () => this._bookToShelf(targetId));
+      // When the cover finishes closing at centre, fly it straight to the shelf
+      // slot (no pause/dark-melt) — the overlay's cover is the morph source.
+      this._coverAnimateTo(0, (wrap) => this._bookToShelf(targetId, {
+        srcCover: wrap && wrap.querySelector('.cover-book'), pa, skipTravel: true, cleanupEl: wrap,
+      }));
     },
 
     // The "put the book back on the shelf" transition, IMAGE-ANCHORED so the
@@ -2197,20 +2217,26 @@ createApp({
     //     and the shelf's cream plate fades in AROUND the fixed image, so the
     //     picture stays put and only the chrome changes. Hands off to the real
     //     shelf book on landing.
-    _bookToShelf(targetId) {
+    _bookToShelf(targetId, opts) {
+      opts = opts || {};
       const gsap = window.gsap;
       const area = document.querySelector('.page-area');
-      const coverBook = area && area.querySelector('.cover-book');
+      // Source cover can be the live reading-view cover OR the close overlay's cover
+      // (when called from the simultaneous-close path, where page-area is gone).
+      const coverBook = opts.srcCover || (area && area.querySelector('.cover-book'));
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (!gsap || !coverBook || !targetId || reduce) { this.coverShift = false; this._exitToLibrary(targetId); return; }
+      const cleanupEl = () => { if (opts.cleanupEl && opts.cleanupEl.parentNode) opts.cleanupEl.remove(); };
+      if (!gsap || !coverBook || !targetId || reduce) { cleanupEl(); this.coverShift = false; this._exitToLibrary(targetId); return; }
 
       document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());   // sweep strays
 
       const half = coverBook.getBoundingClientRect();                 // current pose (book-in-half, or centred)
-      const pa = area.getBoundingClientRect();
-      const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2, width: half.width, height: half.height };
+      const skip = !!opts.skipTravel;                                 // book is already at centre (post-close) → fly straight to slot
+      const pa = area ? area.getBoundingClientRect() : (opts.pa || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
+      const cen = skip ? { left: half.left, top: half.top, width: half.width, height: half.height }
+                       : { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2, width: half.width, height: half.height };
 
-      const showShelf = !!this.coverDiag.closeShowShelf;   // skip the dark melt → shelf visible immediately
+      const showShelf = !!this.coverDiag.closeShowShelf || skip;     // skip the dark melt → shelf visible immediately
       const dark = document.createElement('div');
       dark.className = 'book-fly-temp';
       Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: showShelf ? '0' : '1', pointerEvents: 'none' });
@@ -2221,6 +2247,7 @@ createApp({
       big.style.transform = 'translate(' + (half.left - cen.left) + 'px,' + (half.top - cen.top) + 'px)';
       document.body.appendChild(dark);
       document.body.appendChild(big);
+      cleanupEl();   // big is cloned — drop the close overlay so it doesn't double-show
 
       this.view = 'library';
       this.currentPageIndex = 0;
@@ -2278,7 +2305,7 @@ createApp({
           const lerp = (a, b, t) => a + (b - a) * t;
           const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-          const A = 0.34, B = 0.62, total = A + B, pA = A / total;
+          const A = skip ? 0 : 0.34, B = 0.62, total = A + B, pA = A / total;   // skip the travel/melt when the close already centred the book
           const done = () => { bookEl.style.visibility = ''; cleanup(); };
           setTimeout(done, total * 1000 + 800);   // backstop
           const st = { p: 0 };

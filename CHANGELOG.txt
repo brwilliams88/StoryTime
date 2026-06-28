@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.46 — 2026-06-27 — Consistent page shadow, close-over-shelf, no text selection
+  • Page cast shadow now lands on the actual PICTURE (not just the blurred fill behind it) — it was painting under the image; raised it above. Applies in every condition (revealing/hiding/opening/closing).
+  • Book CLOSE (page 1 → cover): the cast shadow now falls on the opposite TEXT page (like a normal page turn), not on the lifting image, and rides the page as the book slides to centre.
+  • Close animation reworked: the closing book now plays over the REAL bookshelf (the "shelf under cover" toggle makes the outside-the-cover area transparent so you see the library), and the moment it re-centres it flies straight to its slot — no dark pause in between.
+  • Story text can no longer be selected/highlighted by finger (iOS) or mouse — this also fixes the two-swipe-to-turn issue (a swipe was starting a text selection instead of turning the page).
+
+--------------------------
 v0.9.45 — 2026-06-27 — Shadow on all pages, late ramp + edge toggle, simultaneous book-close
   • Page cast shadow now appears on the page you're LOOKING at too (the held picture page), not just the lifting/laying ones — so it shows on every interior page, picture and text.
   • New shadow "ramp" option (🧪): "late" (default) keeps it very subtle until the page is steep, then darkens toward vertical — more natural; "linear" is the old even ramp.
