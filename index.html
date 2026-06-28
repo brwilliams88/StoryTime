@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.43" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.44" />
 </head>
 <body>
 
@@ -369,7 +369,7 @@
           <div v-if="currentStoryPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageShortLabel }}</div>
 
           <!-- Persistent book binding down the centre (so it never pops in after a turn) -->
-          <div v-if="currentStoryPage" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
+          <div v-if="currentStoryPage || pageTurning" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
 
           <!-- DEV: cover-edge diagnostic toggle + panel (gated on Diagnostics mode in Settings) -->
           <button v-if="diagMode" class="cover-diag-toggle" @click="showCoverDiag = !showCoverDiag" aria-label="Cover edge diagnostics">🧪</button>
@@ -486,7 +486,6 @@
               <div class="toolbox-actions">
                 <button @click="readAgain" class="btn-secondary">Read Again</button>
                 <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">🧠 Quiz Me</button>
-                <button @click="handleRegenerate" class="btn-secondary">Regenerate</button>
                 <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
                 <button @click="handleNewStory" class="btn-primary">New Story</button>
               </div>
@@ -1023,12 +1022,12 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.43"></script>
-  <script src="js/imageStorage.js?v=0.9.43"></script>
-  <script src="js/api.js?v=0.9.43"></script>
-  <script src="js/sync.js?v=0.9.43"></script>
-  <script src="js/pageCurl.js?v=0.9.43"></script>
-  <script src="js/app.js?v=0.9.43"></script>
+  <script src="js/storage.js?v=0.9.44"></script>
+  <script src="js/imageStorage.js?v=0.9.44"></script>
+  <script src="js/api.js?v=0.9.44"></script>
+  <script src="js/sync.js?v=0.9.44"></script>
+  <script src="js/pageCurl.js?v=0.9.44"></script>
+  <script src="js/app.js?v=0.9.44"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

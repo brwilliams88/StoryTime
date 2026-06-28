@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.44 — 2026-06-27 — Cast shadow on all pages, The End scaling, loading-screen fixes
+  • Page cast shadow now shows on EVERY interior page turn — on both the lifting and the laying page (left picture pages and right text pages). Moved it ONTO the turning page (it was hidden underneath before) so it's actually visible. Still governed by the 🧪 Enable + Intensity controls.
+  • The inner-hinge shadow on the last "The End" spread now stays through the turn into the toolbox (it used to vanish the instant you started turning); you just stop seeing it once the page covers that area.
+  • Removed the unused "Regenerate" button from the story toolbox page.
+  • "The End" text now scales with the story text (~1.26x the body size) so it grows proportionally on bigger screens.
+  • Loading screen (story-generating AND book-opening) is now centred and can't scroll — fixes the title getting pushed off-screen.
+
+--------------------------
 v0.9.43 — 2026-06-27 — Page cast shadow now on every page turn
   • The moving page cast shadow now plays on ALL interior page turns, not just the first cover-open spread. As a page lifts it shadows the page revealed beneath it, and as the next page lays down it casts a shadow that swells then fades — same look as the cover open.
   • It's governed by the same 🧪 controls (Enable + Intensity), so one setting covers the cover-open and every page turn.

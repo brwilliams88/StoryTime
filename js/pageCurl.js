@@ -91,21 +91,6 @@ window.PageCurl = (function () {
     return                        { box: [0, 0, W, H / 2],     off: [0, 0],      origin: '50% 100%', rot: a => 'rotateX(' + (-a) + 'deg)', outer: 'top' };
   }
 
-  // A dark "cast shadow" half — darkest at the INNER (spine) edge, fading out.
-  // Used to throw a moving shadow on the page revealed/laid during the turn,
-  // matching the cover-open animation's page cast shadow.
-  function castShade(side, W, H) {
-    const gm = halfGeom(side, W, H);
-    const dir = side === 'right' ? 'to left' : side === 'left' ? 'to right' : side === 'bottom' ? 'to top' : 'to bottom';
-    const el = document.createElement('div');
-    Object.assign(el.style, {
-      position: 'absolute', left: gm.box[0] + 'px', top: gm.box[1] + 'px', width: gm.box[2] + 'px', height: gm.box[3] + 'px',
-      pointerEvents: 'none', opacity: '0', zIndex: '2',
-      background: 'linear-gradient(' + dir + ', rgba(0,0,0,0) 40%, rgba(0,0,0,0.85) 100%)',
-    });
-    return el;
-  }
-
   function makeHalf(side, src, W, H, rotating) {
     const gm = halfGeom(side, W, H);
     const el = document.createElement('div');
@@ -117,16 +102,21 @@ window.PageCurl = (function () {
     clone.classList.add('pc-clone');   // suppresses the page-edge lines + crease on the moving leaf
     Object.assign(clone.style, { position: 'absolute', left: gm.off[0] + 'px', top: gm.off[1] + 'px', width: W + 'px', height: H + 'px', margin: 0 });
     el.appendChild(clone);
-    let shade = null, sheen = null;
+    let shade = null, sheen = null, gutter = null;
     if (rotating) {
       const d = gm.outer === 'right' ? 'to right' : gm.outer === 'left' ? 'to left' : gm.outer === 'bottom' ? 'to bottom' : 'to top';
       shade = document.createElement('div');
       Object.assign(shade.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(0,0,0,0) 52%, rgba(0,0,0,0.46))' });
       sheen = document.createElement('div');
       Object.assign(sheen.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(255,255,255,0) 80%, rgba(255,255,255,0.55))' });
-      el.appendChild(shade); el.appendChild(sheen);
+      // moving cast shadow: darkest toward the INNER (spine) edge, ON the leaf so
+      // it's clearly visible on the page as it turns (matches the cover open).
+      const inner = gm.outer === 'right' ? 'to left' : gm.outer === 'left' ? 'to right' : gm.outer === 'bottom' ? 'to top' : 'to bottom';
+      gutter = document.createElement('div');
+      Object.assign(gutter.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + inner + ', rgba(0,0,0,0) 55%, rgba(0,0,0,0.85))' });
+      el.appendChild(shade); el.appendChild(sheen); el.appendChild(gutter);
     }
-    return { el, gm, shade, sheen, setAngle(a) { el.style.transform = gm.rot(a); } };
+    return { el, gm, shade, sheen, gutter, setAngle(a) { el.style.transform = gm.rot(a); } };
   }
 
   function begin() {
@@ -150,13 +140,9 @@ window.PageCurl = (function () {
     // (No crease here — the static .book-crease is fixed ABOVE this overlay, so
     // it stays consistent through the whole turn on its own.)
 
-    // moving cast shadow on the revealed/laid page (matches the cover-open look)
+    // moving cast shadow intensity (0 = off) — applied to the leaf gutters below
     const ps = cfg.pageShadow ? cfg.pageShadow() : null;
-    if (ps && ps.on) {
-      g.shadowStr = ps.strength != null ? ps.strength : 0.6;
-      g.castTurn = castShade(g.turnSide, W, H); g.wrap.appendChild(g.castTurn);   // shadow on page revealed under leaf1
-      g.castLay = castShade(g.laySide, W, H); g.wrap.appendChild(g.castLay);      // shadow leaf2 throws as it lands
-    }
+    g.shadowStr = (ps && ps.on) ? (ps.strength != null ? ps.strength : 0.6) : 0;
 
     // leaf1 = the current half we lift away
     g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);
@@ -183,16 +169,11 @@ window.PageCurl = (function () {
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
-    // moving cast shadow: on the revealed page it fades as leaf1 lifts away;
-    // on the laid-onto page it swells then fades as leaf2 covers it.
-    if (g.castTurn) {
-      const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5));
-      g.castTurn.style.opacity = String(g.shadowStr * (1 - p1));
-      g.castLay.style.opacity = p > 0.5 ? String(g.shadowStr * Math.sin(p2 * Math.PI)) : '0';
-    }
     g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
     if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * 0.9);
     if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(p1 * 0.8);
+    // moving cast shadow ON the lifting leaf: grows toward the spine as it tilts up
+    if (g.leaf1.gutter) g.leaf1.gutter.style.opacity = String(g.shadowStr * p1);
     // leaf2 lays 90→0 over the second half (ease-out gravity)
     if (g.leaf2) {
       const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2), a2 = (1 - p2e) * 90;
@@ -201,6 +182,8 @@ window.PageCurl = (function () {
       g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 22) + 'px rgba(0,0,0,' + (0.08 + (1 - p2e) * 0.22) + ')';
       if (g.leaf2.shade) g.leaf2.shade.style.opacity = String((1 - p2e) * 0.9);
       if (g.leaf2.sheen) g.leaf2.sheen.style.opacity = String((1 - p2e) * 0.8);
+      // moving cast shadow ON the laying leaf: strong while steep, fades as it lands flat
+      if (g.leaf2.gutter) g.leaf2.gutter.style.opacity = String(g.shadowStr * (1 - p2e));
     }
   }
 

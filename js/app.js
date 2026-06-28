@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.43',
+      version: 'v0.9.44',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -59,6 +59,7 @@ createApp({
       isPortrait: window.matchMedia('(orientation: portrait)').matches,
 
       coverShift: false,   // true = closed book slid into its hinge-side half (for the close turn)
+      pageTurning: false,  // true during a page-curl turn — keeps the centre crease visible even when the destination page has none (e.g. last page → toolbox)
 
       // DIAGNOSTICS mode (dev). A master switch (Settings) that surfaces in-app
       // tuning tools — currently the cover-edge panel; reused for future builds.
@@ -437,6 +438,7 @@ createApp({
           // already slid into its half so the turn reveals it book-in-half.
           // (Turns only reach index 0 via a close, so this is safe.)
           if (i === 0) self.coverShift = true;
+          self.pageTurning = true;   // keep the centre crease through the turn even if dest has none
           self.currentPageIndex = i;
         },
         canNext: () => self.canGoNext(),
@@ -465,6 +467,7 @@ createApp({
         // melt during that travel). For a normal close, settle to centre here.
         afterTurn: (landed) => {
           self._coverAnim = false;
+          self.pageTurning = false;
           if (landed === 0 && self._closingToLibrary != null) {
             const id = self._closingToLibrary; self._closingToLibrary = null;
             self.$nextTick(() => self._bookToShelf(id));
