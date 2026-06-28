@@ -1699,7 +1699,8 @@ body:has(.app-main-reading) {
   justify-content: flex-start;
   padding: 0.9rem 0.9rem;
   text-align: center;
-  overflow-y: auto;
+  overflow: hidden;        /* not a scroll container — so the first swipe turns the page (no scroll-then-turn) */
+  touch-action: none;      /* the page-turn gesture owns the drag */
   gap: 0.8rem;
 }
 

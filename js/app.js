@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.44',
+      version: 'v0.9.45',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -74,8 +74,11 @@ createApp({
         edgeRef: 390,           // baseline short-side (iPhone logical px)
         edgeScale: 1.2,         // thickness multiplier
         // STILL EVALUATING — moving cast shadow with adjustable intensity:
-        pageShadow: true,       // soft moving shadow the lifting/laying leaf casts on the page
-        shadowStrength: 0.6,    // 0..1 intensity
+        pageShadow: true,       // soft moving shadow near the crease on the turning pages
+        shadowStrength: 0.4,    // 0..1 intensity
+        shadowCurve: 'late',    // 'late' = subtle until ~45° then darkens toward vertical | 'linear'
+        edgeShade: false,       // the OUTER page-edge curl shadow on turning leaves (the "shadow-bright-shadow" look)
+        closeShowShelf: true,   // on book-close, show the bookshelf under the closing cover instead of the dark stage
       },
 
       showSettings: false,
@@ -431,7 +434,7 @@ createApp({
       const self = this;
       window.PageCurl.init({
         // moving cast shadow config (shared with the cover-open animation)
-        pageShadow: () => ({ on: self.coverDiag.pageShadow, strength: self.coverDiag.shadowStrength != null ? self.coverDiag.shadowStrength : 0.6 }),
+        pageShadow: () => ({ on: self.coverDiag.pageShadow, strength: self.coverDiag.shadowStrength != null ? self.coverDiag.shadowStrength : 0.4, curve: self.coverDiag.shadowCurve, edgeShade: self.coverDiag.edgeShade }),
         index: () => self.currentPageIndex,
         setIndex: (i) => {
           // A turn landing on the cover = closing the book: render the cover
@@ -1828,7 +1831,7 @@ createApp({
         imgShadow.style.opacity  = (si && p > 0.5) ? String(si * (ang2 / 90)) : '0';
       };
 
-      const fx = { p: 0, apply, raf: null, wrap };
+      const fx = { p: 0, apply, raf: null, wrap, stage };
       this._coverFx = fx;
       return fx;
     },
@@ -1851,15 +1854,18 @@ createApp({
     },
     // Animate the open controller from its current progress to target (1 = open,
     // 0 = closed), set the matching page index, then remove the overlay.
-    _coverAnimateTo(target) {
+    _coverAnimateTo(target, onDone) {
       const fx = this._coverFx; if (!fx) return;
       const from = fx.p, t0 = performance.now();
       const dur = 820 * Math.max(0.18, Math.abs(target - from));
       const ce = (t) => 1 - Math.pow(1 - t, 3);
       const finish = () => {
         this.currentPageIndex = target >= 1 ? 1 : 0;
-        this.$nextTick(() => { if (fx.wrap.parentNode) fx.wrap.remove(); });
-        this._coverAnim = false; this._coverFx = null; this.pokeReaderUi();
+        this._coverAnim = false; this._coverFx = null;
+        this.$nextTick(() => {
+          if (fx.wrap.parentNode) fx.wrap.remove();
+          if (onDone) onDone(); else this.pokeReaderUi();   // hand off (e.g. close → shelf morph)
+        });
       };
       const step = (now) => {
         const k = Math.min(1, (now - t0) / dur);
@@ -2167,11 +2173,17 @@ createApp({
       const story = this.currentStory;
       const targetId = story && story.id;
       if (this.isOnCover) { this._bookToShelf(targetId); return; }   // already closed → straight to the shelf morph
-      const curl = window.PageCurl;
-      if (!curl || !curl.animate) { this._exitToLibrary(targetId); return; }
+      // Part 1: the SAME simultaneous close as a regular book-close (book slides +
+      // cover swings shut together), built from data so it runs from any page.
+      // Part 2 (unchanged): hand to _bookToShelf for the shrink-onto-shelf morph.
+      const fx = this._coverFxBuild();
+      if (!fx) { this._exitToLibrary(targetId); return; }
       this._coverAnim = true;
-      this._closingToLibrary = targetId;    // afterTurn() runs the shelf morph once the close settles
-      curl.animate(false, 0);               // turn the current page straight onto the cover
+      // Don't flash the blue reading background as the cover closes — show the warm
+      // shelf tone behind it (toggle). The shelf morph then reveals the real shelf.
+      if (this.coverDiag.closeShowShelf && fx.stage) fx.stage.style.background = '#8f6526';
+      fx.p = 1; fx.apply(1);
+      this._coverAnimateTo(0, () => this._bookToShelf(targetId));
     },
 
     // The "put the book back on the shelf" transition, IMAGE-ANCHORED so the
@@ -2198,9 +2210,10 @@ createApp({
       const pa = area.getBoundingClientRect();
       const cen = { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2, width: half.width, height: half.height };
 
+      const showShelf = !!this.coverDiag.closeShowShelf;   // skip the dark melt → shelf visible immediately
       const dark = document.createElement('div');
       dark.className = 'book-fly-temp';
-      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '1', pointerEvents: 'none' });
+      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: showShelf ? '0' : '1', pointerEvents: 'none' });
       // big clone is pinned at the CENTRE box; phase A just translates it from the half pose
       const big = coverBook.cloneNode(true);
       big.classList.add('book-fly-temp');
@@ -2277,7 +2290,7 @@ createApp({
                 // Phase A — travel to centre, dark melts (image rides with the big clone)
                 const a = easeIO(p / pA);
                 big.style.transform = 'translate(' + ((half.left - cen.left) * (1 - a)) + 'px,' + ((half.top - cen.top) * (1 - a)) + 'px)';
-                dark.style.opacity = String(1 - p / pA);
+                dark.style.opacity = showShelf ? '0' : String(1 - p / pA);
               } else {
                 // Phase B — image-anchored fly to the slot
                 dark.style.opacity = '0';

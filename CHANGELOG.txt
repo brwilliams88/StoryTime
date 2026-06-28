@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.45 — 2026-06-27 — Shadow on all pages, late ramp + edge toggle, simultaneous book-close
+  • Page cast shadow now appears on the page you're LOOKING at too (the held picture page), not just the lifting/laying ones — so it shows on every interior page, picture and text.
+  • New shadow "ramp" option (🧪): "late" (default) keeps it very subtle until the page is steep, then darkens toward vertical — more natural; "linear" is the old even ramp.
+  • New 🧪 toggle to turn OFF the outer page-edge shadow (the "dark-bright-dark" look) — default OFF, so only the crease-side shadow shows.
+  • Default shadow intensity lowered to 40% (still adjustable in 🧪).
+  • Book CLOSE (back arrow) now does the SAME simultaneous slide+cover-swing as a regular close, then shrinks onto the shelf as before. New 🧪 toggle "shelf under cover" shows the warm shelf instead of the blue background as it closes (default ON).
+  • Removed the (unused) Regenerate button — already gone in 0.9.44; toolbox no longer scrolls so a single swipe turns to/from it.
+
+--------------------------
 v0.9.44 — 2026-06-27 — Cast shadow on all pages, The End scaling, loading-screen fixes
   • Page cast shadow now shows on EVERY interior page turn — on both the lifting and the laying page (left picture pages and right text pages). Moved it ONTO the turning page (it was hidden underneath before) so it's actually visible. Still governed by the 🧪 Enable + Intensity controls.
   • The inner-hinge shadow on the last "The End" spread now stays through the turn into the toolbox (it used to vanish the instant you started turning); you just stop seeing it once the page covers that area.

@@ -91,7 +91,7 @@ window.PageCurl = (function () {
     return                        { box: [0, 0, W, H / 2],     off: [0, 0],      origin: '50% 100%', rot: a => 'rotateX(' + (-a) + 'deg)', outer: 'top' };
   }
 
-  function makeHalf(side, src, W, H, rotating) {
+  function makeHalf(side, src, W, H, rotating, wantGutter) {
     const gm = halfGeom(side, W, H);
     const el = document.createElement('div');
     Object.assign(el.style, {
@@ -105,16 +105,19 @@ window.PageCurl = (function () {
     let shade = null, sheen = null, gutter = null;
     if (rotating) {
       const d = gm.outer === 'right' ? 'to right' : gm.outer === 'left' ? 'to left' : gm.outer === 'bottom' ? 'to bottom' : 'to top';
-      shade = document.createElement('div');
+      shade = document.createElement('div');   // OUTER page-edge curl shadow (optional, gated by edgeShade)
       Object.assign(shade.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(0,0,0,0) 52%, rgba(0,0,0,0.46))' });
       sheen = document.createElement('div');
       Object.assign(sheen.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(255,255,255,0) 80%, rgba(255,255,255,0.55))' });
-      // moving cast shadow: darkest toward the INNER (spine) edge, ON the leaf so
-      // it's clearly visible on the page as it turns (matches the cover open).
+      el.appendChild(shade); el.appendChild(sheen);
+    }
+    if (rotating || wantGutter) {
+      // moving cast shadow: darkest toward the INNER (spine/crease) edge, ON the
+      // page so it's clearly visible as it turns / while it's held.
       const inner = gm.outer === 'right' ? 'to left' : gm.outer === 'left' ? 'to right' : gm.outer === 'bottom' ? 'to top' : 'to bottom';
       gutter = document.createElement('div');
       Object.assign(gutter.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + inner + ', rgba(0,0,0,0) 55%, rgba(0,0,0,0.85))' });
-      el.appendChild(shade); el.appendChild(sheen); el.appendChild(gutter);
+      el.appendChild(gutter);
     }
     return { el, gm, shade, sheen, gutter, setAngle(a) { el.style.transform = gm.rot(a); } };
   }
@@ -132,17 +135,21 @@ window.PageCurl = (function () {
     Object.assign(g.wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', perspective: '1900px', pointerEvents: 'none', zIndex: 46 });
     document.body.appendChild(g.wrap);
 
-    // held current page on the side we lay onto (under leaf2)
-    g.static = makeHalf(g.laySide, srcCur, W, H, false);
+    // held current page on the side we lay onto (under leaf2). It carries a
+    // gutter shadow too, so the page you're LOOKING at (e.g. the left picture
+    // page on a forward turn) gets a crease shadow as the opposite page lifts.
+    g.static = makeHalf(g.laySide, srcCur, W, H, false, true);
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
     // (No crease here — the static .book-crease is fixed ABOVE this overlay, so
     // it stays consistent through the whole turn on its own.)
 
-    // moving cast shadow intensity (0 = off) — applied to the leaf gutters below
+    // moving cast shadow config (0 = off) — applied to the gutters below
     const ps = cfg.pageShadow ? cfg.pageShadow() : null;
-    g.shadowStr = (ps && ps.on) ? (ps.strength != null ? ps.strength : 0.6) : 0;
+    g.shadowStr = (ps && ps.on) ? (ps.strength != null ? ps.strength : 0.4) : 0;
+    g.shadowCurve = ps && ps.curve === 'linear' ? 'linear' : 'late';
+    g.edgeShade = !!(ps && ps.edgeShade);
 
     // leaf1 = the current half we lift away
     g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);
@@ -170,22 +177,29 @@ window.PageCurl = (function () {
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
     g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
-    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(p1 * 0.9);
-    if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(p1 * 0.8);
+    const es = g.edgeShade ? 1 : 0;   // outer page-edge curl shadow (optional)
+    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(es * p1 * 0.9);
+    if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(es * p1 * 0.8);
     // moving cast shadow ON the lifting leaf: grows toward the spine as it tilts up
-    if (g.leaf1.gutter) g.leaf1.gutter.style.opacity = String(g.shadowStr * p1);
+    if (g.leaf1.gutter) g.leaf1.gutter.style.opacity = String(g.shadowStr * gcurve(p1, g.shadowCurve));
+    // the held page (static) shows a crease shadow too, deepening as the partner lifts
+    if (g.static && g.static.gutter) g.static.gutter.style.opacity = String(g.shadowStr * gcurve(p1, g.shadowCurve));
     // leaf2 lays 90→0 over the second half (ease-out gravity)
     if (g.leaf2) {
       const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2), a2 = (1 - p2e) * 90;
       g.leaf2.setAngle(a2);
       g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
       g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 22) + 'px rgba(0,0,0,' + (0.08 + (1 - p2e) * 0.22) + ')';
-      if (g.leaf2.shade) g.leaf2.shade.style.opacity = String((1 - p2e) * 0.9);
-      if (g.leaf2.sheen) g.leaf2.sheen.style.opacity = String((1 - p2e) * 0.8);
+      if (g.leaf2.shade) g.leaf2.shade.style.opacity = String(es * (1 - p2e) * 0.9);
+      if (g.leaf2.sheen) g.leaf2.sheen.style.opacity = String(es * (1 - p2e) * 0.8);
       // moving cast shadow ON the laying leaf: strong while steep, fades as it lands flat
-      if (g.leaf2.gutter) g.leaf2.gutter.style.opacity = String(g.shadowStr * (1 - p2e));
+      if (g.leaf2.gutter) g.leaf2.gutter.style.opacity = String(g.shadowStr * gcurve(1 - p2e, g.shadowCurve));
     }
   }
+
+  // shadow darkening curve. 'late' = subtle until ~45°, ramping dark toward 90°
+  // (x = tilt/90). 'linear' = the original proportional ramp.
+  function gcurve(x, mode) { x = Math.max(0, Math.min(1, x)); return mode === 'linear' ? x : Math.pow(x, 2.5); }
 
   function finish(commit) {
     animating = true;
