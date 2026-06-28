@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.47 — 2026-06-28 — Realistic page-turn shadow model + close/turn fixes
+  • Rebuilt the page-turn shadow to be physically realistic: at 90° it's light and symmetric; as the page lays down onto the page beneath, the shadow GROWS, PROJECTS outward, and darkens (deepest just before it lands, but never fully black); the page being revealed gets a small shadow that fades away. Same model for the cover open/close (plus the slide).
+  • Removed the outer page-edge shadow entirely (it's now never used).
+  • 🧪 ramp options are now late / later / latest (no more linear), plus new Projection and Revealed-page sliders, and the intensity slider — to dial it in. Default intensity 40%.
+  • Close-to-shelf "jump" fixed: the shelf is now scrolled to the book's slot BEFORE the close plays, so it doesn't hop when the book flies in.
+  • Two-swipe to/from the toolbox: the turn gesture no longer ignores swipes that start on a button (only real text fields are skipped), so a single swipe turns the page on touch.
+
+--------------------------
 v0.9.46 — 2026-06-27 — Consistent page shadow, close-over-shelf, no text selection
   • Page cast shadow now lands on the actual PICTURE (not just the blurred fill behind it) — it was painting under the image; raised it above. Applies in every condition (revealing/hiding/opening/closing).
   • Book CLOSE (page 1 → cover): the cast shadow now falls on the opposite TEXT page (like a normal page turn), not on the lifting image, and rides the page as the book slides to centre.

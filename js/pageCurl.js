@@ -27,7 +27,10 @@ window.PageCurl = (function () {
 
   function start(e, areaEl) {
     if (animating || g || !areaEl || !cfg) return;
-    if (e.target.closest && e.target.closest('button, a, input, textarea, .inspect-btn')) return;
+    // Only bail on real form fields — NOT buttons/links. The toolbox page is mostly
+    // buttons; swiping over one must still turn the page (a tap = no movement, so the
+    // turn never starts and the click still fires). This is the iOS two-swipe fix.
+    if (e.target.closest && e.target.closest('input, textarea, select')) return;
     const p = point(e);
     g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false };
     if (e.type === 'mousedown') {
@@ -102,26 +105,19 @@ window.PageCurl = (function () {
     clone.classList.add('pc-clone');   // suppresses the page-edge lines + crease on the moving leaf
     Object.assign(clone.style, { position: 'absolute', left: gm.off[0] + 'px', top: gm.off[1] + 'px', width: W + 'px', height: H + 'px', margin: 0 });
     el.appendChild(clone);
-    let shade = null, sheen = null, gutter = null;
-    if (rotating) {
-      const d = gm.outer === 'right' ? 'to right' : gm.outer === 'left' ? 'to left' : gm.outer === 'bottom' ? 'to bottom' : 'to top';
-      shade = document.createElement('div');   // OUTER page-edge curl shadow (optional, gated by edgeShade)
-      Object.assign(shade.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(0,0,0,0) 52%, rgba(0,0,0,0.46))' });
-      sheen = document.createElement('div');
-      Object.assign(sheen.style, { position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + d + ', rgba(255,255,255,0) 80%, rgba(255,255,255,0.55))' });
-      el.appendChild(shade); el.appendChild(sheen);
-    }
-    if (rotating || wantGutter) {
-      // moving cast shadow: darkest toward the INNER (spine/crease) edge, ON the
-      // page so it's clearly visible as it turns / while it's held.
-      const inner = gm.outer === 'right' ? 'to left' : gm.outer === 'left' ? 'to right' : gm.outer === 'bottom' ? 'to top' : 'to bottom';
+    // direction from the SPINE (inner edge) toward the OUTER edge — used to build the
+    // cast-shadow gradient (dark at the spine, fading/projecting toward the outer edge).
+    const outerDir = 'to ' + gm.outer;
+    let gutter = null;
+    if (wantGutter) {
+      // The cast shadow the FALLING leaf throws on this (held/beneath) page. z-index
+      // ABOVE the picture (.image-frame is z-index:1) so it lands on the image, not
+      // just the blurred letterbox. Styled live in apply().
       gutter = document.createElement('div');
-      // z-index ABOVE the picture (.image-frame is z-index:1) so the shadow lands on
-      // the actual image, not just the blurred letterbox behind it.
-      Object.assign(gutter.style, { position: 'absolute', inset: 0, zIndex: '8', pointerEvents: 'none', opacity: 0, background: 'linear-gradient(' + inner + ', rgba(0,0,0,0) 55%, rgba(0,0,0,0.85))' });
+      Object.assign(gutter.style, { position: 'absolute', inset: 0, zIndex: '8', pointerEvents: 'none', opacity: 0 });
       el.appendChild(gutter);
     }
-    return { el, gm, shade, sheen, gutter, setAngle(a) { el.style.transform = gm.rot(a); } };
+    return { el, gm, gutter, outerDir, setAngle(a) { el.style.transform = gm.rot(a); } };
   }
 
   function begin() {
@@ -137,21 +133,31 @@ window.PageCurl = (function () {
     Object.assign(g.wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', perspective: '1900px', pointerEvents: 'none', zIndex: 46 });
     document.body.appendChild(g.wrap);
 
-    // held current page on the side we lay onto (under leaf2). It carries a
-    // gutter shadow too, so the page you're LOOKING at (e.g. the left picture
-    // page on a forward turn) gets a crease shadow as the opposite page lifts.
+    // cast-shadow config (0 = off)
+    const ps = cfg.pageShadow ? cfg.pageShadow() : null;
+    g.shadowStr = (ps && ps.on) ? (ps.strength != null ? ps.strength : 0.4) : 0;
+    g.shadowCurve = (ps && ps.curve) || 'late';
+    g.shadowProj = ps && ps.proj != null ? ps.proj : 0.55;
+    g.revealedAmt = ps && ps.revealed != null ? ps.revealed : 0.25;
+
+    // held current page on the side we lay onto (under leaf2). Its gutter is the
+    // cast shadow the FALLING leaf2 throws on it (the page being COVERED).
     g.static = makeHalf(g.laySide, srcCur, W, H, false, true);
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
-    // (No crease here — the static .book-crease is fixed ABOVE this overlay, so
-    // it stays consistent through the whole turn on its own.)
+    // (No crease here — the fixed .book-crease above this overlay carries the
+    // light, symmetric gutter at 90° on its own.)
 
-    // moving cast shadow config (0 = off) — applied to the gutters below
-    const ps = cfg.pageShadow ? cfg.pageShadow() : null;
-    g.shadowStr = (ps && ps.on) ? (ps.strength != null ? ps.strength : 0.4) : 0;
-    g.shadowCurve = ps && ps.curve === 'linear' ? 'linear' : 'late';
-    g.edgeShade = !!(ps && ps.edgeShade);
+    // Cast shadow on the page being REVEALED (under leaf1, seen through the wrap).
+    // Fades as leaf1 lifts away. Sits over the live next-spread underneath.
+    {
+      const gm = halfGeom(g.turnSide, W, H);
+      g.revealShade = document.createElement('div');
+      Object.assign(g.revealShade.style, { position: 'absolute', left: gm.box[0] + 'px', top: gm.box[1] + 'px', width: gm.box[2] + 'px', height: gm.box[3] + 'px', zIndex: '2', pointerEvents: 'none', opacity: 0 });
+      g.revealOuterDir = 'to ' + gm.outer;
+      g.wrap.appendChild(g.revealShade);
+    }
 
     // leaf1 = the current half we lift away
     g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);
@@ -174,34 +180,48 @@ window.PageCurl = (function () {
 
   function apply(p) {
     if (!g || !g.leaf1) return;
-    // leaf1 lifts 0→90 over the first half
+    const str = g.shadowStr, MAXA = 0.78;   // darkest the cast shadow ever gets (still readable)
+    // leaf1 lifts 0→90 over the first half (its top face is lit — no shadow ON it)
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
-    g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 22) + 'px rgba(0,0,0,' + (0.08 + p1 * 0.22) + ')';
-    const es = g.edgeShade ? 1 : 0;   // outer page-edge curl shadow (optional)
-    if (g.leaf1.shade) g.leaf1.shade.style.opacity = String(es * p1 * 0.9);
-    if (g.leaf1.sheen) g.leaf1.sheen.style.opacity = String(es * p1 * 0.8);
-    // moving cast shadow ON the lifting leaf: grows toward the spine as it tilts up
-    if (g.leaf1.gutter) g.leaf1.gutter.style.opacity = String(g.shadowStr * gcurve(p1, g.shadowCurve));
-    // the held page (static) shows a crease shadow too, deepening as the partner lifts
-    if (g.static && g.static.gutter) g.static.gutter.style.opacity = String(g.shadowStr * gcurve(p1, g.shadowCurve));
-    // leaf2 lays 90→0 over the second half (ease-out gravity)
+    g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 16) + 'px rgba(0,0,0,' + (0.06 + p1 * 0.14) + ')';
+
+    // REVEALED page (under leaf1): small cast shadow that FADES as leaf1 lifts away.
+    if (g.revealShade) {
+      const rv = str * g.revealedAmt * gcurve(1 - p1, g.shadowCurve);
+      g.revealShade.style.opacity = String(rv);
+      const ext = 22 + g.shadowProj * 30;   // modest, near the spine
+      g.revealShade.style.background = 'linear-gradient(' + g.revealOuterDir + ', rgba(0,0,0,' + MAXA + ') 0%, rgba(0,0,0,0) ' + ext + '%)';
+    }
+
+    // COVERED page (static, under leaf2): the dominant cast shadow — grows, PROJECTS
+    // outward from the spine, and darkens as leaf2 lays flat (phase 2 only).
+    if (g.static && g.static.gutter) {
+      let lay = 0;
+      if (g.leaf2) { const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)); lay = easeOut(p2); }
+      const a = str * gcurve(lay, g.shadowCurve);
+      const ext = 18 + g.shadowProj * 70 * lay;   // projects further out as it lays
+      g.static.gutter.style.opacity = String(a);
+      g.static.gutter.style.background = 'linear-gradient(' + g.static.outerDir + ', rgba(0,0,0,' + MAXA + ') 0%, rgba(0,0,0,0) ' + ext + '%)';
+    }
+
+    // leaf2 lays 90→0 over the second half (ease-out gravity); top face lit — no shadow ON it
     if (g.leaf2) {
       const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2), a2 = (1 - p2e) * 90;
       g.leaf2.setAngle(a2);
       g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
-      g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 22) + 'px rgba(0,0,0,' + (0.08 + (1 - p2e) * 0.22) + ')';
-      if (g.leaf2.shade) g.leaf2.shade.style.opacity = String(es * (1 - p2e) * 0.9);
-      if (g.leaf2.sheen) g.leaf2.sheen.style.opacity = String(es * (1 - p2e) * 0.8);
-      // moving cast shadow ON the laying leaf: strong while steep, fades as it lands flat
-      if (g.leaf2.gutter) g.leaf2.gutter.style.opacity = String(g.shadowStr * gcurve(1 - p2e, g.shadowCurve));
+      g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 16) + 'px rgba(0,0,0,' + (0.06 + (1 - p2e) * 0.14) + ')';
     }
   }
 
-  // shadow darkening curve. 'late' = subtle until ~45°, ramping dark toward 90°
-  // (x = tilt/90). 'linear' = the original proportional ramp.
-  function gcurve(x, mode) { x = Math.max(0, Math.min(1, x)); return mode === 'linear' ? x : Math.pow(x, 2.5); }
+  // Shadow darkening curve vs the page's lay progress (x = 0 vertical → 1 flat).
+  // All ease in "late" so it stays subtle until the page is well past vertical:
+  //   late = x^2.5, later = x^3.5, latest = x^5.
+  function gcurve(x, mode) {
+    x = Math.max(0, Math.min(1, x));
+    return mode === 'latest' ? Math.pow(x, 5) : mode === 'later' ? Math.pow(x, 3.5) : Math.pow(x, 2.5);
+  }
 
   function finish(commit) {
     animating = true;

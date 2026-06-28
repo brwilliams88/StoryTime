@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.46',
+      version: 'v0.9.47',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -73,11 +73,12 @@ createApp({
         edgeBase: 12,           // px = true board thickness T at the iPhone baseline short-side
         edgeRef: 390,           // baseline short-side (iPhone logical px)
         edgeScale: 1.2,         // thickness multiplier
-        // STILL EVALUATING — moving cast shadow with adjustable intensity:
-        pageShadow: true,       // soft moving shadow near the crease on the turning pages
-        shadowStrength: 0.4,    // 0..1 intensity
-        shadowCurve: 'late',    // 'late' = subtle until ~45° then darkens toward vertical | 'linear'
-        edgeShade: false,       // the OUTER page-edge curl shadow on turning leaves (the "shadow-bright-shadow" look)
+        // STILL EVALUATING — cast shadow the falling page throws on the page beneath:
+        pageShadow: true,       // master on/off
+        shadowStrength: 0.4,    // 0..1 peak intensity
+        shadowCurve: 'late',    // ramp vs the page's lay progress: 'late' | 'later' | 'latest'
+        shadowProj: 0.55,       // 0..1 — how far the shadow projects out from the spine as the page lays flat
+        revealedShadow: 0.25,   // 0..1 — small fading shadow on the page being REVEALED (0 = none)
         closeShowShelf: true,   // on book-close, show the bookshelf under the closing cover instead of the dark stage
       },
 
@@ -434,7 +435,7 @@ createApp({
       const self = this;
       window.PageCurl.init({
         // moving cast shadow config (shared with the cover-open animation)
-        pageShadow: () => ({ on: self.coverDiag.pageShadow, strength: self.coverDiag.shadowStrength != null ? self.coverDiag.shadowStrength : 0.4, curve: self.coverDiag.shadowCurve, edgeShade: self.coverDiag.edgeShade }),
+        pageShadow: () => { const d = self.coverDiag; return { on: d.pageShadow, strength: d.shadowStrength != null ? d.shadowStrength : 0.4, curve: d.shadowCurve, proj: d.shadowProj != null ? d.shadowProj : 0.55, revealed: d.revealedShadow != null ? d.revealedShadow : 0.25 }; },
         index: () => self.currentPageIndex,
         setIndex: (i) => {
           // A turn landing on the cover = closing the book: render the cover
@@ -1526,7 +1527,7 @@ createApp({
       return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY };
     },
     _coverDown(e) {
-      if (e.target.closest && e.target.closest('button, a, .inspect-btn')) return;
+      if (e.target.closest && e.target.closest('input, textarea, select')) return;
       const p = this._coverPoint(e);
       const area = (e.currentTarget && e.currentTarget.classList && e.currentTarget.classList.contains('page-area'))
         ? e.currentTarget : (e.target.closest && e.target.closest('.page-area'));
@@ -1823,19 +1824,20 @@ createApp({
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
 
-        // ---- moving cast shadow (adjustable) ----
+        // ---- moving cast shadow (same model as interior turns) ----
+        const cv = (x) => { x = Math.max(0, Math.min(1, x)); return d.shadowCurve === 'latest' ? Math.pow(x, 5) : d.shadowCurve === 'later' ? Math.pow(x, 3.5) : Math.pow(x, 2.5); };
         const si = d.pageShadow ? (d.shadowStrength != null ? d.shadowStrength : 0.4) : 0;
+        const rev = d.revealedShadow != null ? d.revealedShadow : 0.25;
         if (closing) {
-          // CLOSE: the inner image LIFTS off, casting a shadow on the OPPOSITE
-          // text page (like a page lifting in a normal turn). None on the lifting
-          // image. The shadow rides the text page as the book slides to centre.
-          textShadow.style.opacity = si ? String(si * (ang2 / 90)) : '0';
+          // CLOSE: the image LIFTS off → cast shadow on the OPPOSITE text page
+          // (grows as the image lifts), none on the image; rides the sliding page.
+          textShadow.style.opacity = si ? String(si * cv(ang2 / 90)) : '0';
           imgShadow.style.opacity = '0';
         } else {
-          // OPEN: lifting cover shades the revealing text (phase 1); the laying
-          // image carries a shadow that fades as it flattens (phase 2).
-          textShadow.style.opacity = (si && p <= 0.5) ? String(si * (1 - e1)) : '0';
-          imgShadow.style.opacity  = (si && p > 0.5) ? String(si * (ang2 / 90)) : '0';
+          // OPEN: the laying image gets the covered-page shadow (grows as it lays);
+          // the revealing text gets a small fading shadow.
+          textShadow.style.opacity = (si && p <= 0.5) ? String(si * rev * cv(1 - e1)) : '0';
+          imgShadow.style.opacity  = (si && p > 0.5) ? String(si * cv(e2)) : '0';
         }
       };
 
@@ -2198,6 +2200,9 @@ createApp({
       this.view = 'library';
       this.currentPageIndex = 0;
       if (fx.stage) fx.stage.style.background = showShelf ? 'transparent' : 'var(--bg-deep, #1a1208)';
+      // Scroll the shelf to the target slot NOW (while it's hidden behind the closing
+      // overlay) so it's already in place — no "jump" when the book flies to it.
+      this.$nextTick(() => this._scrollShelfTo(targetId));
       fx.p = 1; fx.apply(1);
       // When the cover finishes closing at centre, fly it straight to the shelf
       // slot (no pause/dark-melt) — the overlay's cover is the morph source.
@@ -2262,7 +2267,7 @@ createApp({
         const bookEl = (slot && slot.querySelector('.book')) || slot;
         if (!bookEl) { gsap.to(dark, { opacity: 0, duration: 0.3, onComplete: cleanup }); return; }
 
-        if (bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });
+        if (!skip && bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });   // skip: shelf already scrolled before the close, so no jump
         requestAnimationFrame(() => {
           const er = bookEl.getBoundingClientRect();                       // the shelf slot (whole book)
           const coverEl = bookEl.querySelector('.book-cover');
