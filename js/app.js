@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.48',
+      version: 'v0.9.50',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -1512,15 +1512,53 @@ createApp({
     // other page goes straight to the page-curl engine.
     curlStart(e) {
       if (this.isOnCover || this.currentPageIndex === 1) { this._coverDown(e); return; }
+      // The last text page + toolbox use a ROBUST swipe→triggered-turn (not the
+      // finger-follow), which needs two swipes on touch because async work mid-
+      // gesture (image preload / heavy toolbox render) can drop touch events. A
+      // triggered animate runs to completion regardless, so one swipe always works.
+      const last = this.totalReadingPages - 1;
+      if (this.currentPageIndex >= last - 1) { this._sswDown(e); return; }
       if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
     },
     curlMove(e) {
       if (this._cg) { this._coverMoveGesture(e); return; }
+      if (this._ssw) { this._sswMove(e); return; }
       if (window.PageCurl) window.PageCurl.move(e);
     },
     curlEnd(e) {
       if (this._cg) { this._coverUpGesture(e); return; }
+      if (this._ssw) { this._sswUp(e); return; }
       if (window.PageCurl) window.PageCurl.end(e);
+    },
+    // Robust swipe for the toolbox/last-page boundary: detect the swipe, then play a
+    // TRIGGERED page-turn (animate) — immune to mid-gesture touch interruptions.
+    _sswDown(e) {
+      if (e.target.closest && e.target.closest('input, textarea, select')) return;
+      const p = this._coverPoint(e);
+      this._ssw = { x0: p.x, y0: p.y };
+      if (e.type === 'mousedown') {
+        this._ssw.mm = (ev) => this._sswMove(ev);
+        this._ssw.mu = (ev) => this._sswUp(ev);
+        document.addEventListener('mousemove', this._ssw.mm);
+        document.addEventListener('mouseup', this._ssw.mu);
+      }
+    },
+    _sswMove(e) {
+      const g = this._ssw; if (!g) return;
+      const p = this._coverPoint(e);
+      const prim = this.isPortrait ? p.y - g.y0 : p.x - g.x0;
+      if (Math.abs(prim) > 8 && e.cancelable) e.preventDefault();
+    },
+    _sswUp(e) {
+      const g = this._ssw; if (!g) return;
+      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+      this._ssw = null;
+      const p = this._coverPoint(e);
+      const prim = this.isPortrait ? p.y - g.y0 : p.x - g.x0;
+      if (Math.abs(prim) < 45) { this.pokeReaderUi(); return; }   // tap, not a swipe
+      const forward = prim < 0;   // up (portrait) / left (landscape) = forward
+      if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(forward);
+      else (forward ? this.nextPage() : this.prevPage());
     },
     _coverPoint(e) {
       const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);

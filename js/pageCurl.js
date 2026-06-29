@@ -140,9 +140,9 @@ window.PageCurl = (function () {
     g.shadowProj = ps && ps.proj != null ? ps.proj : 0.55;
     g.revealedAmt = ps && ps.revealed != null ? ps.revealed : 0.25;
 
-    // held current page on the side we lay onto (under leaf2). Its gutter is the
-    // cast shadow the FALLING leaf2 throws on it (the page being COVERED).
-    g.static = makeHalf(g.laySide, srcCur, W, H, false, true);
+    // held current page on the side we lay onto (under leaf2). No shadow on it —
+    // the visible cast shadow rides the LAYING leaf2 (see apply), like the cover.
+    g.static = makeHalf(g.laySide, srcCur, W, H, false);
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
@@ -168,7 +168,7 @@ window.PageCurl = (function () {
     cfg.afterRender(() => {
       if (!g) return;
       const srcNext = g.area.querySelector('.book-page'); if (!srcNext) return;
-      g.leaf2 = makeHalf(g.laySide, srcNext, W, H, true);   // next page's half, lays down
+      g.leaf2 = makeHalf(g.laySide, srcNext, W, H, true, true);   // next page's half, lays down (carries the cast shadow)
       g.leaf2.el.style.zIndex = '3'; g.leaf2.el.style.opacity = '0';
       g.wrap.appendChild(g.leaf2.el);
       apply(g.prog || 0);
@@ -206,22 +206,21 @@ window.PageCurl = (function () {
       g.revealShade.style.background = band(g.revealOuterDir, fRev, projW);
     }
 
-    // COVERED page (static, under leaf2): the dominant shadow — at leaf2's leading
-    // edge, projecting outward across the gap, darkening then fading to 0 as it seats.
-    if (g.static && g.static.gutter) {
-      let lay = 0;
-      if (g.leaf2) { const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)); lay = easeOut(p2); }
-      const projW = 0.15 + g.shadowProj * 0.75;   // higher projection → reaches the page's outer edge sooner
-      g.static.gutter.style.opacity = String(str * shape(lay));
-      g.static.gutter.style.background = band(g.static.outerDir, lay, projW);
-    }
-
-    // leaf2 lays 90→0 over the second half (ease-out gravity); top face lit — no shadow ON it
+    // leaf2 lays 90→0 over the second half (ease-out gravity)
     if (g.leaf2) {
       const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2), a2 = (1 - p2e) * 90;
       g.leaf2.setAngle(a2);
       g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
       g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 16) + 'px rgba(0,0,0,' + (0.06 + (1 - p2e) * 0.14) + ')';
+      // The DOMINANT cast shadow rides the LAYING leaf (fully visible, like the
+      // cover): dark at the spine, its reach growing toward the outer edge as it
+      // lays, darkening then fading to 0 as it seats flat (seamless). lay = p2e.
+      if (g.leaf2.gutter) {
+        const lay = p2e;
+        const ext = 25 + (40 + g.shadowProj * 55) * lay;   // reaches the far edge as it lays (projection)
+        g.leaf2.gutter.style.opacity = String(str * shape(lay));
+        g.leaf2.gutter.style.background = 'linear-gradient(' + g.leaf2.outerDir + ', rgba(0,0,0,' + MAXA + ') 0%, rgba(0,0,0,0) ' + Math.min(100, ext) + '%)';
+      }
     }
   }
 
