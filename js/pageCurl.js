@@ -16,7 +16,7 @@
 // arrow keys.
 // =====================================================================
 window.PageCurl = (function () {
-  let cfg = null, animating = false, g = null;
+  let cfg = null, animating = false, g = null, finishNow = null;
   const COMMIT = 0.35, FLICK = 0.4, START = 8, SENS = 0.6;   // SENS<1 = more responsive
 
   function init(c) { cfg = c; }
@@ -26,6 +26,7 @@ window.PageCurl = (function () {
   }
 
   function start(e, areaEl) {
+    if (animating && finishNow) finishNow();   // snap the previous turn done so this one can start immediately
     if (animating || g || !areaEl || !cfg) return;
     // Only bail on real form fields — NOT buttons/links. The toolbox page is mostly
     // buttons; swiping over one must still turn the page (a tap = no movement, so the
@@ -74,6 +75,7 @@ window.PageCurl = (function () {
   // destOverride: land on a specific page instead of ±1 (used to close the book
   // straight from a deep page to the cover, with the current page as the leaf).
   function animate(forward, destOverride) {
+    if (animating && finishNow) finishNow();   // snap previous → instant, so rapid arrow presses chain smoothly
     if (animating || g || !cfg) return;
     const area = document.querySelector('.page-area');
     if (!area) { forward ? cfg.goNext() : cfg.goPrev(); return; }
@@ -140,9 +142,10 @@ window.PageCurl = (function () {
     g.shadowProj = ps && ps.proj != null ? ps.proj : 0.55;
     g.revealedAmt = ps && ps.revealed != null ? ps.revealed : 0.25;
 
-    // held current page on the side we lay onto (under leaf2). No shadow on it —
-    // the visible cast shadow rides the LAYING leaf2 (see apply), like the cover.
-    g.static = makeHalf(g.laySide, srcCur, W, H, false);
+    // held current page on the side we lay onto (under leaf2). Its gutter carries
+    // the cast shadow leaf2 throws on it (the page being COVERED), visible in the
+    // shrinking gap ahead of leaf2's edge.
+    g.static = makeHalf(g.laySide, srcCur, W, H, false, true);
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
@@ -168,7 +171,7 @@ window.PageCurl = (function () {
     cfg.afterRender(() => {
       if (!g) return;
       const srcNext = g.area.querySelector('.book-page'); if (!srcNext) return;
-      g.leaf2 = makeHalf(g.laySide, srcNext, W, H, true, true);   // next page's half, lays down (carries the cast shadow)
+      g.leaf2 = makeHalf(g.laySide, srcNext, W, H, true);   // next page's half, lays down (no shadow ON it — shadow is on the page beneath)
       g.leaf2.el.style.zIndex = '3'; g.leaf2.el.style.opacity = '0';
       g.wrap.appendChild(g.leaf2.el);
       apply(g.prog || 0);
@@ -187,40 +190,39 @@ window.PageCurl = (function () {
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
     g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 16) + 'px rgba(0,0,0,' + (0.06 + p1 * 0.14) + ')';
 
-    // A contact-shadow band on the page BENEATH, sitting at the falling leaf's
-    // LEADING EDGE (edge = fraction covered from the spine) and projecting OUT into
-    // the still-visible gap. This is the only spot you actually SEE (the spine side
-    // is hidden under the leaf), which is why the old spine-anchored shadow was
-    // invisible. opacity is shaped to peak late then fade to 0 as it seats (seamless).
+    // Cast shadow lives on the page BENEATH the turning leaf, in the visible gap
+    // ahead of the leaf's leading edge — dark at the edge, projecting OUTWARD.
+    // (Never on the leaf itself; the leaf's lit top face shouldn't carry shadow.)
     const band = (dir, edge, projW) => {
-      const e = Math.max(0, Math.min(1, edge)) * 100, end = Math.min(100, edge * 100 + projW * 100);
+      const e = Math.max(0, Math.min(1, edge)) * 100, end = Math.min(100, e + projW * 100);
       return 'linear-gradient(' + dir + ', rgba(0,0,0,0) ' + Math.max(0, e - 1) + '%, rgba(0,0,0,' + MAXA + ') ' + e + '%, rgba(0,0,0,0) ' + end + '%)';
     };
-    const shape = (lay) => { const land = lay > 0.85 ? Math.max(0, 1 - (lay - 0.85) / 0.15) : 1; return gcurve(lay, g.shadowCurve) * land; };
+    const projW = 0.20 + g.shadowProj * 0.7;
 
-    // REVEALED page (under leaf1): small band at leaf1's edge, fades as it lifts away.
+    // REVEALED page (under leaf1): shadow is STRONG while leaf1 is low (still near
+    // the page) and FADES to nothing as leaf1 lifts to/past vertical. Band sits at
+    // leaf1's leading edge, in the gap the lifting leaf is uncovering.
     if (g.revealShade) {
-      const fRev = Math.cos(p1 * Math.PI / 2);   // leaf1 covers [spine, fRev]; 1→0 as it lifts
-      const projW = 0.12 + g.shadowProj * 0.45;
-      g.revealShade.style.opacity = String(str * g.revealedAmt * gcurve(fRev, g.shadowCurve));
-      g.revealShade.style.background = band(g.revealOuterDir, fRev, projW);
+      const edge1 = Math.cos(p1 * Math.PI / 2);   // leaf1 covers [spine, edge1]; 1 (flat) → 0 (vertical)
+      g.revealShade.style.opacity = String(str * g.revealedAmt * (1 - p1));
+      g.revealShade.style.background = band(g.revealOuterDir, edge1, projW);
     }
 
-    // leaf2 lays 90→0 over the second half (ease-out gravity)
+    // leaf2 lays 90→0 over the second half (its lit top face carries no shadow)
+    let lay2 = 0;
     if (g.leaf2) {
       const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2), a2 = (1 - p2e) * 90;
+      lay2 = p2e;
       g.leaf2.setAngle(a2);
       g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
       g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 16) + 'px rgba(0,0,0,' + (0.06 + (1 - p2e) * 0.14) + ')';
-      // The DOMINANT cast shadow rides the LAYING leaf (fully visible, like the
-      // cover): dark at the spine, its reach growing toward the outer edge as it
-      // lays, darkening then fading to 0 as it seats flat (seamless). lay = p2e.
-      if (g.leaf2.gutter) {
-        const lay = p2e;
-        const ext = 25 + (40 + g.shadowProj * 55) * lay;   // reaches the far edge as it lays (projection)
-        g.leaf2.gutter.style.opacity = String(str * shape(lay));
-        g.leaf2.gutter.style.background = 'linear-gradient(' + g.leaf2.outerDir + ', rgba(0,0,0,' + MAXA + ') 0%, rgba(0,0,0,0) ' + Math.min(100, ext) + '%)';
-      }
+    }
+    // COVERED page (static, under leaf2): shadow GROWS as leaf2 lays, in the gap
+    // ahead of leaf2's edge, decently dark just before leaf2 covers it entirely
+    // (then it's hidden by the leaf — no opacity pop).
+    if (g.static && g.static.gutter) {
+      g.static.gutter.style.opacity = String(str * gcurve(lay2, g.shadowCurve));
+      g.static.gutter.style.background = band(g.static.outerDir, lay2, projW);
     }
   }
 
@@ -234,16 +236,22 @@ window.PageCurl = (function () {
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = 520, t0 = performance.now();   // slower = easier to see the turn
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 340, t0 = performance.now();   // snappier; rapid turns feel responsive
     const dest = g.destIndex, orig = g.origIndex;
     const ease = (t) => 1 - Math.pow(1 - t, 3);
+    const done = () => {
+      if (!commit) cfg.setIndex(orig);
+      cleanup(); animating = false; finishNow = null;
+      if (cfg.afterTurn) cfg.afterTurn(commit ? dest : orig);   // let the app settle (e.g. close-book slide)
+    };
+    // Lets the NEXT swipe snap this one to its end instantly (no "lull" between turns).
+    finishNow = () => { apply(to); done(); };
     const step = (now) => {
+      if (!animating) return;
       const k = Math.min(1, (now - t0) / dur);
       apply(from + (to - from) * ease(k));
       if (k < 1) { requestAnimationFrame(step); return; }
-      if (!commit) cfg.setIndex(orig);
-      cleanup(); animating = false;
-      if (cfg.afterTurn) cfg.afterTurn(commit ? dest : orig);   // let the app settle (e.g. close-book slide)
+      done();
     };
     requestAnimationFrame(step);
   }

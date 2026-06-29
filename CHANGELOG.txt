@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.51 — 2026-06-28 — Page-turn shadow rebuilt on the pages beneath; snappier turns
+  • Rebuilt the page-turn shadow to match real book physics: the shadow is on the pages BENEATH the turning page (not on the turning page itself, which looked unnatural). As you lift a page, the page revealed underneath shows a shadow that fades away as the page rises past vertical. As a page lays down, it casts a growing shadow on the page beneath, darkest just before it's covered. Symmetric both directions.
+  • Bumped the default "revealed-page" shadow up so it's easier to see; tune all of it in the 🧪 panel (intensity / ramp / projection / revealed-page).
+  • Removed the lull between fast page turns: turns are quicker and a new swipe/arrow snaps the previous turn to its end instantly, so you can turn pages rapidly without a pause.
+  • Diagnostics tidy: removed the "shelf under cover" toggle (now always on) and the Replay button.
+
+--------------------------
 v0.9.50 — 2026-06-28 — Page shadow visible on ALL pages; one-swipe toolbox
   • Page cast shadow now actually shows on interior page turns. It was being drawn on the page UNDERNEATH the falling page (which the falling page immediately covers), so you never saw it. It now rides the falling page itself — same as the cover — dark near the spine, reaching further out as it lays, then fading to nothing as it seats. (Confirmed visible on a real image.)
   • Projection slider reaches further across the page beneath.

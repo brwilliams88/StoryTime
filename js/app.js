@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.50',
+      version: 'v0.9.51',
       buildDate: '2026-06-27',
 
       showSplash: true,
@@ -78,8 +78,8 @@ createApp({
         shadowStrength: 0.4,    // 0..1 peak intensity
         shadowCurve: 'late',    // ramp vs the page's lay progress: 'late' | 'later' | 'latest'
         shadowProj: 0.55,       // 0..1 — how far the shadow projects out from the spine as the page lays flat
-        revealedShadow: 0.25,   // 0..1 — small fading shadow on the page being REVEALED (0 = none)
-        closeShowShelf: true,   // on book-close, show the bookshelf under the closing cover instead of the dark stage
+        revealedShadow: 0.45,   // 0..1 — fading shadow on the page being REVEALED (0 = none)
+        closeShowShelf: true,   // FIXED ON (POR): book-close shows the real bookshelf under the closing cover
       },
 
       showSettings: false,
