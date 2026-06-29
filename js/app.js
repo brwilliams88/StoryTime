@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.51',
-      buildDate: '2026-06-27',
+      version: 'v0.9.52',
+      buildDate: '2026-06-29',
 
       showSplash: true,
 
@@ -73,12 +73,15 @@ createApp({
         edgeBase: 12,           // px = true board thickness T at the iPhone baseline short-side
         edgeRef: 390,           // baseline short-side (iPhone logical px)
         edgeScale: 1.2,         // thickness multiplier
-        // STILL EVALUATING — cast shadow the falling page throws on the page beneath:
+        // STILL EVALUATING — cast shadow the turning leaf throws on the page beneath.
+        // All transitions share the same model (js/pageShadow.js).
         pageShadow: true,       // master on/off
         shadowStrength: 0.4,    // 0..1 peak intensity
-        shadowCurve: 'late',    // ramp vs the page's lay progress: 'late' | 'later' | 'latest'
-        shadowProj: 0.55,       // 0..1 — how far the shadow projects out from the spine as the page lays flat
+        shadowCurve: 'x2.5',    // covered-page ramp: 'linear' | 'x2' | 'x2.5' | 'x3' (legacy: late/later/latest)
+        shadowProj: 0.55,       // 0..1 — how far the shadow projects past the leaf edge as it lays flat
         revealedShadow: 0.45,   // 0..1 — fading shadow on the page being REVEALED (0 = none)
+        shadowBlur: 0.25,       // 0..1 — softness (CSS blur) of the cast shadow
+        shadowDebug: false,     // colored debug overlay: blue=revealed, red=covered, purple=gutter
         closeShowShelf: true,   // FIXED ON (POR): book-close shows the real bookshelf under the closing cover
       },
 
@@ -435,7 +438,7 @@ createApp({
       const self = this;
       window.PageCurl.init({
         // moving cast shadow config (shared with the cover-open animation)
-        pageShadow: () => { const d = self.coverDiag; return { on: d.pageShadow, strength: d.shadowStrength != null ? d.shadowStrength : 0.4, curve: d.shadowCurve, proj: d.shadowProj != null ? d.shadowProj : 0.55, revealed: d.revealedShadow != null ? d.revealedShadow : 0.25 }; },
+        pageShadow: () => self._shadowOpts(),
         index: () => self.currentPageIndex,
         setIndex: (i) => {
           // A turn landing on the cover = closing the book: render the cover
@@ -1653,6 +1656,21 @@ createApp({
     // Built ENTIRELY from story DATA (cover + spread), so it works whether or
     // not the live cover is in the DOM (needed for the close, which fires from
     // the page-1 spread). Returns fx, or null if it can't build.
+    // Single source of truth for the shared cast-shadow diagnostics, passed to
+    // BOTH the page-curl engine and the cover-open/close animation so they ramp,
+    // project, soften, and debug-colour identically (js/pageShadow.js).
+    _shadowOpts() {
+      const d = this.coverDiag;
+      return {
+        on: d.pageShadow,
+        strength: d.shadowStrength != null ? d.shadowStrength : 0.4,
+        curve: d.shadowCurve,
+        proj: d.shadowProj != null ? d.shadowProj : 0.55,
+        revealed: d.revealedShadow != null ? d.revealedShadow : 0.45,
+        blur: d.shadowBlur != null ? d.shadowBlur : 0,
+        debug: !!d.shadowDebug,
+      };
+    },
     _coverFxBuild() {
       const area = document.querySelector('.page-area');
       const story = this.currentStory;
@@ -1779,8 +1797,16 @@ createApp({
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
       imageFace.appendChild(buildSpread());
       imageFace.appendChild(creaseStrip('image'));
-      const imgShadow = mkOverlay(gutterDark(false)); imageFace.appendChild(imgShadow);
       wrap.appendChild(imageFace);
+
+      // COVERED-page cast shadow for the laying image — on a layer BENEATH the
+      // image (NOT on the leaf's lit face), in the near half. Occluded by the
+      // image as it seats flat (shared pages-beneath model; styled live).
+      const imgShadow = document.createElement('div');
+      Object.assign(imgShadow.style, { position: 'absolute', pointerEvents: 'none', opacity: '0', zIndex: '1' });
+      if (portrait) Object.assign(imgShadow.style, { left: '0', top: '0', width: W + 'px', height: half + 'px' });
+      else Object.assign(imgShadow.style, { left: '0', top: '0', width: half + 'px', height: H + 'px' });
+      wrap.appendChild(imgShadow);
 
       const coverFace = document.createElement('div');
       Object.assign(coverFace.style, { position: 'absolute', zIndex: '3', backfaceVisibility: 'hidden' });
@@ -1862,23 +1888,36 @@ createApp({
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
 
-        // ---- moving cast shadow (same model as interior turns) ----
-        const cv = (x) => { x = Math.max(0, Math.min(1, x)); return d.shadowCurve === 'latest' ? Math.pow(x, 5) : d.shadowCurve === 'later' ? Math.pow(x, 3.5) : Math.pow(x, 2.5); };
-        // peak late then fade to 0 as the page seats flat → seamless landing (no pop)
-        const shp = (lay) => cv(lay) * (lay > 0.85 ? Math.max(0, 1 - (lay - 0.85) / 0.15) : 1);
-        const si = d.pageShadow ? (d.shadowStrength != null ? d.shadowStrength : 0.4) : 0;
-        const rev = d.revealedShadow != null ? d.revealedShadow : 0.25;
-        if (closing) {
-          // CLOSE: the image LIFTS off → cast shadow on the OPPOSITE text page
-          // (grows as the image lifts), none on the image; rides the sliding page.
-          textShadow.style.opacity = si ? String(si * cv(ang2 / 90)) : '0';
-          imgShadow.style.opacity = '0';
-        } else {
-          // OPEN: the laying image's shadow grows then fades to nothing as it lands
-          // (seamless); the revealing text gets a small fading shadow.
-          textShadow.style.opacity = (si && p <= 0.5) ? String(si * rev * cv(1 - e1)) : '0';
-          imgShadow.style.opacity  = (si && p > 0.5) ? String(si * shp(e2)) : '0';
-        }
+        // ---- moving cast shadow — SHARED model (js/pageShadow.js) ----------
+        // Cover geometry is spine-anchored (the book hinges at the centre), so we
+        // use the shared band()/ramp()/strength/blur/debug primitives directly —
+        // the only difference from interior turns is the anchor + motion (per the
+        // brief: "only difference should be the book translation/cover motion").
+        const PS = window.PageShadow, o = this._shadowOpts();
+        const str = o.on === false ? 0 : (o.strength != null ? o.strength : 0.4);
+        const rev = o.revealed != null ? o.revealed : 0.45;
+        const proj = 0.20 + Math.max(0, Math.min(1, o.proj != null ? o.proj : 0.55)) * 0.7;
+        const blur = PS ? PS.blurPx(o) : 0;
+        const filt = blur ? 'blur(' + blur + 'px)' : '';
+        const revRGB = o.debug ? PS.DBG.revealed : '0,0,0';   // blue
+        const covRGB = o.debug ? PS.DBG.covered : '0,0,0';    // red
+        // REVEALED text (far half): spine-anchored, strongest when barely open,
+        // fading to ~0 as the book opens flat. dir runs spine→outer.
+        const textDir = portrait ? 'to bottom' : 'to right';
+        const textOp = str * rev * PS.smoothstep(1 - e1);
+        textShadow.style.background = PS.band(textDir, 0, proj, revRGB);
+        textShadow.style.opacity = String(o.debug && str ? Math.max(textOp, 0.62 * PS.smoothstep(1 - e1) + 0.06) : textOp);
+        textShadow.style.filter = filt;
+        // COVERED image (near half, on the layer beneath the laying image): grows
+        // as the image seats via the ramp curve, occluded at flat. dir spine→outer.
+        const imgDir = portrait ? 'to top' : 'to left';
+        const lay = e2;                                 // 0 vertical → 1 flat
+        let imgOp = str * PS.ramp(lay, o.curve);
+        if (o.debug && str) imgOp = Math.max(imgOp, 0.62 * PS.ramp(lay, o.curve) + 0.06);
+        if (lay > 0.9) imgOp *= PS.smoothstep((1 - lay) / 0.1);
+        imgShadow.style.background = PS.band(imgDir, 0, proj, covRGB);
+        imgShadow.style.opacity = String(p > 0.5 || o.debug ? imgOp : 0);
+        imgShadow.style.filter = filt;
       };
 
       const fx = { p: 0, apply, raf: null, wrap, stage, setClosing: (v) => { closing = v; } };

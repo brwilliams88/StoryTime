@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.51" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.52" />
 </head>
 <body>
 
@@ -376,18 +376,22 @@
           <div v-if="diagMode && showCoverDiag" class="cover-diag-panel">
             <div class="cdg-title">Page cast shadow</div>
             <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.pageShadow"> Enabled</label>
+            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.shadowDebug"> 🎨 Debug colours (blue=revealed, red=covered)</label>
             <div class="cdg-slider">Intensity {{ Math.round(coverDiag.shadowStrength * 100) }}%
               <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowStrength"></div>
             <div class="cdg-row">
               <span style="opacity:.7;margin-right:4px;">Ramp</span>
-              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='late'}]" @click="coverDiag.shadowCurve='late'">late</button>
-              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='later'}]" @click="coverDiag.shadowCurve='later'">later</button>
-              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='latest'}]" @click="coverDiag.shadowCurve='latest'">latest</button>
+              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='linear'}]" @click="coverDiag.shadowCurve='linear'">linear</button>
+              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='x2'}]" @click="coverDiag.shadowCurve='x2'">x²</button>
+              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='x2.5'}]" @click="coverDiag.shadowCurve='x2.5'">x²·⁵</button>
+              <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='x3'}]" @click="coverDiag.shadowCurve='x3'">x³</button>
             </div>
             <div class="cdg-slider">Projection {{ Math.round(coverDiag.shadowProj * 100) }}%
               <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowProj"></div>
             <div class="cdg-slider">Revealed-page {{ Math.round(coverDiag.revealedShadow * 100) }}%
               <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.revealedShadow"></div>
+            <div class="cdg-slider">Softness {{ Math.round(coverDiag.shadowBlur * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowBlur"></div>
           </div>
 
           <div class="page-area"
@@ -1029,12 +1033,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.51"></script>
-  <script src="js/imageStorage.js?v=0.9.51"></script>
-  <script src="js/api.js?v=0.9.51"></script>
-  <script src="js/sync.js?v=0.9.51"></script>
-  <script src="js/pageCurl.js?v=0.9.51"></script>
-  <script src="js/app.js?v=0.9.51"></script>
+  <script src="js/storage.js?v=0.9.52"></script>
+  <script src="js/imageStorage.js?v=0.9.52"></script>
+  <script src="js/api.js?v=0.9.52"></script>
+  <script src="js/sync.js?v=0.9.52"></script>
+  <script src="js/pageShadow.js?v=0.9.52"></script>
+  <script src="js/pageCurl.js?v=0.9.52"></script>
+  <script src="js/app.js?v=0.9.52"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

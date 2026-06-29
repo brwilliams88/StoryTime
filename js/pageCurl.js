@@ -135,12 +135,9 @@ window.PageCurl = (function () {
     Object.assign(g.wrap.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: W + 'px', height: H + 'px', perspective: '1900px', pointerEvents: 'none', zIndex: 46 });
     document.body.appendChild(g.wrap);
 
-    // cast-shadow config (0 = off)
-    const ps = cfg.pageShadow ? cfg.pageShadow() : null;
-    g.shadowStr = (ps && ps.on) ? (ps.strength != null ? ps.strength : 0.4) : 0;
-    g.shadowCurve = (ps && ps.curve) || 'late';
-    g.shadowProj = ps && ps.proj != null ? ps.proj : 0.55;
-    g.revealedAmt = ps && ps.revealed != null ? ps.revealed : 0.25;
+    // cast-shadow config — the SHARED model (js/pageShadow.js) owns the physics.
+    // We just pass the diagnostics through; geometry (dirs/layers) is set below.
+    g.sh = cfg.pageShadow ? cfg.pageShadow() : { on: false };
 
     // held current page on the side we lay onto (under leaf2). Its gutter carries
     // the cast shadow leaf2 throws on it (the page being COVERED), visible in the
@@ -183,29 +180,22 @@ window.PageCurl = (function () {
 
   function apply(p) {
     if (!g || !g.leaf1) return;
-    const str = g.shadowStr, MAXA = 0.78;   // darkest the cast shadow ever gets (still readable)
+    const PS = window.PageShadow, sh = g.sh;
+    const blur = PS ? PS.blurPx(sh) : 0;
     // leaf1 lifts 0→90 over the first half (its top face is lit — no shadow ON it)
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
     g.leaf1.el.style.boxShadow = '0 0 ' + (5 + p1 * 16) + 'px rgba(0,0,0,' + (0.06 + p1 * 0.14) + ')';
 
-    // Cast shadow lives on the page BENEATH the turning leaf, in the visible gap
-    // ahead of the leaf's leading edge — dark at the edge, projecting OUTWARD.
-    // (Never on the leaf itself; the leaf's lit top face shouldn't carry shadow.)
-    const band = (dir, edge, projW) => {
-      const e = Math.max(0, Math.min(1, edge)) * 100, end = Math.min(100, e + projW * 100);
-      return 'linear-gradient(' + dir + ', rgba(0,0,0,0) ' + Math.max(0, e - 1) + '%, rgba(0,0,0,' + MAXA + ') ' + e + '%, rgba(0,0,0,0) ' + end + '%)';
-    };
-    const projW = 0.20 + g.shadowProj * 0.7;
-
-    // REVEALED page (under leaf1): shadow is STRONG while leaf1 is low (still near
-    // the page) and FADES to nothing as leaf1 lifts to/past vertical. Band sits at
-    // leaf1's leading edge, in the gap the lifting leaf is uncovering.
-    if (g.revealShade) {
-      const edge1 = Math.cos(p1 * Math.PI / 2);   // leaf1 covers [spine, edge1]; 1 (flat) → 0 (vertical)
-      g.revealShade.style.opacity = String(str * g.revealedAmt * (1 - p1));
-      g.revealShade.style.background = band(g.revealOuterDir, edge1, projW);
+    // Cast shadow lives on the page BENEATH the turning leaf (shared PageShadow
+    // model). Never on the leaf itself — its lit top face carries no shadow.
+    // REVEALED page (under leaf1): strong while leaf1 is low, fades by vertical.
+    if (g.revealShade && PS) {
+      const rs = PS.revealed(p1, g.revealOuterDir, sh);
+      g.revealShade.style.opacity = rs.opacity;
+      g.revealShade.style.background = rs.background;
+      g.revealShade.style.filter = blur ? 'blur(' + blur + 'px)' : '';
     }
 
     // leaf2 lays 90→0 over the second half (its lit top face carries no shadow)
@@ -217,21 +207,14 @@ window.PageCurl = (function () {
       g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
       g.leaf2.el.style.boxShadow = '0 0 ' + (5 + (1 - p2e) * 16) + 'px rgba(0,0,0,' + (0.06 + (1 - p2e) * 0.14) + ')';
     }
-    // COVERED page (static, under leaf2): shadow GROWS as leaf2 lays, in the gap
-    // ahead of leaf2's edge, decently dark just before leaf2 covers it entirely
-    // (then it's hidden by the leaf — no opacity pop).
-    if (g.static && g.static.gutter) {
-      g.static.gutter.style.opacity = String(str * gcurve(lay2, g.shadowCurve));
-      g.static.gutter.style.background = band(g.static.outerDir, lay2, projW);
+    // COVERED page (static, under leaf2): grows as leaf2 lays, strongest just
+    // before leaf2 covers it (then occluded — tail fade prevents any pop).
+    if (g.static && g.static.gutter && PS) {
+      const cs = PS.covered(lay2, g.static.outerDir, sh);
+      g.static.gutter.style.opacity = cs.opacity;
+      g.static.gutter.style.background = cs.background;
+      g.static.gutter.style.filter = blur ? 'blur(' + blur + 'px)' : '';
     }
-  }
-
-  // Shadow darkening curve vs the page's lay progress (x = 0 vertical → 1 flat).
-  // All ease in "late" so it stays subtle until the page is well past vertical:
-  //   late = x^2.5, later = x^3.5, latest = x^5.
-  function gcurve(x, mode) {
-    x = Math.max(0, Math.min(1, x));
-    return mode === 'latest' ? Math.pow(x, 5) : mode === 'later' ? Math.pow(x, 3.5) : Math.pow(x, 2.5);
   }
 
   function finish(commit) {
