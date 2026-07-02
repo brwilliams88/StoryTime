@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.55',
+      version: 'v0.9.56',
       buildDate: '2026-07-02',
 
       showSplash: true,
@@ -77,12 +77,13 @@ createApp({
         // shadow now (receiver + gutter layers removed v0.9.55). A thin page-edge
         // line + a soft one-sided shadow that trails the moving edge onto the page
         // beneath, flipping sides at 90°. Same on interior turns + cover + toolbox.
+        // LOCKED-IN POR (v0.9.56). Controls kept in 🧪 for future tuning.
         pageShadow: true,       // MASTER on/off
         shadowDebug: false,     // tint the shadow orange to check it's working
-        shadowCurve: 'linear',  // ramp flat→90°: 'linear' | 'x2' | 'x2.5' | 'x3'
-        edgeDarkness: 0.6,      // 0..1 shadow darkness/opacity
-        edgeReach: 0.35,        // 0..1 how far the shadow reaches past the edge (∝ page size)
-        edgeSoft: 0.35,         // 0..1 softness (blur) of the shadow
+        shadowCurve: 'linear',  // ramp flat→90°: 'linear' | 'x2' | 'x2.5' | 'x3' (linear is the POR)
+        edgeDarkness: 1.0,      // 0..1 shadow darkness/opacity
+        edgeReach: 0.25,        // 0..1 how far the shadow reaches past the edge (∝ page size)
+        edgeSoft: 0.25,         // 0..1 softness (blur) of the shadow
         closeShowShelf: true,   // FIXED ON (POR): book-close shows the real bookshelf under the closing cover
       },
 
@@ -1812,7 +1813,7 @@ createApp({
       Object.assign(coverEdgeShadow.style, { position: 'absolute', zIndex: '8', pointerEvents: 'none', opacity: '0' });
       wrap.appendChild(coverEdgeShadow);
       const coverEdgeLine = document.createElement('div');
-      Object.assign(coverEdgeLine.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: '0', background: 'rgba(45,45,45,0.9)' });
+      Object.assign(coverEdgeLine.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: '0', background: 'rgba(110,110,110,0.55)' });
       wrap.appendChild(coverEdgeLine);
 
       document.body.appendChild(wrap);

@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.56 — 2026-07-02 — Lock in edge shadow POR + slower page-flip
+  • Dialed-in the page-turn edge shadow: darkness 100%, reach 25%, softness 25%, linear ramp. Lightened the edge line so it's more subtle. The 🧪 controls stay in Diagnostics for future tuning.
+  • Slowed the page-flip (flick/arrow) animation back down to 590ms (~13% slower than the old 520ms; it had been sped up to 340ms). The rapid-turn interrupt is kept, so fast repeated turns still chain smoothly.
+
+--------------------------
 v0.9.55 — 2026-07-02 — Simple edge-following page-turn shadow (receiver + gutter removed)
   • Removed the receiver + gutter/crease shadow layers entirely (code + diagnostics). The page-turn shadow is now ONE simple thing, on every transition (interior turns, cover open/close, THE END↔toolbox):
       – a thin dark-grey LINE marking the turning page's edge, and

@@ -150,7 +150,7 @@ window.PageCurl = (function () {
     Object.assign(g.edgeShadow.style, { position: 'absolute', zIndex: '8', pointerEvents: 'none', opacity: 0 });
     g.wrap.appendChild(g.edgeShadow);
     g.edgeLine = document.createElement('div');
-    Object.assign(g.edgeLine.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: 0, background: 'rgba(45,45,45,0.9)' });
+    Object.assign(g.edgeLine.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: 0, background: 'rgba(110,110,110,0.55)' });
     g.wrap.appendChild(g.edgeLine);
 
     cfg.setIndex(g.destIndex);   // next spread renders live underneath
@@ -235,7 +235,8 @@ window.PageCurl = (function () {
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = 340, t0 = performance.now();   // snappier; rapid turns feel responsive
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 590, t0 = performance.now();   // ~13% slower than the old 520ms; finishNow() still lets rapid turns chain
+
     const dest = g.destIndex, orig = g.origIndex;
     const ease = (t) => 1 - Math.pow(1 - t, 3);
     const done = () => {
