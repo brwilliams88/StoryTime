@@ -235,7 +235,7 @@ window.PageCurl = (function () {
 
   function finish(commit) {
     animating = true;
-    const from = g.prog || 0, to = commit ? 1 : 0, dur = 590, t0 = performance.now();   // ~13% slower than the old 520ms; finishNow() still lets rapid turns chain
+    const from = g.prog || 0, to = commit ? 1 : 0, dur = 600, t0 = performance.now();   // finishNow() still lets rapid turns chain
 
     const dest = g.destIndex, orig = g.origIndex;
     const ease = (t) => 1 - Math.pow(1 - t, 3);

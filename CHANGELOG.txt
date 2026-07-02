@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.57 — 2026-07-03 — End-of-book 2-page spread + finger-following everywhere
+  • The last page → toolbox is now a real 2-page "back of the book" spread that turns with the same finger-following page-curl as every other page (with the centre crease + gutter shading). This also fixes the bug where the page just before the toolbox only responded to a flick, not finger-following.
+  • LEFT page = the story's colophon: cover thumbnail, title, author, summary, and details (genre, artwork style, length in pages + reading time, created date).
+  • RIGHT page = "The End" + a "Did you like this story?" star rating + actions: Read Again, Quiz Me, 🔗 Share Story (coming soon), Continue Story (coming soon), New Story, and a "Close book & return to library" link (same as the back arrow).
+  • Page-flip animation slowed to 600ms.
+
+--------------------------
 v0.9.56 — 2026-07-02 — Lock in edge shadow POR + slower page-flip
   • Dialed-in the page-turn edge shadow: darkness 100%, reach 25%, softness 25%, linear ramp. Lightened the edge line so it's more subtle. The 🧪 controls stay in Diagnostics for future tuning.
   • Slowed the page-flip (flick/arrow) animation back down to 590ms (~13% slower than the old 520ms; it had been sped up to 340ms). The rapid-turn interrupt is kept, so fast repeated turns still chain smoothly.

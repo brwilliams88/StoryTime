@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.56',
-      buildDate: '2026-07-02',
+      version: 'v0.9.57',
+      buildDate: '2026-07-03',
 
       showSplash: true,
 
@@ -428,6 +428,25 @@ createApp({
         month: 'long', day: 'numeric', year: 'numeric',
         hour: 'numeric', minute: '2-digit',
       });
+    },
+    // End-spread info labels (map the saved story's params → human labels).
+    _storyFormData() { return (this.currentStory && this.currentStory.formData) || {}; },
+    storyGenreLabel() {
+      const v = this._storyFormData.genre;
+      if (!v || v === 'surprise-me') return '';
+      const g = this.genresRaw.find(x => x.value === v);
+      return g ? (g.emoji ? g.emoji + ' ' : '') + g.label : '';
+    },
+    storyArtStyleLabel() {
+      const v = this.currentStory && (this.currentStory.art_style || this._storyFormData.artStyle);
+      if (!v || v === 'surprise-me') return '';
+      const a = this.artStylesRaw.find(x => x.value === v);
+      return a ? (a.emoji ? a.emoji + ' ' : '') + a.label : '';
+    },
+    storyReadTimeLabel() {
+      const v = this._storyFormData.length;
+      const l = this.lengths.find(x => x.value === v);
+      return l ? l.subtitle : '';
     },
   },
 
@@ -1517,53 +1536,19 @@ createApp({
     // other page goes straight to the page-curl engine.
     curlStart(e) {
       if (this.isOnCover || this.currentPageIndex === 1) { this._coverDown(e); return; }
-      // The last text page + toolbox use a ROBUST swipe→triggered-turn (not the
-      // finger-follow), which needs two swipes on touch because async work mid-
-      // gesture (image preload / heavy toolbox render) can drop touch events. A
-      // triggered animate runs to completion regardless, so one swipe always works.
-      const last = this.totalReadingPages - 1;
-      if (this.currentPageIndex >= last - 1) { this._sswDown(e); return; }
+      // Every other page — INCLUDING the last text page and the toolbox end-spread
+      // — uses the same finger-following page-curl engine. (The toolbox is now a
+      // real 2-page .book-page spread, so it clones/splits like any other page and
+      // no longer needs the old robust-flick special case.)
       if (window.PageCurl) window.PageCurl.start(e, e.currentTarget);
     },
     curlMove(e) {
       if (this._cg) { this._coverMoveGesture(e); return; }
-      if (this._ssw) { this._sswMove(e); return; }
       if (window.PageCurl) window.PageCurl.move(e);
     },
     curlEnd(e) {
       if (this._cg) { this._coverUpGesture(e); return; }
-      if (this._ssw) { this._sswUp(e); return; }
       if (window.PageCurl) window.PageCurl.end(e);
-    },
-    // Robust swipe for the toolbox/last-page boundary: detect the swipe, then play a
-    // TRIGGERED page-turn (animate) — immune to mid-gesture touch interruptions.
-    _sswDown(e) {
-      if (e.target.closest && e.target.closest('input, textarea, select')) return;
-      const p = this._coverPoint(e);
-      this._ssw = { x0: p.x, y0: p.y };
-      if (e.type === 'mousedown') {
-        this._ssw.mm = (ev) => this._sswMove(ev);
-        this._ssw.mu = (ev) => this._sswUp(ev);
-        document.addEventListener('mousemove', this._ssw.mm);
-        document.addEventListener('mouseup', this._ssw.mu);
-      }
-    },
-    _sswMove(e) {
-      const g = this._ssw; if (!g) return;
-      const p = this._coverPoint(e);
-      const prim = this.isPortrait ? p.y - g.y0 : p.x - g.x0;
-      if (Math.abs(prim) > 8 && e.cancelable) e.preventDefault();
-    },
-    _sswUp(e) {
-      const g = this._ssw; if (!g) return;
-      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
-      this._ssw = null;
-      const p = this._coverPoint(e);
-      const prim = this.isPortrait ? p.y - g.y0 : p.x - g.x0;
-      if (Math.abs(prim) < 45) { this.pokeReaderUi(); return; }   // tap, not a swipe
-      const forward = prim < 0;   // up (portrait) / left (landscape) = forward
-      if (window.PageCurl && window.PageCurl.animate) window.PageCurl.animate(forward);
-      else (forward ? this.nextPage() : this.prevPage());
     },
     _coverPoint(e) {
       const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
@@ -2011,6 +1996,9 @@ createApp({
 
     handleContinueStory() {
       alert('Continue Story is coming soon! This will let you make a Part 2 using the same characters and setting.');
+    },
+    handleShareStory() {
+      alert('Sharing is coming soon! You\'ll be able to send someone a private link to this story by text or email.');
     },
 
     openImageInspection(target) {

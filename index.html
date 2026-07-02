@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.56" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.57" />
 </head>
 <body>
 
@@ -369,7 +369,7 @@
           <div v-if="currentStoryPage" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageShortLabel }}</div>
 
           <!-- Persistent book binding down the centre (so it never pops in after a turn) -->
-          <div v-if="currentStoryPage || pageTurning" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
+          <div v-if="currentStoryPage || isOnStoryToolbox || pageTurning" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
 
           <!-- DEV: cover-edge diagnostic toggle + panel (gated on Diagnostics mode in Settings) -->
           <button v-if="diagMode" class="cover-diag-toggle" @click="showCoverDiag = !showCoverDiag" aria-label="Cover edge diagnostics">🧪</button>
@@ -472,33 +472,42 @@
               </div>
             </div>
 
-            <!-- ===== STORY TOOLBOX ===== -->
-            <div v-else-if="isOnStoryToolbox" class="book-page toolbox-page">
-              <div class="toolbox-header">
-                <div v-if="currentStory.cover.image_id && getImageURL(currentStory.cover.image_id)" class="toolbox-thumb">
+            <!-- ===== STORY END SPREAD (a real 2-page "back of the book") ===== -->
+            <div v-else-if="isOnStoryToolbox" class="book-page toolbox-spread" :class="{ portrait: isPortrait }">
+
+              <!-- LHS / TOP — colophon: cover, title, and story details -->
+              <div class="tb-info">
+                <div v-if="currentStory.cover.image_id && getImageURL(currentStory.cover.image_id)" class="tb-thumb">
                   <img :src="getImageURL(currentStory.cover.image_id)" alt="Cover" />
                 </div>
-                <h2 class="toolbox-title">{{ currentStory.title }}</h2>
+                <h2 class="tb-title">{{ currentStory.title }}</h2>
+                <div v-if="currentStory.created_by" class="tb-byline">by {{ currentStory.created_by }}</div>
+                <div v-if="currentStory.summary" class="tb-summary">"{{ currentStory.summary }}"</div>
+                <dl class="tb-facts">
+                  <div v-if="storyGenreLabel"><dt>Genre</dt><dd>{{ storyGenreLabel }}</dd></div>
+                  <div v-if="storyArtStyleLabel"><dt>Artwork</dt><dd>{{ storyArtStyleLabel }}</dd></div>
+                  <div><dt>Length</dt><dd>{{ totalStoryPages }} pages<span v-if="storyReadTimeLabel"> · {{ storyReadTimeLabel }} read</span></dd></div>
+                  <div v-if="formattedCreatedAt"><dt>Created</dt><dd>{{ formattedCreatedAt }}</dd></div>
+                </dl>
               </div>
-              <div v-if="currentStory.summary" class="toolbox-summary">"{{ currentStory.summary }}"</div>
-              <div class="toolbox-meta">{{ formattedCreatedAt }}</div>
 
-              <div v-if="currentStory.created_by" class="toolbox-by">
-                <span>By {{ currentStory.created_by }}</span>
-              </div>
-
-              <div class="toolbox-section">
-                <div class="rating-label">Rate this story</div>
-                <div class="rating-stars">
-                  <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
+              <!-- RHS / BOTTOM — the reader's "what next" panel -->
+              <div class="tb-panel">
+                <div class="tb-end">The End</div>
+                <div class="tb-rate">
+                  <div class="rating-label">Did you like this story?</div>
+                  <div class="rating-stars">
+                    <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
+                  </div>
                 </div>
-              </div>
-
-              <div class="toolbox-actions">
-                <button @click="readAgain" class="btn-secondary">Read Again</button>
-                <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">🧠 Quiz Me</button>
-                <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">Continue Story</button>
-                <button @click="handleNewStory" class="btn-primary">New Story</button>
+                <div class="tb-actions">
+                  <button @click="readAgain" class="btn-secondary">📖 Read Again</button>
+                  <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">🧠 Quiz Me</button>
+                  <button @click="handleShareStory" class="btn-secondary">🔗 Share Story</button>
+                  <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">➕ Continue Story</button>
+                  <button @click="handleNewStory" class="btn-primary">✨ New Story</button>
+                </div>
+                <button @click="closeBook" class="tb-close">Close book &amp; return to library ›</button>
               </div>
             </div>
 
@@ -1033,13 +1042,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.56"></script>
-  <script src="js/imageStorage.js?v=0.9.56"></script>
-  <script src="js/api.js?v=0.9.56"></script>
-  <script src="js/sync.js?v=0.9.56"></script>
-  <script src="js/pageShadow.js?v=0.9.56"></script>
-  <script src="js/pageCurl.js?v=0.9.56"></script>
-  <script src="js/app.js?v=0.9.56"></script>
+  <script src="js/storage.js?v=0.9.57"></script>
+  <script src="js/imageStorage.js?v=0.9.57"></script>
+  <script src="js/api.js?v=0.9.57"></script>
+  <script src="js/sync.js?v=0.9.57"></script>
+  <script src="js/pageShadow.js?v=0.9.57"></script>
+  <script src="js/pageCurl.js?v=0.9.57"></script>
+  <script src="js/app.js?v=0.9.57"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
