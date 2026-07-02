@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.52" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.53" />
 </head>
 <body>
 
@@ -374,24 +374,51 @@
           <!-- DEV: cover-edge diagnostic toggle + panel (gated on Diagnostics mode in Settings) -->
           <button v-if="diagMode" class="cover-diag-toggle" @click="showCoverDiag = !showCoverDiag" aria-label="Cover edge diagnostics">🧪</button>
           <div v-if="diagMode && showCoverDiag" class="cover-diag-panel">
-            <div class="cdg-title">Page cast shadow</div>
-            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.pageShadow"> Enabled</label>
-            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.shadowDebug"> 🎨 Debug colours (blue=revealed, red=covered)</label>
-            <div class="cdg-slider">Intensity {{ Math.round(coverDiag.shadowStrength * 100) }}%
-              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowStrength"></div>
+            <div class="cdg-title">Page-turn shadows</div>
+            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.pageShadow"> Enable all page shadows</label>
+            <label class="cdg-chk"><input type="checkbox" v-model="coverDiag.shadowDebug"> 🎨 Debug colours (orange=edge, blue=revealed, red=covered, purple=gutter)</label>
+
+            <div class="cdg-title" style="margin-top:8px;">Compare</div>
             <div class="cdg-row">
-              <span style="opacity:.7;margin-right:4px;">Ramp</span>
+              <button class="cdg-pill" @click="coverDiag.pageShadow=true;coverDiag.edgeOn=true;coverDiag.receiverOn=false;coverDiag.gutterOn=false">Edge only</button>
+              <button class="cdg-pill" @click="coverDiag.pageShadow=true;coverDiag.edgeOn=false;coverDiag.receiverOn=true;coverDiag.gutterOn=false">Receiver only</button>
+              <button class="cdg-pill" @click="coverDiag.pageShadow=true;coverDiag.edgeOn=false;coverDiag.receiverOn=false;coverDiag.gutterOn=true">Gutter only</button>
+            </div>
+            <div class="cdg-row">
+              <button class="cdg-pill" @click="coverDiag.pageShadow=true;coverDiag.edgeOn=true;coverDiag.receiverOn=true;coverDiag.gutterOn=false">Edge+Recv</button>
+              <button class="cdg-pill" @click="coverDiag.pageShadow=true;coverDiag.edgeOn=true;coverDiag.receiverOn=true;coverDiag.gutterOn=true">All on</button>
+              <button class="cdg-pill" @click="coverDiag.pageShadow=false">All off</button>
+            </div>
+
+            <div class="cdg-title" style="margin-top:8px;">Ramp curve</div>
+            <div class="cdg-row">
               <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='linear'}]" @click="coverDiag.shadowCurve='linear'">linear</button>
               <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='x2'}]" @click="coverDiag.shadowCurve='x2'">x²</button>
               <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='x2.5'}]" @click="coverDiag.shadowCurve='x2.5'">x²·⁵</button>
               <button :class="['cdg-pill',{on:coverDiag.shadowCurve==='x3'}]" @click="coverDiag.shadowCurve='x3'">x³</button>
             </div>
+
+            <label class="cdg-chk" style="margin-top:8px;"><input type="checkbox" v-model="coverDiag.edgeOn"> <b>A · Edge-following</b> 🟠</label>
+            <div class="cdg-slider">Edge strength {{ Math.round(coverDiag.edgeStrength * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.edgeStrength"></div>
+            <div class="cdg-slider">Edge width {{ Math.round(coverDiag.edgeWidth * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.edgeWidth"></div>
+            <div class="cdg-slider">Edge softness {{ Math.round(coverDiag.edgeBlur * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.edgeBlur"></div>
+
+            <label class="cdg-chk" style="margin-top:8px;"><input type="checkbox" v-model="coverDiag.receiverOn"> <b>B · Receiver</b> 🔵🔴</label>
+            <div class="cdg-slider">Receiver (covered) strength {{ Math.round(coverDiag.shadowStrength * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowStrength"></div>
+            <div class="cdg-slider">Revealed-page strength {{ Math.round(coverDiag.revealedShadow * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.revealedShadow"></div>
             <div class="cdg-slider">Projection {{ Math.round(coverDiag.shadowProj * 100) }}%
               <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowProj"></div>
-            <div class="cdg-slider">Revealed-page {{ Math.round(coverDiag.revealedShadow * 100) }}%
-              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.revealedShadow"></div>
-            <div class="cdg-slider">Softness {{ Math.round(coverDiag.shadowBlur * 100) }}%
+            <div class="cdg-slider">Receiver softness {{ Math.round(coverDiag.shadowBlur * 100) }}%
               <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.shadowBlur"></div>
+
+            <label class="cdg-chk" style="margin-top:8px;"><input type="checkbox" v-model="coverDiag.gutterOn"> <b>C · Gutter/crease</b> 🟣</label>
+            <div class="cdg-slider">Gutter strength {{ Math.round(coverDiag.gutterStrength * 100) }}%
+              <input type="range" min="0" max="1" step="0.05" v-model.number="coverDiag.gutterStrength"></div>
           </div>
 
           <div class="page-area"
@@ -1033,13 +1060,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.52"></script>
-  <script src="js/imageStorage.js?v=0.9.52"></script>
-  <script src="js/api.js?v=0.9.52"></script>
-  <script src="js/sync.js?v=0.9.52"></script>
-  <script src="js/pageShadow.js?v=0.9.52"></script>
-  <script src="js/pageCurl.js?v=0.9.52"></script>
-  <script src="js/app.js?v=0.9.52"></script>
+  <script src="js/storage.js?v=0.9.53"></script>
+  <script src="js/imageStorage.js?v=0.9.53"></script>
+  <script src="js/api.js?v=0.9.53"></script>
+  <script src="js/sync.js?v=0.9.53"></script>
+  <script src="js/pageShadow.js?v=0.9.53"></script>
+  <script src="js/pageCurl.js?v=0.9.53"></script>
+  <script src="js/app.js?v=0.9.53"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

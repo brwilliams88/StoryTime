@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.52',
-      buildDate: '2026-06-29',
+      version: 'v0.9.53',
+      buildDate: '2026-07-02',
 
       showSplash: true,
 
@@ -73,15 +73,26 @@ createApp({
         edgeBase: 12,           // px = true board thickness T at the iPhone baseline short-side
         edgeRef: 390,           // baseline short-side (iPhone logical px)
         edgeScale: 1.2,         // thickness multiplier
-        // STILL EVALUATING — cast shadow the turning leaf throws on the page beneath.
-        // All transitions share the same model (js/pageShadow.js).
-        pageShadow: true,       // master on/off
-        shadowStrength: 0.4,    // 0..1 peak intensity
-        shadowCurve: 'x2.5',    // covered-page ramp: 'linear' | 'x2' | 'x2.5' | 'x3' (legacy: late/later/latest)
-        shadowProj: 0.55,       // 0..1 — how far the shadow projects past the leaf edge as it lays flat
-        revealedShadow: 0.45,   // 0..1 — fading shadow on the page being REVEALED (0 = none)
-        shadowBlur: 0.25,       // 0..1 — softness (CSS blur) of the cast shadow
-        shadowDebug: false,     // colored debug overlay: blue=revealed, red=covered, purple=gutter
+        // STILL EVALUATING — page-turn shadow. THREE independently toggleable layers,
+        // shared across ALL transitions (js/pageShadow.js): A=edge-following (POR),
+        // B=receiver physical, C=gutter/crease.
+        pageShadow: true,       // MASTER on/off (all layers)
+        shadowCurve: 'x2.5',    // ramp: 'linear' | 'x2' | 'x2.5' | 'x3' (legacy: late/later/latest)
+        shadowDebug: false,     // colored debug overlay: orange=edge, blue=revealed, red=covered, purple=gutter
+        // A. edge-following contact shadow (hugs the moving page edge; on top, never occluded)
+        edgeOn: true,
+        edgeStrength: 0.6,      // 0..1 peak intensity near flat
+        edgeWidth: 0.15,        // 0..1 → strip width as a fraction of the half
+        edgeBlur: 0.3,          // 0..1 softness
+        // B. receiver physical shadow (cast on the page beneath the turning leaf)
+        receiverOn: true,
+        shadowStrength: 0.4,    // 0..1 covered-page intensity
+        shadowProj: 0.55,       // 0..1 projection distance past the leaf edge
+        shadowBlur: 0.25,       // 0..1 softness
+        revealedShadow: 0.45,   // 0..1 revealed-page (lift) intensity
+        // C. gutter/crease (constant subtle depth at the spine)
+        gutterOn: true,
+        gutterStrength: 0.28,   // 0..1
         closeShowShelf: true,   // FIXED ON (POR): book-close shows the real bookshelf under the closing cover
       },
 
@@ -1662,13 +1673,21 @@ createApp({
     _shadowOpts() {
       const d = this.coverDiag;
       return {
-        on: d.pageShadow,
+        on: d.pageShadow, curve: d.shadowCurve, debug: !!d.shadowDebug,
+        // A. edge-following
+        edgeOn: d.edgeOn !== false,
+        edgeStr: d.edgeStrength != null ? d.edgeStrength : 0.6,
+        edgeWidth: d.edgeWidth != null ? d.edgeWidth : 0.15,
+        edgeBlur: d.edgeBlur != null ? d.edgeBlur : 0.3,
+        // B. receiver
+        receiverOn: d.receiverOn !== false,
         strength: d.shadowStrength != null ? d.shadowStrength : 0.4,
-        curve: d.shadowCurve,
         proj: d.shadowProj != null ? d.shadowProj : 0.55,
         revealed: d.revealedShadow != null ? d.revealedShadow : 0.45,
         blur: d.shadowBlur != null ? d.shadowBlur : 0,
-        debug: !!d.shadowDebug,
+        // C. gutter
+        gutterOn: d.gutterOn !== false,
+        gutterStr: d.gutterStrength != null ? d.gutterStrength : 0.28,
       };
     },
     _coverFxBuild() {
@@ -1825,6 +1844,23 @@ createApp({
       else Object.assign(spineEdge.style, { top: '0', height: '100%' });
       wrap.appendChild(spineEdge);
 
+      // C. GUTTER/crease — constant subtle depth at the spine (z2, under the moving
+      // faces so it appears in the crease as the book opens). Styled live in apply().
+      const coverGutter = document.createElement('div');
+      Object.assign(coverGutter.style, { position: 'absolute', zIndex: '2', pointerEvents: 'none', opacity: '0' });
+      { const gW = Math.max(12, axisLen * 0.06);
+        if (portrait) Object.assign(coverGutter.style, { left: '0', width: W + 'px', height: gW + 'px', top: (center - gW / 2) + 'px' });
+        else Object.assign(coverGutter.style, { top: '0', height: H + 'px', width: gW + 'px', left: (center - gW / 2) + 'px' }); }
+      wrap.appendChild(coverGutter);
+
+      // A. EDGE-FOLLOWING contact shadow — hugs the free edge of the moving leaf,
+      // same model as interior turns. z9 = ABOVE everything so it's never occluded.
+      const coverEdge = document.createElement('div');
+      Object.assign(coverEdge.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: '0' });
+      if (portrait) Object.assign(coverEdge.style, { left: '0', width: '100%' });
+      else Object.assign(coverEdge.style, { top: '0', height: '100%' });
+      wrap.appendChild(coverEdge);
+
       document.body.appendChild(wrap);
 
       const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -1888,36 +1924,49 @@ createApp({
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
         spineEdge.style.opacity = th > 0.4 ? '1' : '0';
 
-        // ---- moving cast shadow — SHARED model (js/pageShadow.js) ----------
-        // Cover geometry is spine-anchored (the book hinges at the centre), so we
-        // use the shared band()/ramp()/strength/blur/debug primitives directly —
-        // the only difference from interior turns is the anchor + motion (per the
-        // brief: "only difference should be the book translation/cover motion").
+        // ==== SHARED 3-layer shadow model (js/pageShadow.js) ================
+        // Same model + diagnostics as interior turns; only the geometry differs.
         const PS = window.PageShadow, o = this._shadowOpts();
-        const str = o.on === false ? 0 : (o.strength != null ? o.strength : 0.4);
+        const across2 = portrait ? 'to bottom' : 'to right';
+
+        // ---- A. EDGE-FOLLOWING contact shadow (hugs the moving free edge) ----
+        // edgeAngle in 0..180: cover swing = ang (0→90); image lay = 180-ang2.
+        const edgeAngle = p <= 0.5 ? ang : (180 - ang);
+        const eOp = PS.edge(edgeAngle, o);
+        const ewpx = Math.max(6, PS.edgeWidthFrac(o) * half);
+        const eblur = PS.edgeBlurPx(o);
+        coverEdge.style.background = PS.edgeGradient(across2, o);
+        coverEdge.style.filter = eblur ? 'blur(' + eblur + 'px)' : '';
+        coverEdge.style.opacity = String(eOp);
+        if (portrait) { coverEdge.style.height = ewpx + 'px'; coverEdge.style.top = (edgePos - ewpx / 2) + 'px'; }
+        else { coverEdge.style.width = ewpx + 'px'; coverEdge.style.left = (edgePos - ewpx / 2) + 'px'; }
+
+        // ---- B. RECEIVER physical shadow (revealed text + covered image) ----
+        const recOn = PS.recOn(o);
+        const str = recOn ? (o.strength != null ? o.strength : 0.4) : 0;
         const rev = o.revealed != null ? o.revealed : 0.45;
         const proj = 0.20 + Math.max(0, Math.min(1, o.proj != null ? o.proj : 0.55)) * 0.7;
-        const blur = PS ? PS.blurPx(o) : 0;
-        const filt = blur ? 'blur(' + blur + 'px)' : '';
+        const filt = (PS.blurPx(o)) ? 'blur(' + PS.blurPx(o) + 'px)' : '';
         const revRGB = o.debug ? PS.DBG.revealed : '0,0,0';   // blue
         const covRGB = o.debug ? PS.DBG.covered : '0,0,0';    // red
-        // REVEALED text (far half): spine-anchored, strongest when barely open,
-        // fading to ~0 as the book opens flat. dir runs spine→outer.
-        const textDir = portrait ? 'to bottom' : 'to right';
-        const textOp = str * rev * PS.smoothstep(1 - e1);
+        const textDir = portrait ? 'to bottom' : 'to right';  // far/text half: spine→outer
+        let textOp = str * rev * PS.smoothstep(1 - e1);
+        if (o.debug && recOn) textOp = Math.max(textOp, 0.62 * PS.smoothstep(1 - e1) + 0.06);
         textShadow.style.background = PS.band(textDir, 0, proj, revRGB);
-        textShadow.style.opacity = String(o.debug && str ? Math.max(textOp, 0.62 * PS.smoothstep(1 - e1) + 0.06) : textOp);
+        textShadow.style.opacity = String(recOn ? textOp : 0);
         textShadow.style.filter = filt;
-        // COVERED image (near half, on the layer beneath the laying image): grows
-        // as the image seats via the ramp curve, occluded at flat. dir spine→outer.
-        const imgDir = portrait ? 'to top' : 'to left';
-        const lay = e2;                                 // 0 vertical → 1 flat
+        const imgDir = portrait ? 'to top' : 'to left';       // near/image half: spine→outer
+        const lay = e2;                                        // 0 vertical → 1 flat
         let imgOp = str * PS.ramp(lay, o.curve);
-        if (o.debug && str) imgOp = Math.max(imgOp, 0.62 * PS.ramp(lay, o.curve) + 0.06);
+        if (o.debug && recOn) imgOp = Math.max(imgOp, 0.62 * PS.ramp(lay, o.curve) + 0.06);
         if (lay > 0.9) imgOp *= PS.smoothstep((1 - lay) / 0.1);
         imgShadow.style.background = PS.band(imgDir, 0, proj, covRGB);
-        imgShadow.style.opacity = String(p > 0.5 || o.debug ? imgOp : 0);
+        imgShadow.style.opacity = String(recOn && (p > 0.5 || o.debug) ? imgOp : 0);
         imgShadow.style.filter = filt;
+
+        // ---- C. GUTTER/crease (constant subtle depth at the spine) ----
+        coverGutter.style.background = PS.gutterGradient(across2, o);
+        coverGutter.style.opacity = String(PS.gutter(o));
       };
 
       const fx = { p: 0, apply, raf: null, wrap, stage, setClosing: (v) => { closing = v; } };

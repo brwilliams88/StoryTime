@@ -9,6 +9,16 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.53 — 2026-07-02 — Three-layer page-turn shadow system (edge-following POR)
+  • Rebuilt page-turn shadows as THREE independently toggleable layers, shared identically across ALL transitions (interior turns, cover open/close, back-arrow close, THE END↔toolbox):
+      A · Edge-following contact shadow — a soft strip that HUGS the moving page edge and follows it across the turn. Drawn ON TOP so it's never hidden behind the page (this was the core reason interior shadows looked invisible before). Strongest as the page nears flat, softest at vertical. This is the primary effect / likely POR.
+      B · Receiver physical shadow — the turning page casts onto the page beneath (revealed fades as the page lifts; covered grows as it lays). Now realigned to the page's VISIBLE edge so it shows in the exposed strip instead of hiding under the page. Physically truthful but secondary.
+      C · Gutter/crease — constant subtle depth at the spine, independent of the turn.
+  • Diagnostics (🧪) rebuilt: master enable, 🎨 debug colours (orange=edge, blue=revealed, red=covered, purple=gutter), per-layer toggles, and one-tap Compare presets (Edge only / Receiver only / Gutter only / Edge+Recv / All on / All off). Per-layer sliders: edge strength/width/softness, receiver strength/revealed/projection/softness, gutter strength, plus the explicit ramp curve (linear / x² / x²·⁵ / x³).
+  • The cover now uses the SAME three layers as interior turns — the edge shadow no longer sits on the page face; only the book/cover motion differs.
+  • Verified each layer is unmistakably visible at 100% + debug in portrait & landscape, forward & backward, on picture and text pages, and on the cover.
+
+--------------------------
 v0.9.52 — 2026-06-29 — Unified page-turn shadow model + colored debug mode
   • Unified ALL page-turn shadows onto ONE shared model (new js/pageShadow.js). Interior turns, the cover open/close, the back-arrow close, and THE END↔toolbox now ramp, project, soften, and respond to the diagnostics identically — the only difference between them is the book/cover motion itself.
   • Cover open/close: removed the cast shadow that sat ON the laying image leaf (the unnatural-looking one) and moved it to a layer BENEATH the image, matching the pages-beneath model used everywhere else.
