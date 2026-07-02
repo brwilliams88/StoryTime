@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.53',
+      version: 'v0.9.54',
       buildDate: '2026-07-02',
 
       showSplash: true,
@@ -76,7 +76,9 @@ createApp({
         // STILL EVALUATING — page-turn shadow. THREE independently toggleable layers,
         // shared across ALL transitions (js/pageShadow.js): A=edge-following (POR),
         // B=receiver physical, C=gutter/crease.
-        pageShadow: true,       // MASTER on/off (all layers)
+        pageShadow: false,      // MASTER on/off (all layers). OFF by default as of v0.9.54 —
+                                // the shadow look wasn't good; code + 🧪 diagnostics kept for
+                                // revisiting edge-following later (flip on in the panel to tune).
         shadowCurve: 'x2.5',    // ramp: 'linear' | 'x2' | 'x2.5' | 'x3' (legacy: late/later/latest)
         shadowDebug: false,     // colored debug overlay: orange=edge, blue=revealed, red=covered, purple=gutter
         // A. edge-following contact shadow (hugs the moving page edge; on top, never occluded)

@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.54 — 2026-07-02 — Page-turn shadows OFF by default
+  • Turned the page-turn shadow system OFF by default (master switch). The v0.9.52–0.9.53 shadow look wasn't good, so page turns now render clean with no cast shadows. ALL the code + the 🧪 diagnostics panel are kept intact — flip "Enable all page shadows" back on in the panel to resume tuning (the edge-following layer is the one to revisit).
+  • No other behavior change. (Also served as a clean redeploy after a GitHub Pages platform incident on 2026-07-02 left the site unpublished.)
+
+--------------------------
 v0.9.53 — 2026-07-02 — Three-layer page-turn shadow system (edge-following POR)
   • Rebuilt page-turn shadows as THREE independently toggleable layers, shared identically across ALL transitions (interior turns, cover open/close, back-arrow close, THE END↔toolbox):
       A · Edge-following contact shadow — a soft strip that HUGS the moving page edge and follows it across the turn. Drawn ON TOP so it's never hidden behind the page (this was the core reason interior shadows looked invisible before). Strongest as the page nears flat, softest at vertical. This is the primary effect / likely POR.
