@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.55 — 2026-07-02 — Simple edge-following page-turn shadow (receiver + gutter removed)
+  • Removed the receiver + gutter/crease shadow layers entirely (code + diagnostics). The page-turn shadow is now ONE simple thing, on every transition (interior turns, cover open/close, THE END↔toolbox):
+      – a thin dark-grey LINE marking the turning page's edge, and
+      – a soft shadow on ONE side of that line, trailing the edge onto the page beneath. As the page rises the shadow dims + thins, vanishes at 90° (vertical), then reappears on the OTHER side of the line as the page lays down (reciprocal). The shadow is never drawn on the turning page itself — only on the exposed page it's trailing.
+  • Turned back ON by default (the master switch), since this is a much simpler, cleaner look.
+  • 🧪 diagnostics simplified to just this effect: Enable, Debug (orange tint), Darkness, Reach-past-edge (∝ page size), Softness, and the ramp curve (linear / x² / x²·⁵ / x³).
+  • Verified with a freeze-frame test server: shadow lands on the correct side, flips at 90°, never overlaps the turning page, in portrait + landscape, both directions, and on the cover.
+
+--------------------------
 v0.9.54 — 2026-07-02 — Page-turn shadows OFF by default
   • Turned the page-turn shadow system OFF by default (master switch). The v0.9.52–0.9.53 shadow look wasn't good, so page turns now render clean with no cast shadows. ALL the code + the 🧪 diagnostics panel are kept intact — flip "Enable all page shadows" back on in the panel to resume tuning (the edge-following layer is the one to revisit).
   • No other behavior change. (Also served as a clean redeploy after a GitHub Pages platform incident on 2026-07-02 left the site unpublished.)

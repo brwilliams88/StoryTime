@@ -96,7 +96,7 @@ window.PageCurl = (function () {
     return                        { box: [0, 0, W, H / 2],     off: [0, 0],      origin: '50% 100%', rot: a => 'rotateX(' + (-a) + 'deg)', outer: 'top' };
   }
 
-  function makeHalf(side, src, W, H, rotating, wantGutter) {
+  function makeHalf(side, src, W, H) {
     const gm = halfGeom(side, W, H);
     const el = document.createElement('div');
     Object.assign(el.style, {
@@ -107,19 +107,7 @@ window.PageCurl = (function () {
     clone.classList.add('pc-clone');   // suppresses the page-edge lines + crease on the moving leaf
     Object.assign(clone.style, { position: 'absolute', left: gm.off[0] + 'px', top: gm.off[1] + 'px', width: W + 'px', height: H + 'px', margin: 0 });
     el.appendChild(clone);
-    // direction from the SPINE (inner edge) toward the OUTER edge — used to build the
-    // cast-shadow gradient (dark at the spine, fading/projecting toward the outer edge).
-    const outerDir = 'to ' + gm.outer;
-    let gutter = null;
-    if (wantGutter) {
-      // The cast shadow the FALLING leaf throws on this (held/beneath) page. z-index
-      // ABOVE the picture (.image-frame is z-index:1) so it lands on the image, not
-      // just the blurred letterbox. Styled live in apply().
-      gutter = document.createElement('div');
-      Object.assign(gutter.style, { position: 'absolute', inset: 0, zIndex: '8', pointerEvents: 'none', opacity: 0 });
-      el.appendChild(gutter);
-    }
-    return { el, gm, gutter, outerDir, setAngle(a) { el.style.transform = gm.rot(a); } };
+    return { el, gm, setAngle(a) { el.style.transform = gm.rot(a); } };
   }
 
   function begin() {
@@ -144,54 +132,32 @@ window.PageCurl = (function () {
     // We just pass the diagnostics through; geometry (dirs/layers) is set below.
     g.sh = cfg.pageShadow ? cfg.pageShadow() : { on: false };
 
-    // held current page on the side we lay onto (under leaf2). Its gutter carries
-    // the cast shadow leaf2 throws on it (the page being COVERED), visible in the
-    // shrinking gap ahead of leaf2's edge.
-    g.static = makeHalf(g.laySide, srcCur, W, H, false, true);
+    // held current page on the side we lay onto — shown (beneath leaf2) in the
+    // exposed strip during the lay phase. Receives the edge shadow there.
+    g.static = makeHalf(g.laySide, srcCur, W, H);
     g.static.el.style.zIndex = '1';
     g.wrap.appendChild(g.static.el);
 
-    // (No crease here — the fixed .book-crease above this overlay carries the
-    // light, symmetric gutter at 90° on its own.)
-
-    // Cast shadow on the page being REVEALED (under leaf1, seen through the wrap).
-    // Fades as leaf1 lifts away. Sits over the live next-spread underneath.
-    {
-      const gm = halfGeom(g.turnSide, W, H);
-      g.revealShade = document.createElement('div');
-      Object.assign(g.revealShade.style, { position: 'absolute', left: gm.box[0] + 'px', top: gm.box[1] + 'px', width: gm.box[2] + 'px', height: gm.box[3] + 'px', zIndex: '2', pointerEvents: 'none', opacity: 0 });
-      g.revealOuterDir = 'to ' + gm.outer;
-      g.wrap.appendChild(g.revealShade);
-    }
-
-    // C. GUTTER/crease — constant subtle depth at the spine (z2, under the leaves).
-    g.gutterShade = document.createElement('div');
-    Object.assign(g.gutterShade.style, { position: 'absolute', zIndex: '2', pointerEvents: 'none', opacity: 0 });
-    {
-      const gW = Math.max(12, g.axisLen * 0.06);
-      if (horiz) Object.assign(g.gutterShade.style, { top: '0', height: H + 'px', width: gW + 'px', left: (g.center - gW / 2) + 'px' });
-      else Object.assign(g.gutterShade.style, { left: '0', width: W + 'px', height: gW + 'px', top: (g.center - gW / 2) + 'px' });
-    }
-    g.wrap.appendChild(g.gutterShade);
-
     // leaf1 = the current half we lift away
-    g.leaf1 = makeHalf(g.turnSide, srcCur, W, H, true);
+    g.leaf1 = makeHalf(g.turnSide, srcCur, W, H);
     g.leaf1.el.style.zIndex = '4';
     g.wrap.appendChild(g.leaf1.el);
 
-    // A. EDGE-FOLLOWING contact shadow — a soft strip that hugs the moving leaf's
-    // free edge. z9 = ABOVE the leaves so it's NEVER occluded (this is the POR).
-    g.edgeShade = document.createElement('div');
-    Object.assign(g.edgeShade.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: 0 });
-    if (horiz) Object.assign(g.edgeShade.style, { top: '0', height: H + 'px' });
-    else Object.assign(g.edgeShade.style, { left: '0', width: W + 'px' });
-    g.wrap.appendChild(g.edgeShade);
+    // EDGE shadow (soft, one-sided, trails the edge onto the page beneath) + the
+    // thin page-edge LINE. Both ride the moving edge; drawn on TOP (never on the
+    // turning leaf — the shadow only ever sits on the exposed side of the line).
+    g.edgeShadow = document.createElement('div');
+    Object.assign(g.edgeShadow.style, { position: 'absolute', zIndex: '8', pointerEvents: 'none', opacity: 0 });
+    g.wrap.appendChild(g.edgeShadow);
+    g.edgeLine = document.createElement('div');
+    Object.assign(g.edgeLine.style, { position: 'absolute', zIndex: '9', pointerEvents: 'none', opacity: 0, background: 'rgba(45,45,45,0.9)' });
+    g.wrap.appendChild(g.edgeLine);
 
     cfg.setIndex(g.destIndex);   // next spread renders live underneath
     cfg.afterRender(() => {
       if (!g) return;
       const srcNext = g.area.querySelector('.book-page'); if (!srcNext) return;
-      g.leaf2 = makeHalf(g.laySide, srcNext, W, H, true);   // next page's half, lays down (no shadow ON it — shadow is on the page beneath)
+      g.leaf2 = makeHalf(g.laySide, srcNext, W, H);   // next page's half, lays down
       g.leaf2.el.style.zIndex = '3'; g.leaf2.el.style.opacity = '0';
       g.wrap.appendChild(g.leaf2.el);
       apply(g.prog || 0);
@@ -213,64 +179,57 @@ window.PageCurl = (function () {
   function apply(p) {
     if (!g || !g.leaf1) return;
     const PS = window.PageShadow, sh = g.sh;
-    const blur = PS ? PS.blurPx(sh) : 0;
-    // leaf1 lifts 0→90 over the first half (its top face is lit — no shadow ON it)
+    const master = PS ? PS.masterOn(sh) : false;
+    // leaf1 lifts 0→90 over the first half; leaf2 lays 90→0 over the second.
     const p1 = Math.min(1, p / 0.5), a1 = p1 * 90;
-    const master = PS ? PS.masterOn(sh) : false;   // leaf drop-shadow follows the master switch
     g.leaf1.setAngle(a1);
     g.leaf1.el.style.opacity = p < 0.5 ? 1 : 0;
     g.leaf1.el.style.boxShadow = master ? '0 0 ' + (5 + p1 * 16) + 'px rgba(0,0,0,' + (0.06 + p1 * 0.14) + ')' : 'none';
-
-    // B. RECEIVER — cast on the page BENEATH the turning leaf (never on the leaf).
-    // REVEALED page (under leaf1): strong while leaf1 is low, fades by vertical.
-    // Band peak realigned to leaf1's VISIBLE edge so it sits in the exposed strip.
-    if (g.revealShade && PS) {
-      const frac1 = Math.min(1, Math.abs(projEdge(a1, g.turnSign) - g.center) / g.half);
-      const rs = PS.revealed(p1, g.revealOuterDir, sh, frac1);
-      g.revealShade.style.opacity = rs.opacity;
-      g.revealShade.style.background = rs.background;
-      g.revealShade.style.filter = blur ? 'blur(' + blur + 'px)' : '';
-    }
-
-    // leaf2 lays 90→0 over the second half (its lit top face carries no shadow)
-    let lay2 = 0, a2 = 90;
+    let a2 = 90;
     if (g.leaf2) {
       const p2 = Math.max(0, Math.min(1, (p - 0.5) / 0.5)), p2e = easeOut(p2); a2 = (1 - p2e) * 90;
-      lay2 = p2e;
       g.leaf2.setAngle(a2);
       g.leaf2.el.style.opacity = p >= 0.5 ? 1 : 0;
       g.leaf2.el.style.boxShadow = master ? '0 0 ' + (5 + (1 - p2e) * 16) + 'px rgba(0,0,0,' + (0.06 + (1 - p2e) * 0.14) + ')' : 'none';
     }
-    // COVERED page (static, under leaf2): grows as leaf2 lays. Band peak realigned
-    // to leaf2's VISIBLE edge → the shadow shows in the exposed strip ahead of it.
-    if (g.static && g.static.gutter && PS) {
-      const frac2 = Math.min(1, Math.abs(projEdge(a2, g.laySign) - g.center) / g.half);
-      const cs = PS.covered(lay2, g.static.outerDir, sh, frac2);
-      g.static.gutter.style.opacity = cs.opacity;
-      g.static.gutter.style.background = cs.background;
-      g.static.gutter.style.filter = blur ? 'blur(' + blur + 'px)' : '';
-    }
 
-    // ---- A. EDGE-FOLLOWING contact shadow (on top, follows the moving edge) ----
-    if (g.edgeShade && PS) {
-      // moving leaf = leaf1 while lifting (p<0.5), leaf2 while laying (p>=0.5).
-      let sign, angFromFlat, angle180;
-      if (p < 0.5) { sign = g.turnSign; angFromFlat = a1; angle180 = a1; }
-      else { sign = g.laySign; angFromFlat = a2; angle180 = 180 - a2; }
-      const pos = projEdge(angFromFlat, sign);
-      const wpx = Math.max(6, PS.edgeWidthFrac(sh) * g.half);
-      const eb = PS.edgeBlurPx(sh);
-      g.edgeShade.style.background = PS.edgeGradient(g.horiz ? 'to right' : 'to bottom', sh);
-      g.edgeShade.style.filter = eb ? 'blur(' + eb + 'px)' : '';
-      g.edgeShade.style.opacity = String(PS.edge(angle180, sh));
-      if (g.horiz) { g.edgeShade.style.width = wpx + 'px'; g.edgeShade.style.left = (pos - wpx / 2) + 'px'; }
-      else { g.edgeShade.style.height = wpx + 'px'; g.edgeShade.style.top = (pos - wpx / 2) + 'px'; }
+    // ---- EDGE-FOLLOWING: page-edge LINE + one-sided trailing SHADOW ----------
+    if (g.edgeLine && PS) {
+      // Moving edge: leaf1 while lifting (p<0.5), leaf2 while laying (p>=0.5).
+      // angle180 in the shared 0..180 model; movingSign locates the edge on its side.
+      const movingSign = p < 0.5 ? g.turnSign : g.laySign;
+      const angFromFlat = p < 0.5 ? a1 : a2;
+      const angle180 = p < 0.5 ? a1 : 180 - a2;
+      const pos = projEdge(angFromFlat, movingSign);
+      // Shadow projects OUTWARD from the spine → flips sides at 90° automatically.
+      const outSign = pos >= g.center ? 1 : -1;
+      const outerPos = g.center + outSign * g.half;                 // page edge on that side
+      let reach = PS.shadowReachPx(angle180, sh, g.half);
+      reach = Math.max(0, Math.min(reach, Math.abs(outerPos - pos)));  // stay on the exposed strip
+      const op = PS.shadowOpacity(angle180, sh);
+      const soft = PS.softPx(sh);
+      edgeStrip(g.edgeShadow, pos, outSign, reach, g.horiz, g.W, g.H);
+      g.edgeShadow.style.background = PS.shadowGradient(
+        g.horiz ? (outSign > 0 ? 'to right' : 'to left') : (outSign > 0 ? 'to bottom' : 'to top'), sh);
+      g.edgeShadow.style.opacity = String(op);
+      g.edgeShadow.style.filter = soft ? 'blur(' + soft + 'px)' : '';
+      // the thin page-edge line, centred on the edge
+      const lw = 1.6;
+      if (g.horiz) { g.edgeLine.style.left = (pos - lw / 2) + 'px'; g.edgeLine.style.width = lw + 'px'; g.edgeLine.style.top = '0'; g.edgeLine.style.height = g.H + 'px'; }
+      else { g.edgeLine.style.top = (pos - lw / 2) + 'px'; g.edgeLine.style.height = lw + 'px'; g.edgeLine.style.left = '0'; g.edgeLine.style.width = g.W + 'px'; }
+      g.edgeLine.style.opacity = String(PS.lineOpacity(angle180, sh));
     }
+  }
 
-    // ---- C. GUTTER/crease (constant subtle depth at the spine) ----
-    if (g.gutterShade && PS) {
-      g.gutterShade.style.background = PS.gutterGradient(g.horiz ? 'to right' : 'to bottom', sh);
-      g.gutterShade.style.opacity = String(PS.gutter(sh));
+  // position/size a shadow strip that starts at the edge `pos` and reaches
+  // `reach` px outward in `outSign`, spanning the cross-axis.
+  function edgeStrip(el, pos, outSign, reach, horiz, W, H) {
+    if (horiz) {
+      el.style.top = '0'; el.style.height = H + 'px';
+      el.style.left = (outSign > 0 ? pos : pos - reach) + 'px'; el.style.width = reach + 'px';
+    } else {
+      el.style.left = '0'; el.style.width = W + 'px';
+      el.style.top = (outSign > 0 ? pos : pos - reach) + 'px'; el.style.height = reach + 'px';
     }
   }
 
