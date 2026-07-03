@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.61 — 2026-07-03 — Shelf-open animation fix + end-spread + cover-shadow polish
+  • Fixed tapping a shelf book so it actually PLAYS the grow-from-the-shelf animation (before it just jumped to a centred book) — the book now morphs up from its slot into the reading view, the reverse of the close-to-shelf animation.
+  • The cover ⓘ ("open to the back") now opens to blank pages and lands on the end-spread, instead of flashing page-1's content and then jumping.
+  • Cover-open shadow: back to projecting outward (as it was), now clipped to the visible pages so it can never show on the background.
+  • End-spread: added breathing room on the left page (title/summary/facts), summary text a touch smaller and everything scales with screen size; genre/artwork show their emoji again; Share now uses a link icon.
+
+--------------------------
 v0.9.60 — 2026-07-03 — Tap-to-open books (shelf morph), end-spread as an inner cover, cover-shadow fix
   • Library: tapping a book no longer opens a popup — it goes STRAIGHT into the reading view, with the book growing up out of its shelf slot to screen centre (the reverse of the close-to-shelf animation). The old book-detail modal is gone.
   • Since that info modal is gone, the cover now has a small ⓘ button (top-right, opposite the back arrow) that flips straight to the back of the book (its info + rating spread). It fades with the other controls and comes back on tap.

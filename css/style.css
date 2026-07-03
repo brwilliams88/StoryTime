@@ -1835,16 +1835,16 @@ body:has(.app-main-reading) {
 .tb-locked { pointer-events: none; }
 
 /* LHS/top — colophon: compact header (thumb + title/byline), summary, tag row */
-.tb-info { align-items: center; text-align: center; justify-content: center; gap: clamp(0.4rem, 1.6vh, 0.8rem); }
-.tb-head { display: flex; align-items: center; gap: clamp(0.55rem, 2vw, 0.9rem); max-width: 100%; }
-.tb-thumb { width: clamp(52px, 9vh, 76px); height: clamp(52px, 9vh, 76px); border-radius: 7px; overflow: hidden; box-shadow: 0 3px 12px rgba(0,0,0,0.35); flex-shrink: 0; }
+.tb-info { align-items: center; text-align: center; justify-content: center; gap: clamp(0.7rem, 2.6vh, 1.5rem); }
+.tb-head { display: flex; align-items: center; gap: clamp(0.55rem, 2vw, 0.95rem); max-width: 100%; }
+.tb-thumb { width: clamp(50px, 8.5vh, 82px); height: clamp(50px, 8.5vh, 82px); border-radius: 7px; overflow: hidden; box-shadow: 0 3px 12px rgba(0,0,0,0.35); flex-shrink: 0; }
 .tb-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .tb-headtext { text-align: left; min-width: 0; }
-.tb-title { font-size: clamp(1.02rem, 3.2vw, 1.32rem); font-weight: 700; line-height: 1.18; margin: 0; color: var(--ink); }
-.tb-byline { font-size: clamp(0.74rem, 1.9vw, 0.86rem); color: var(--ink-dim); font-style: italic; margin-top: 0.18rem; }
+.tb-title { font-size: clamp(1.02rem, 3.2vw, 1.4rem); font-weight: 700; line-height: 1.18; margin: 0; color: var(--ink); }
+.tb-byline { font-size: clamp(0.72rem, 1.8vw, 0.88rem); color: var(--ink-dim); font-style: italic; margin-top: 0.22rem; }
 .tb-summary {
-  font-size: clamp(0.82rem, 2.4vw, 0.98rem); line-height: 1.45; color: var(--ink);
-  font-style: italic; margin: 0; max-width: 40ch;
+  font-size: clamp(0.76rem, 2.1vw, 0.96rem); line-height: 1.45; color: var(--ink);
+  font-style: italic; margin: 0; max-width: 42ch;
   display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* labeled facts with small-caps labels (book-colophon feel) */
