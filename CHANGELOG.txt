@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.62 — 2026-07-03 — End-spread bubble reads "About"; redeploy
+  • End-spread page bubble now says "About" instead of "End".
+  • Reverted the cover-ⓘ blank-pages open (opening straight to the real end-spread content during the cover-open is a bigger animation change, deferred).
+  • No functional change otherwise — mainly a fresh commit to re-trigger the GitHub Pages deploy after GitHub's repeated Pages-backend failures.
+
+--------------------------
 v0.9.61 — 2026-07-03 — Shelf-open animation fix + end-spread + cover-shadow polish
   • Fixed tapping a shelf book so it actually PLAYS the grow-from-the-shelf animation (before it just jumped to a centred book) — the book now morphs up from its slot into the reading view, the reverse of the close-to-shelf animation.
   • The cover ⓘ ("open to the back") now opens to blank pages and lands on the end-spread, instead of flashing page-1's content and then jumping.

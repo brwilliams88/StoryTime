@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.61',
+      version: 'v0.9.62',
       buildDate: '2026-07-03',
 
       showSplash: true,
@@ -413,7 +413,7 @@ createApp({
     pageCounterLabel() {
       if (!this.currentStory) return '';
       if (this.isOnCover) return 'Cover';
-      if (this.isOnStoryToolbox) return 'End';
+      if (this.isOnStoryToolbox) return 'About';
       return `Page ${this.currentPageIndex} of ${this.totalStoryPages}`;
     },
     // Short form for the floating indicator, e.g. "2/9"
@@ -1693,11 +1693,8 @@ createApp({
         im.src = url;
       };
 
-      // Opening straight to the back (cover ⓘ) reveals blank pages, then lands on
-      // the live end-spread — so it never flashes page-1's content mid-open.
-      const toBack = !!this._openToBack;
-      const pg = toBack ? {} : ((story.pages && story.pages[0]) || {});
-      const imgUrl = toBack ? null : this.getImageURL(pg.image_id);
+      const pg = (story.pages && story.pages[0]) || {};
+      const imgUrl = this.getImageURL(pg.image_id);
       const buildSpread = () => {
         const sp = document.createElement('div');
         sp.className = 'book-page story-spread' + (portrait ? ' portrait' : '');
