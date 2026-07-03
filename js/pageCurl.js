@@ -28,34 +28,18 @@ window.PageCurl = (function () {
   function start(e, areaEl) {
     if (animating && finishNow) finishNow();   // snap the previous turn done so this one can start immediately
     if (animating || g || !areaEl || !cfg) return;
-    // Only bail on real form fields — NOT buttons/links. The toolbox page is mostly
-    // buttons; swiping over one must still turn the page (a tap = no movement, so the
-    // turn never starts and the click still fires). This is the iOS two-swipe fix.
-    if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    // Don't start a page-turn when the touch lands on an interactive control
+    // (buttons/links/stars/fields). Those handle their own tap; starting a curl
+    // here would preventDefault the click (so the FIRST tap "did nothing"). Swipes
+    // to turn the page use the non-button areas (the whole info half, gaps, etc.).
+    if (e.target.closest && e.target.closest('input, textarea, select, button, a, [role="button"]')) return;
     const p = point(e);
-    g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false };
-    if (e.type === 'mousedown') {
-      g.mm = (ev) => move(ev); g.mu = (ev) => end(ev);
-      document.addEventListener('mousemove', g.mm); document.addEventListener('mouseup', g.mu);
-    } else {
-      // TOUCH: also drive the turn from DOCUMENT-level listeners. iOS stops
-      // delivering touch events to an element once it's removed from the DOM —
-      // which happens the instant setIndex() swaps the story spread for the
-      // toolbox spread (a different v-if branch → full subtree teardown). The
-      // page-area's own @touchmove then goes silent and the first swipe "dies".
-      // Document listeners keep firing regardless of what's torn down beneath the
-      // finger. (move() de-dupes the shared event so the page-area handler +
-      // these don't double-process.)
-      g.tm = (ev) => move(ev); g.te = (ev) => end(ev);
-      document.addEventListener('touchmove', g.tm, { passive: false });
-      document.addEventListener('touchend', g.te);
-      document.addEventListener('touchcancel', g.te);
-    }
+    g = { area: areaEl, x0: p.x, y0: p.y, t0: Date.now(), axis: cfg.isPortrait() ? 'y' : 'x', started: false,
+          pointerId: (e.pointerId != null ? e.pointerId : null) };
   }
 
   function move(e) {
     if (!g || animating) return;
-    if (g._le === e) return; g._le = e;   // de-dupe: page-area + document both deliver the same event
     const p = point(e);
     const dx = p.x - g.x0, dy = p.y - g.y0;
     const primary = g.axis === 'x' ? dx : dy, cross = g.axis === 'x' ? dy : dx;
@@ -69,6 +53,12 @@ window.PageCurl = (function () {
       if (!(g.forward ? cfg.canNext() : cfg.canPrev())) { cleanup(); return; }
       g.started = true;
       g.dim = g.axis === 'x' ? g.area.clientWidth : g.area.clientHeight;
+      // Capture the pointer to .page-area BEFORE begin() swaps the live page.
+      // iOS otherwise CANCELS the touch the instant setIndex() tears down the
+      // element under the finger (story spread → toolbox spread is a different
+      // v-if branch), which is why the first swipe "died". A captured pointer
+      // keeps delivering move/up to .page-area no matter what's removed beneath.
+      if (g.pointerId != null && g.area.setPointerCapture) { try { g.area.setPointerCapture(g.pointerId); } catch (_) {} }
       if (!safeBegin()) { commitInstant(); return; }
     }
     if (e.cancelable) e.preventDefault();
@@ -273,11 +263,8 @@ window.PageCurl = (function () {
   function cleanup() {
     if (g) {
       if (g.wrap && g.wrap.parentNode) g.wrap.parentNode.removeChild(g.wrap);
-      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
-      if (g.tm) {
-        document.removeEventListener('touchmove', g.tm, { passive: false });
-        document.removeEventListener('touchend', g.te);
-        document.removeEventListener('touchcancel', g.te);
+      if (g.pointerId != null && g.area && g.area.releasePointerCapture) {
+        try { g.area.releasePointerCapture(g.pointerId); } catch (_) {}
       }
     }
     g = null;

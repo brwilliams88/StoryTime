@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.59 — 2026-07-03 — Pointer-events page turns (real swipe-twice fix) + end-spread polish
+  • REAL fix for the "swipe once does nothing, swipe again works" bug at the last-page ↔ end-spread boundary: the reader now uses Pointer Events with pointer capture. When a drag starts, the pointer is "captured" to the page area, so iOS keeps sending move/up events even when it tears down the page under your finger (the story→end-spread swap). Finger-following now works first-try, both directions. (Applies to cover open/close and all interior turns too.)
+  • Tapping a button/star on the end-spread now works on the FIRST tap — a tap on a control no longer starts a page-turn (which was eating the click and popping up the arrow). Tap-to-show-controls still works everywhere except on the buttons.
+  • Read Again now plays the book-close animation back to the (centred) cover and stops there — ready to re-read from the title, same as opening from the library.
+  • End-spread compacted so nothing gets cut off: cover + title + "Created by X on <date>" as a tight header, the full summary (up to ~6 lines), and genre/artwork/length collapsed into small tag pills. Removed the New Story button (make a new story from the library). "Close Book" is a full-width button.
+  • Removed the "By {author}" line from the book COVER — the cover now shows just the title (bigger); the author now appears on the end-spread as "Created by {author} on {date} at {time}".
+  • Edge shadow darker by default (125%) with the 🧪 slider up to 200%.
+
+--------------------------
 v0.9.58 — 2026-07-03 — End-spread polish + iOS finger-follow fix + darker edge shadow
   • Fixed the "first swipe does nothing" bug on the last-page ↔ end-spread boundary: the page-turn now also listens for touch on the document, so the gesture survives iOS tearing down the old page's DOM mid-turn (which was silencing touch events). Finger-following now works to AND from the end-spread on the first try.
   • End-spread now fits an iPhone (portrait AND landscape) without cutting off: compact 2-column button grid, responsive font sizes, summary capped at 4 lines.

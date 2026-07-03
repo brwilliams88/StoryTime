@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.58',
+      version: 'v0.9.59',
       buildDate: '2026-07-03',
 
       showSplash: true,
@@ -454,6 +454,16 @@ createApp({
       const v = this._storyFormData.length;
       const l = this.lengths.find(x => x.value === v);
       return l ? l.subtitle.replace('~', 'about ') : '';
+    },
+    // e.g. "Created by Kai on June 29 at 9:01pm"
+    createdByLine() {
+      const s = this.currentStory; if (!s) return '';
+      const who = s.created_by ? `Created by ${s.created_by}` : 'Created';
+      if (!s.createdAt) return who;
+      const d = new Date(s.createdAt);
+      const date = d.toLocaleString('en-US', { month: 'long', day: 'numeric' });
+      const time = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '');
+      return `${who} on ${date} at ${time}`;
     },
   },
 
@@ -1567,13 +1577,8 @@ createApp({
       const area = (e.currentTarget && e.currentTarget.classList && e.currentTarget.classList.contains('page-area'))
         ? e.currentTarget : (e.target.closest && e.target.closest('.page-area'));
       this._cg = { x0: p.x, y0: p.y, axis: this.isPortrait ? 'y' : 'x', primary: 0, started: false,
-                   mode: this.isOnCover ? 'open' : 'close', startEvt: e, area, dir: null };
-      if (e.type === 'mousedown') {
-        this._cg.mm = (ev) => this._coverMoveGesture(ev);
-        this._cg.mu = (ev) => this._coverUpGesture(ev);
-        document.addEventListener('mousemove', this._cg.mm);
-        document.addEventListener('mouseup', this._cg.mu);
-      }
+                   mode: this.isOnCover ? 'open' : 'close', startEvt: e, area, dir: null,
+                   pointerId: (e.pointerId != null ? e.pointerId : null) };
     },
     _coverMoveGesture(e) {
       const g = this._cg; if (!g) return;
@@ -1585,6 +1590,9 @@ createApp({
       if (Math.abs(primary) > 8 && e.cancelable) e.preventDefault();
       if (!g.started) {
         if (Math.abs(primary) < 8) return;
+        // Capture the pointer so a finger-driven cover open/close survives any DOM
+        // swap under the finger (same fix as the page-curl).
+        if (g.pointerId != null && g.area && g.area.setPointerCapture) { try { g.area.setPointerCapture(g.pointerId); } catch (_) {} }
         if (g.mode === 'open') {
           if (primary >= 0) return;          // need a forward (open) drag
           g.started = true; g.dir = 'cover';
@@ -1596,7 +1604,7 @@ createApp({
             this.coverClose(false);           // build at p=1, finger-driven (no auto-play)
           } else {                            // forward = turn to page 2 → hand to the curl engine
             g.dir = 'curl';
-            if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+            if (g.pointerId != null && g.area && g.area.releasePointerCapture) { try { g.area.releasePointerCapture(g.pointerId); } catch (_) {} }
             this._cg = null;
             if (window.PageCurl) { window.PageCurl.start(g.startEvt, g.area); window.PageCurl.move(e); }
             return;
@@ -1613,7 +1621,7 @@ createApp({
     },
     _coverUpGesture() {
       const g = this._cg; if (!g) return;
-      if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+      if (g.pointerId != null && g.area && g.area.releasePointerCapture) { try { g.area.releasePointerCapture(g.pointerId); } catch (_) {} }
       this._cg = null;
       if (!g.started) { this.pokeReaderUi(); return; }       // tap → reveal controls
       if (g.dir !== 'cover' || !this._coverFx) { this._coverAnim = false; return; }
@@ -1725,7 +1733,6 @@ createApp({
         const pt = document.createElement('span'); pt.className = 'cover-plate-text'; pt.textContent = story.title || '';
         plate.appendChild(pt);
         cf.appendChild(art); cf.appendChild(plate);
-        if (story.created_by) { const by = document.createElement('div'); by.className = 'cover-byline'; by.textContent = 'By ' + story.created_by; cf.appendChild(by); }
         cb.appendChild(cf);
         return cb;
       };
@@ -1953,9 +1960,20 @@ createApp({
       clearTimeout(this._readerUiT);
       this._readerUiT = setTimeout(() => { this.readerUiShow = false; }, 3200);
     },
+    // Read Again = play the book-CLOSE animation back to the (centred) cover and
+    // stop there, ready to re-open — the same rest state as opening from the
+    // library. (Like the back arrow, but it does NOT continue to the shelf.)
     readAgain() {
-      this.currentPageIndex = 0;
+      if (this._coverAnim) return;
       window.scrollTo(0, 0);
+      if (this.isOnCover) { this.pokeReaderUi(); return; }
+      const fx = this._coverFxBuild();
+      if (!fx) { this.coverShift = false; this.currentPageIndex = 0; this.pokeReaderUi(); return; }
+      this._coverAnim = true;
+      this.coverShift = false;      // land on the full centred cover, not the book-in-half pose
+      fx.setClosing(true);
+      fx.p = 1; fx.apply(1);
+      this._coverAnimateTo(0);      // animate closed → currentPageIndex 0, overlay removed
     },
 
     // Swipe gestures — orientation-aware
