@@ -21,7 +21,7 @@
 // model now.)
 // =====================================================================
 window.PageShadow = (function () {
-  const MAXA = 0.85;                                   // darkest the shadow gets at the line
+  const MAXA = 0.92;                                   // darkest the shadow gets at the line
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
   const smoothstep = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 

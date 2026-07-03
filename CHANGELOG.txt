@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.58 — 2026-07-03 — End-spread polish + iOS finger-follow fix + darker edge shadow
+  • Fixed the "first swipe does nothing" bug on the last-page ↔ end-spread boundary: the page-turn now also listens for touch on the document, so the gesture survives iOS tearing down the old page's DOM mid-turn (which was silencing touch events). Finger-following now works to AND from the end-spread on the first try.
+  • End-spread now fits an iPhone (portrait AND landscape) without cutting off: compact 2-column button grid, responsive font sizes, summary capped at 4 lines.
+  • Buttons + stars on the end-spread are locked until the page-turn fully settles (no accidental taps mid-turn).
+  • Removed the redundant "The End" from the end-spread (it's already on the last story page). Added a clearly-visible "📚 Close Book" button (same as the back arrow).
+  • Length now shows Short/Regular/Long + approximate reading time instead of a page count. The floating page bubble reads "End" on this spread.
+  • Edge shadow: darker by default (darkness 125%, and the 🧪 slider now goes to 200%).
+
+--------------------------
 v0.9.57 — 2026-07-03 — End-of-book 2-page spread + finger-following everywhere
   • The last page → toolbox is now a real 2-page "back of the book" spread that turns with the same finger-following page-curl as every other page (with the centre crease + gutter shading). This also fixes the bug where the page just before the toolbox only responded to a flick, not finger-following.
   • LEFT page = the story's colophon: cover thumbnail, title, author, summary, and details (genre, artwork style, length in pages + reading time, created date).

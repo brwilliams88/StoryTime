@@ -37,11 +37,25 @@ window.PageCurl = (function () {
     if (e.type === 'mousedown') {
       g.mm = (ev) => move(ev); g.mu = (ev) => end(ev);
       document.addEventListener('mousemove', g.mm); document.addEventListener('mouseup', g.mu);
+    } else {
+      // TOUCH: also drive the turn from DOCUMENT-level listeners. iOS stops
+      // delivering touch events to an element once it's removed from the DOM —
+      // which happens the instant setIndex() swaps the story spread for the
+      // toolbox spread (a different v-if branch → full subtree teardown). The
+      // page-area's own @touchmove then goes silent and the first swipe "dies".
+      // Document listeners keep firing regardless of what's torn down beneath the
+      // finger. (move() de-dupes the shared event so the page-area handler +
+      // these don't double-process.)
+      g.tm = (ev) => move(ev); g.te = (ev) => end(ev);
+      document.addEventListener('touchmove', g.tm, { passive: false });
+      document.addEventListener('touchend', g.te);
+      document.addEventListener('touchcancel', g.te);
     }
   }
 
   function move(e) {
     if (!g || animating) return;
+    if (g._le === e) return; g._le = e;   // de-dupe: page-area + document both deliver the same event
     const p = point(e);
     const dx = p.x - g.x0, dy = p.y - g.y0;
     const primary = g.axis === 'x' ? dx : dy, cross = g.axis === 'x' ? dy : dx;
@@ -260,6 +274,11 @@ window.PageCurl = (function () {
     if (g) {
       if (g.wrap && g.wrap.parentNode) g.wrap.parentNode.removeChild(g.wrap);
       if (g.mm) { document.removeEventListener('mousemove', g.mm); document.removeEventListener('mouseup', g.mu); }
+      if (g.tm) {
+        document.removeEventListener('touchmove', g.tm, { passive: false });
+        document.removeEventListener('touchend', g.te);
+        document.removeEventListener('touchcancel', g.te);
+      }
     }
     g = null;
   }

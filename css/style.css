@@ -1816,47 +1816,51 @@ body:has(.app-main-reading) {
 }
 
 /* ===== End-of-book 2-page spread (toolbox) — mirrors .story-spread so the
-   centre crease + page-curl split land exactly on the gutter ===== */
+   centre crease + page-curl split land exactly on the gutter. Sized to FIT
+   an iPhone (incl. landscape) without scrolling; fonts scale up on big
+   screens via clamp(). ===== */
 .toolbox-spread { flex-direction: row; touch-action: none; }
 .toolbox-spread.portrait { flex-direction: column; }
 .toolbox-spread .tb-info,
 .toolbox-spread .tb-panel {
   flex: 1; min-width: 0; min-height: 0; overflow: hidden;
   display: flex; flex-direction: column;
-  padding: 1.5rem 1.6rem;
+  padding: clamp(0.6rem, 2.2vh, 1.5rem) clamp(0.9rem, 3vw, 1.8rem);
 }
 .toolbox-spread:not(.portrait) .tb-info,
 .toolbox-spread:not(.portrait) .tb-panel { flex: 0 0 50%; }
 .toolbox-spread.portrait .tb-info { flex: 0 0 50%; width: 100%; }
 
+/* interaction lock — no taps/highlights until the turn has fully settled */
+.tb-locked { pointer-events: none; }
+
 /* LHS/top — colophon */
-.tb-info { align-items: center; text-align: center; justify-content: flex-start; gap: 0.55rem; }
-.tb-thumb { width: 84px; height: 84px; border-radius: 7px; overflow: hidden; box-shadow: 0 3px 12px rgba(0,0,0,0.35); flex-shrink: 0; }
+.tb-info { align-items: center; text-align: center; justify-content: center; gap: clamp(0.3rem, 1.2vh, 0.6rem); }
+.tb-thumb { width: clamp(58px, 11vh, 88px); height: clamp(58px, 11vh, 88px); border-radius: 7px; overflow: hidden; box-shadow: 0 3px 12px rgba(0,0,0,0.35); flex-shrink: 0; }
 .tb-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.tb-title { font-size: 1.28rem; font-weight: 700; line-height: 1.2; margin: 0.3rem 0 0; color: var(--ink); }
-.tb-byline { font-size: 0.85rem; color: var(--ink-dim); font-style: italic; }
-.tb-summary { font-size: 0.92rem; line-height: 1.5; color: var(--ink); font-style: italic; margin: 0.15rem 0 0.35rem; max-width: 34ch; }
-.tb-facts { margin: 0.2rem 0 0; width: 100%; max-width: 30ch; display: flex; flex-direction: column; gap: 0.32rem; }
-.tb-facts > div { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; border-bottom: 1px dotted rgba(108,99,84,0.35); padding-bottom: 0.28rem; }
-.tb-facts dt { color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; padding-top: 0.12rem; }
+.tb-title { font-size: clamp(1.05rem, 3.4vw, 1.35rem); font-weight: 700; line-height: 1.2; margin: 0.15rem 0 0; color: var(--ink); }
+.tb-byline { font-size: clamp(0.78rem, 2vw, 0.9rem); color: var(--ink-dim); font-style: italic; }
+.tb-summary {
+  font-size: clamp(0.8rem, 2.4vw, 0.98rem); line-height: 1.42; color: var(--ink);
+  font-style: italic; margin: 0.1rem 0 0.25rem; max-width: 36ch;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tb-facts { margin: 0.1rem 0 0; width: 100%; max-width: 30ch; display: flex; flex-direction: column; gap: clamp(0.18rem, 0.8vh, 0.32rem); }
+.tb-facts > div { display: flex; justify-content: space-between; gap: 0.8rem; font-size: clamp(0.78rem, 2vw, 0.88rem); border-bottom: 1px dotted rgba(108,99,84,0.35); padding-bottom: clamp(0.16rem, 0.7vh, 0.28rem); }
+.tb-facts dt { color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; font-size: clamp(0.66rem, 1.7vw, 0.72rem); padding-top: 0.12rem; }
 .tb-facts dd { margin: 0; color: var(--ink); text-align: right; font-weight: 600; }
 
 /* RHS/bottom — the "what next" panel */
-.tb-panel { align-items: center; justify-content: center; gap: 1.1rem; }
-.tb-panel .tb-end {
-  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-  font-size: 1.5rem; font-weight: 600; letter-spacing: 0.4em; text-indent: 0.4em;
-  text-transform: uppercase; color: var(--ink);
+.tb-panel { align-items: center; justify-content: center; gap: clamp(0.7rem, 2.5vh, 1.2rem); }
+.tb-rate { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
+.tb-panel .rating-star { font-size: clamp(1.6rem, 5vw, 2rem); }
+.tb-actions { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(0.35rem, 1vh, 0.55rem); width: 100%; max-width: 320px; }
+.tb-actions .tb-full { grid-column: 1 / -1; }
+.tb-actions button {
+  width: 100%; margin: 0;
+  padding: clamp(0.42rem, 1.3vh, 0.7rem) 0.5rem;
+  font-size: clamp(0.82rem, 2.2vw, 0.95rem);
 }
-.tb-rate { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
-.tb-actions { display: flex; flex-direction: column; gap: 0.55rem; width: 100%; max-width: 260px; }
-.tb-actions .btn-secondary, .tb-actions .btn-primary { width: 100%; }
-.tb-close {
-  background: none; border: none; color: var(--ink-dim); cursor: pointer;
-  font-family: inherit; font-size: 0.85rem; text-decoration: underline;
-  text-underline-offset: 2px; padding: 0.3rem; margin-top: 0.2rem;
-}
-.tb-close:hover { color: var(--ink); }
 
 /* ---- Edge tap zones (invisible) ---- */
 .nav-zone {

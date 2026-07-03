@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.57',
+      version: 'v0.9.58',
       buildDate: '2026-07-03',
 
       showSplash: true,
@@ -81,7 +81,7 @@ createApp({
         pageShadow: true,       // MASTER on/off
         shadowDebug: false,     // tint the shadow orange to check it's working
         shadowCurve: 'linear',  // ramp flat→90°: 'linear' | 'x2' | 'x2.5' | 'x3' (linear is the POR)
-        edgeDarkness: 1.0,      // 0..1 shadow darkness/opacity
+        edgeDarkness: 1.25,     // 0..2 shadow darkness/opacity (slider goes to 200%)
         edgeReach: 0.25,        // 0..1 how far the shadow reaches past the edge (∝ page size)
         edgeSoft: 0.25,         // 0..1 softness (blur) of the shadow
         closeShowShelf: true,   // FIXED ON (POR): book-close shows the real bookshelf under the closing cover
@@ -418,7 +418,9 @@ createApp({
     },
     // Short form for the floating indicator, e.g. "2/9"
     pageShortLabel() {
-      if (!this.currentStory || !this.currentStoryPage) return '';
+      if (!this.currentStory) return '';
+      if (this.isOnStoryToolbox) return 'End';
+      if (!this.currentStoryPage) return '';
       return `${this.currentPageIndex}/${this.totalStoryPages}`;
     },
     formattedCreatedAt() {
@@ -443,10 +445,15 @@ createApp({
       const a = this.artStylesRaw.find(x => x.value === v);
       return a ? (a.emoji ? a.emoji + ' ' : '') + a.label : '';
     },
+    storyLengthName() {
+      const v = this._storyFormData.length;
+      const l = this.lengths.find(x => x.value === v);
+      return l ? l.label : '';
+    },
     storyReadTimeLabel() {
       const v = this._storyFormData.length;
       const l = this.lengths.find(x => x.value === v);
-      return l ? l.subtitle : '';
+      return l ? l.subtitle.replace('~', 'about ') : '';
     },
   },
 
