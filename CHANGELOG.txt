@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.60 — 2026-07-03 — Tap-to-open books (shelf morph), end-spread as an inner cover, cover-shadow fix
+  • Library: tapping a book no longer opens a popup — it goes STRAIGHT into the reading view, with the book growing up out of its shelf slot to screen centre (the reverse of the close-to-shelf animation). The old book-detail modal is gone.
+  • Since that info modal is gone, the cover now has a small ⓘ button (top-right, opposite the back arrow) that flips straight to the back of the book (its info + rating spread). It fades with the other controls and comes back on tap.
+  • End-spread now reads more like a real inner cover: small-caps labels — GENRE, ARTWORK STYLE, LENGTH — with the value beside each (Length shows "Long (~8 min)" like the creation form). Removed the "By {author}" from the cover; the author is on the end-spread as "Created by {name} on {date}".
+  • End-spread rating prompt is now "How would you rate this story?", with more breathing room between the stars and the buttons. Buttons use clean line-art SVG icons instead of emoji. Share is greyed out (coming soon) like Continue, plus a new greyed "Export" (PDF & printable foldable books, coming soon). "Quiz Me".
+  • Fixed the cover-open shadow bleeding onto the background: it now hugs the cover's edge toward the spine and is clamped so it can never spill past the cover onto the dark background.
+
+--------------------------
 v0.9.59 — 2026-07-03 — Pointer-events page turns (real swipe-twice fix) + end-spread polish
   • REAL fix for the "swipe once does nothing, swipe again works" bug at the last-page ↔ end-spread boundary: the reader now uses Pointer Events with pointer capture. When a drag starts, the pointer is "captured" to the page area, so iOS keeps sending move/up events even when it tears down the page under your finger (the story→end-spread swap). Finger-following now works first-try, both directions. (Applies to cover open/close and all interior turns too.)
   • Tapping a button/star on the end-spread now works on the FIRST tap — a tap on a control no longer starts a page-turn (which was eating the click and popping up the arrow). Tap-to-show-controls still works everywhere except on the buttons.

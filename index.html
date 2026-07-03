@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.9.59" />
+  <link rel="stylesheet" href="css/style.css?v=0.9.60" />
 </head>
 <body>
 
@@ -324,7 +324,7 @@
                 <button class="book"
                         :class="{ 'book-selected': manageMode && isBookSelectedForDelete(book.id), 'book-offline': isOffline && !isBookCachedLocal(book.id) }"
                         :disabled="isOffline && !isBookCachedLocal(book.id)"
-                        @click="manageMode ? toggleBookForDelete(book.id) : openBookDetail(book, $event)">
+                        @click="manageMode ? toggleBookForDelete(book.id) : openBookMorph(book, $event)">
                   <div class="book-cover">
                     <img v-if="libraryCover(book)" :src="libraryCover(book)" :alt="book.title" loading="lazy" draggable="false" />
                     <div v-else class="book-cover-fallback">📖</div>
@@ -367,6 +367,10 @@
                only appear when you tap the screen, and hide while turning pages. -->
           <button @click="closeBook" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
           <div v-if="currentStoryPage || isOnStoryToolbox" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageShortLabel }}</div>
+          <!-- Cover only: jump straight to the back of the book (its info/end spread). -->
+          <button v-if="isOnCover" @click="openToBack" :class="['reader-about', { 'reader-ui-hide': !readerUiShow }]" aria-label="About this book">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
 
           <!-- Persistent book binding down the centre (so it never pops in after a turn) -->
           <div v-if="currentStoryPage || isOnStoryToolbox || pageTurning" class="book-crease" :class="{ portrait: isPortrait }" aria-hidden="true"></div>
@@ -485,28 +489,41 @@
                   </div>
                 </div>
                 <div v-if="currentStory.summary" class="tb-summary">"{{ currentStory.summary }}"</div>
-                <div class="tb-tags">
-                  <span v-if="storyGenreLabel">{{ storyGenreLabel }}</span>
-                  <span v-if="storyArtStyleLabel">{{ storyArtStyleLabel }}</span>
-                  <span v-if="storyLengthName">{{ storyLengthName }}<template v-if="storyReadTimeLabel"> · {{ storyReadTimeLabel }}</template></span>
-                </div>
+                <dl class="tb-facts">
+                  <div v-if="storyGenreLabel"><dt>Genre</dt><dd>{{ storyGenreLabel }}</dd></div>
+                  <div v-if="storyArtStyleLabel"><dt>Artwork style</dt><dd>{{ storyArtStyleLabel }}</dd></div>
+                  <div v-if="storyLengthFull"><dt>Length</dt><dd>{{ storyLengthFull }}</dd></div>
+                </dl>
               </div>
 
               <!-- RHS / BOTTOM — the reader's "what next" panel. Locked (no taps /
                    highlights) until the page-turn has fully settled. -->
               <div class="tb-panel" :class="{ 'tb-locked': pageTurning }">
                 <div class="tb-rate">
-                  <div class="rating-label">Did you like this story?</div>
+                  <div class="rating-label">How would you rate this story?</div>
                   <div class="rating-stars">
                     <button v-for="n in 5" :key="n" @click="setRating(n)" :class="['rating-star', { filled: currentStory.rating >= n }]">★</button>
                   </div>
                 </div>
                 <div class="tb-actions">
-                  <button @click="readAgain" class="btn-secondary tb-full">📖 Read Again</button>
-                  <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">🧠 Quiz</button>
-                  <button @click="handleShareStory" class="btn-secondary">🔗 Share</button>
-                  <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">➕ Continue</button>
-                  <button @click="closeBook" class="btn-secondary tb-full">📚 Close Book</button>
+                  <button @click="readAgain" class="btn-secondary tb-full">
+                    <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3.51 9a9 9 0 1 0 2.13-3.36L3 8"/></svg>Read Again
+                  </button>
+                  <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">
+                    <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Quiz Me
+                  </button>
+                  <button @click="handleShareStory" class="btn-secondary" disabled title="Coming soon — share a link to this story">
+                    <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Share
+                  </button>
+                  <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">
+                    <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Continue
+                  </button>
+                  <button class="btn-secondary" disabled title="Coming soon — PDF export & printable foldable books">
+                    <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export
+                  </button>
+                  <button @click="closeBook" class="btn-secondary tb-full">
+                    <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Close Book
+                  </button>
                 </div>
               </div>
             </div>
@@ -822,41 +839,8 @@
         </div>
       </div>
 
-      <!-- ============== BOOK DETAIL — "inner cover" page ============== -->
-      <div v-if="bookDetail" class="modal-overlay book-detail-overlay" ref="bookDetailOverlay" @click.self="closeBookDetail">
-        <div class="inner-cover" ref="innerCover">
-          <button @click="closeBookDetail" class="inner-cover-close" aria-label="Close">✕</button>
-
-          <h2 class="inner-cover-title">{{ bookDetail.title || 'Untitled' }}</h2>
-          <div v-if="bookDetail.created_by" class="inner-cover-by">by {{ bookDetail.created_by }}</div>
-
-          <div class="inner-cover-rule"></div>
-
-          <div class="inner-cover-body">
-            <div class="inner-cover-thumb">
-              <img v-if="libraryCover(bookDetail)" :src="libraryCover(bookDetail)" :alt="bookDetail.title" draggable="false" />
-              <div v-else class="book-cover-fallback">📖</div>
-            </div>
-            <p v-if="bookDetail.summary" class="inner-cover-summary">{{ bookDetail.summary }}</p>
-            <p v-else class="inner-cover-summary inner-cover-summary-muted">A StoryTime original.</p>
-          </div>
-
-          <div class="inner-cover-meta">
-            <span v-if="bookDetailAgeLabel" class="inner-cover-tag">{{ bookDetailAgeLabel }}</span>
-            <span v-if="bookDetailReadingTime" class="inner-cover-tag">⏱ ~{{ bookDetailReadingTime }} min</span>
-            <span v-if="bookDetail.rating" class="inner-cover-stars">
-              <span v-for="n in 5" :key="n" :class="['rating-star', { filled: bookDetail.rating >= n }]">★</span>
-            </span>
-          </div>
-
-          <div class="inner-cover-dates">
-            <span v-if="libraryDate(bookDetail)">Created {{ libraryDate(bookDetail) }}</span>
-            <span v-if="bookDetail.last_read_at"> · Last read {{ libraryDate({ created_at: bookDetail.last_read_at }) }}</span>
-          </div>
-
-          <button @click="readFromDetail" class="btn-primary inner-cover-read">📖 Read this book</button>
-        </div>
-      </div>
+      <!-- (book-detail modal removed v0.9.60 — tapping a shelf book now morphs
+           straight into the reading view; info lives on the end-spread) -->
 
       <!-- ============== CROPPER MODAL ============== -->
       <div v-if="showCropper" class="modal-overlay">
@@ -1042,13 +1026,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.9.59"></script>
-  <script src="js/imageStorage.js?v=0.9.59"></script>
-  <script src="js/api.js?v=0.9.59"></script>
-  <script src="js/sync.js?v=0.9.59"></script>
-  <script src="js/pageShadow.js?v=0.9.59"></script>
-  <script src="js/pageCurl.js?v=0.9.59"></script>
-  <script src="js/app.js?v=0.9.59"></script>
+  <script src="js/storage.js?v=0.9.60"></script>
+  <script src="js/imageStorage.js?v=0.9.60"></script>
+  <script src="js/api.js?v=0.9.60"></script>
+  <script src="js/sync.js?v=0.9.60"></script>
+  <script src="js/pageShadow.js?v=0.9.60"></script>
+  <script src="js/pageCurl.js?v=0.9.60"></script>
+  <script src="js/app.js?v=0.9.60"></script>
 
   <script>
     if ('serviceWorker' in navigator) {

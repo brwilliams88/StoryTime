@@ -1847,24 +1847,29 @@ body:has(.app-main-reading) {
   font-style: italic; margin: 0; max-width: 40ch;
   display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
 }
-.tb-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(0.3rem, 1.2vw, 0.5rem); max-width: 40ch; }
-.tb-tags span {
-  font-size: clamp(0.72rem, 1.9vw, 0.82rem); color: var(--ink-dim); font-weight: 600;
-  background: rgba(120,92,40,0.10); border: 1px solid rgba(120,92,40,0.18);
-  border-radius: 999px; padding: 0.18rem 0.6rem; white-space: nowrap;
+/* labeled facts with small-caps labels (book-colophon feel) */
+.tb-facts { display: flex; flex-direction: column; gap: clamp(0.2rem, 0.9vh, 0.36rem); width: 100%; max-width: 30ch; }
+.tb-facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 0.8rem; border-bottom: 1px dotted rgba(108,99,84,0.30); padding-bottom: clamp(0.16rem, 0.7vh, 0.28rem); }
+.tb-facts dt {
+  font-variant: small-caps; letter-spacing: 0.04em; color: var(--ink-dim);
+  font-size: clamp(0.82rem, 2vw, 0.94rem); font-weight: 600;
 }
+.tb-facts dd { margin: 0; text-align: right; color: var(--ink); font-weight: 600; font-size: clamp(0.8rem, 2vw, 0.9rem); }
 
 /* RHS/bottom — the "what next" panel */
-.tb-panel { align-items: center; justify-content: center; gap: clamp(0.7rem, 2.5vh, 1.2rem); }
-.tb-rate { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
+.tb-panel { align-items: center; justify-content: center; gap: clamp(1rem, 4vh, 2rem); }   /* clear gap between stars + buttons */
+.tb-rate { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
 .tb-panel .rating-star { font-size: clamp(1.6rem, 5vw, 2rem); }
 .tb-actions { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(0.35rem, 1vh, 0.55rem); width: 100%; max-width: 320px; }
 .tb-actions .tb-full { grid-column: 1 / -1; }
 .tb-actions button {
   width: 100%; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
   padding: clamp(0.42rem, 1.3vh, 0.7rem) 0.5rem;
   font-size: clamp(0.82rem, 2.2vw, 0.95rem);
 }
+.tb-actions button:disabled { opacity: 0.42; cursor: default; }
+.tb-ic { width: 1.05em; height: 1.05em; flex-shrink: 0; }
 
 /* ---- Edge tap zones (invisible) ---- */
 .nav-zone {
@@ -2854,6 +2859,20 @@ body:has(.app-main-reading) {
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   transition: opacity 0.5s ease;
 }
+/* cover ⓘ — same chip as the back button, mirrored to the top-right */
+.reader-about {
+  position: absolute; z-index: 30;
+  top: calc(env(safe-area-inset-top) + 8px);
+  right: calc(env(safe-area-inset-right) + 8px);
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(30,24,18,0.42); color: #fff; border: none;
+  cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  transition: opacity 0.5s ease;
+}
+.reader-about svg { width: 22px; height: 22px; }
 .reader-ui-hide { opacity: 0; pointer-events: none; }   /* fully fades + not tappable; tap the page to reveal */
 /* landscape: tuck the back button further toward the left edge */
 .reading-view:not(.portrait-mode) .reader-back { left: calc(env(safe-area-inset-left) + 2px); }

@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.59',
+      version: 'v0.9.60',
       buildDate: '2026-07-03',
 
       showSplash: true,
@@ -437,23 +437,19 @@ createApp({
       const v = this._storyFormData.genre;
       if (!v || v === 'surprise-me') return '';
       const g = this.genresRaw.find(x => x.value === v);
-      return g ? (g.emoji ? g.emoji + ' ' : '') + g.label : '';
+      return g ? g.label : '';
     },
     storyArtStyleLabel() {
       const v = this.currentStory && (this.currentStory.art_style || this._storyFormData.artStyle);
       if (!v || v === 'surprise-me') return '';
       const a = this.artStylesRaw.find(x => x.value === v);
-      return a ? (a.emoji ? a.emoji + ' ' : '') + a.label : '';
+      return a ? a.label : '';
     },
-    storyLengthName() {
+    // "Long (~8 min)" — matches the creation form (label + reading-time subtitle).
+    storyLengthFull() {
       const v = this._storyFormData.length;
       const l = this.lengths.find(x => x.value === v);
-      return l ? l.label : '';
-    },
-    storyReadTimeLabel() {
-      const v = this._storyFormData.length;
-      const l = this.lengths.find(x => x.value === v);
-      return l ? l.subtitle.replace('~', 'about ') : '';
+      return l ? `${l.label} (${l.subtitle})` : '';
     },
     // e.g. "Created by Kai on June 29 at 9:01pm"
     createdByLine() {
@@ -1884,22 +1880,24 @@ createApp({
         // 180-ang (90→180). edgePos is the perspective-projected edge position.
         const PS = window.PageShadow, o = this._shadowOpts();
         const edgeAngle = p <= 0.5 ? ang : (180 - ang);
-        const outSign = edgePos >= center ? 1 : -1;                  // outward from spine
-        const outerPos = center + outSign * half;
+        // Project the shadow toward the SPINE (onto the page the cover is
+        // revealing), and clamp it at the spine — so it can NEVER spill past the
+        // cover's edge onto the background. (dark at the cover edge → fading inward)
+        const toward = edgePos >= center ? -1 : 1;
         let reach = PS.shadowReachPx(edgeAngle, o, half);
-        reach = Math.max(0, Math.min(reach, Math.abs(outerPos - edgePos)));
+        reach = Math.max(0, Math.min(reach, Math.abs(edgePos - center)));
         const soft = PS.softPx(o);
         if (portrait) {
           coverEdgeShadow.style.left = '0'; coverEdgeShadow.style.width = W + 'px';
-          coverEdgeShadow.style.top = (outSign > 0 ? edgePos : edgePos - reach) + 'px';
+          coverEdgeShadow.style.top = (toward > 0 ? edgePos : edgePos - reach) + 'px';
           coverEdgeShadow.style.height = reach + 'px';
         } else {
           coverEdgeShadow.style.top = '0'; coverEdgeShadow.style.height = H + 'px';
-          coverEdgeShadow.style.left = (outSign > 0 ? edgePos : edgePos - reach) + 'px';
+          coverEdgeShadow.style.left = (toward > 0 ? edgePos : edgePos - reach) + 'px';
           coverEdgeShadow.style.width = reach + 'px';
         }
         coverEdgeShadow.style.background = PS.shadowGradient(
-          portrait ? (outSign > 0 ? 'to bottom' : 'to top') : (outSign > 0 ? 'to right' : 'to left'), o);
+          portrait ? (toward > 0 ? 'to bottom' : 'to top') : (toward > 0 ? 'to right' : 'to left'), o);
         coverEdgeShadow.style.opacity = String(PS.shadowOpacity(edgeAngle, o));
         coverEdgeShadow.style.filter = soft ? 'blur(' + soft + 'px)' : '';
         const lw = 1.6;
@@ -1938,7 +1936,10 @@ createApp({
       const dur = 820 * Math.max(0.18, Math.abs(target - from));
       const ce = (t) => 1 - Math.pow(1 - t, 3);
       const finish = () => {
-        this.currentPageIndex = target >= 1 ? 1 : 0;
+        // Normally an open lands on page 1; the cover ⓘ opens straight to the back
+        // (toolbox/end spread) instead.
+        this.currentPageIndex = target >= 1 ? (this._openToBack ? (this.totalStoryPages + 1) : 1) : 0;
+        this._openToBack = false;
         this._coverAnim = false; this._coverFx = null;
         this.$nextTick(() => {
           if (onDone) { onDone(fx.wrap); }   // hand off (e.g. close → shelf morph); onDone owns the overlay
@@ -2546,69 +2547,102 @@ createApp({
     isBookCachedLocal(id) { return getStoredStories().some(s => s.id === id); },
 
     // ---- Book detail popup ----
-    async openBookDetail(meta, ev) {
-      // Remember the tapped book's on-screen position so the "inner cover" can
-      // zoom + swing open out of it (GSAP).
-      this._bookOpenRect = null;
+    // Tapping the cover's ⓘ: open the book but land straight on the back
+    // (toolbox/end spread) instead of page 1.
+    openToBack() {
+      if (this._coverAnim || !this.isOnCover) return;
+      this._openToBack = true;
+      this.coverOpen();
+    },
+    // Tap a shelf book → go straight into the reading view (cover), morphing the
+    // book UP from its shelf slot to screen centre — the reverse of the close-to-
+    // shelf animation. Loads the story quietly first (no full-screen spinner).
+    async openBookMorph(meta, ev) {
+      if (this._coverAnim) return;
+      let srcRect = null;
       if (ev && ev.currentTarget) {
-        const srcEl = ev.currentTarget.querySelector('.book-cover') || ev.currentTarget;
-        this._bookOpenRect = srcEl.getBoundingClientRect();
+        const el = ev.currentTarget.querySelector('.book-cover') || ev.currentTarget;
+        srcRect = el.getBoundingClientRect();
       }
-      this.bookDetail = meta;
-      this.bookDetailStory = null;
-      this.$nextTick(() => this.animateBookOpen());
-      // Load the full story (cache or cloud) for the reading-time estimate and
-      // so tapping Read is instant. Guard against the popup being closed/changed.
+      let story;
       try {
-        const story = getStoredStories().find(s => s.id === meta.id) || await fetchFullStory(meta.id);
-        if (this.bookDetail && this.bookDetail.id === meta.id) this.bookDetailStory = story || null;
-      } catch (e) { /* reading time just won't show */ }
+        story = getStoredStories().find(s => s.id === meta.id);
+        if (!story) story = await fetchFullStory(meta.id);
+        if (!story) throw new Error('Could not load this book.');
+        await ensureStoryImagesLocal(story);
+      } catch (e) { this.error = e.message || 'Could not open book.'; alert(this.error); return; }
+      story.last_read_at = new Date().toISOString();
+      try { saveStoryToStorage(story); } catch (e) { if (!e.isQuota) throw e; }
+      syncStampLastRead(story).catch(() => {});
+      const m = this.libraryBooks.find(b => b.id === meta.id); if (m) m.last_read_at = story.last_read_at;
+      this.currentStory = story; this.currentStoryRecord = story;
+      this.currentStoryCost = story.cost || 0;
+      this.currentTextCost = story.text_cost || 0; this.currentImagesCost = story.images_cost || 0;
+      this.currentPageIndex = 0;
+      this._shelfToBook(meta.id, srcRect);
+      this.evictOldCachedBooks();
     },
-    // Zoom + swing the inner-cover open out of the tapped book.
-    animateBookOpen() {
-      const el = this.$refs.innerCover, overlay = this.$refs.bookDetailOverlay;
-      if (!el || typeof gsap === 'undefined') return;
-      const src = this._bookOpenRect;
-      gsap.killTweensOf(el);
-      if (overlay) gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power1.out' });
-      if (src) {
-        const t = el.getBoundingClientRect();
-        const scale = Math.max(0.12, Math.min(1, src.width / t.width));
-        const dx = (src.left + src.width / 2) - (t.left + t.width / 2);
-        const dy = (src.top + src.height / 2) - (t.top + t.height / 2);
-        el.style.transformOrigin = 'center center';
-        gsap.fromTo(el,
-          { x: dx, y: dy, scale, rotationY: 38, opacity: 0.5, transformPerspective: 1000 },
-          { x: 0, y: 0, scale: 1, rotationY: 0, opacity: 1, duration: 0.52, ease: 'power3.out',
-            clearProps: 'transform,opacity,transformPerspective,transformOrigin' });
-      } else {
-        gsap.fromTo(el, { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.32, ease: 'power2.out', clearProps: 'transform,opacity' });
-      }
-    },
-    closeBookDetail() {
-      const el = this.$refs.innerCover, overlay = this.$refs.bookDetailOverlay;
-      const done = () => { this.bookDetail = null; this.bookDetailStory = null; this._bookOpenRect = null; };
-      if (!el || typeof gsap === 'undefined') { done(); return; }
-      const src = this._bookOpenRect;
-      gsap.killTweensOf(el);
-      if (overlay) gsap.to(overlay, { opacity: 0, duration: 0.3, ease: 'power1.in' });
-      if (src) {
-        const t = el.getBoundingClientRect();
-        const scale = Math.max(0.12, Math.min(1, src.width / t.width));
-        const dx = (src.left + src.width / 2) - (t.left + t.width / 2);
-        const dy = (src.top + src.height / 2) - (t.top + t.height / 2);
-        el.style.transformOrigin = 'center center';
-        gsap.to(el, { x: dx, y: dy, scale, rotationY: 32, opacity: 0, transformPerspective: 1000, duration: 0.36, ease: 'power3.in', onComplete: done });
-      } else {
-        gsap.to(el, { scale: 0.85, opacity: 0, duration: 0.26, ease: 'power2.in', onComplete: done });
-      }
-    },
-    readFromDetail() {
-      const m = this.bookDetail;
-      const s = this.bookDetailStory;
-      this.bookDetail = null;
-      this.bookDetailStory = null;
-      if (m) this.openBook(m, s);
+    // The reverse of _bookToShelf: fly the book from its shelf slot up to screen
+    // centre, crossfading shelf format → square book, dark bg fading in, landing
+    // on the (centred) reading cover. Image-anchored so the picture never jumps.
+    _shelfToBook(targetId, srcRect) {
+      const gsap = window.gsap;
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.view = 'story'; this.currentPageIndex = 0; this.coverShift = false;
+      if (!gsap || reduce) { this.$nextTick(() => this.pokeReaderUi()); return; }
+      this.$nextTick(() => requestAnimationFrame(() => {
+        const area = document.querySelector('.page-area');
+        const coverBook = area && area.querySelector('.cover-book');
+        let slot = null;
+        try { const sel = '[data-book-id="' + (window.CSS && CSS.escape ? CSS.escape(targetId) : targetId) + '"]'; slot = document.querySelector(sel); } catch (e) {}
+        const bookEl = (slot && slot.querySelector('.book')) || slot;
+        if (!coverBook || !bookEl) { this.pokeReaderUi(); return; }   // no morph → cover already showing
+        document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());
+
+        const cen = coverBook.getBoundingClientRect();                 // destination (centred) cover box
+        coverBook.style.visibility = 'hidden';
+        const dark = document.createElement('div'); dark.className = 'book-fly-temp';
+        Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '0', pointerEvents: 'none' });
+        document.body.appendChild(dark);
+
+        const big = coverBook.cloneNode(true); big.classList.add('book-fly-temp'); big.style.visibility = 'visible';
+        Object.assign(big.style, { position: 'fixed', left: cen.left + 'px', top: cen.top + 'px', width: cen.width + 'px', height: cen.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none', opacity: '0' });
+        document.body.appendChild(big);
+
+        const er = bookEl.getBoundingClientRect();
+        const coverEl = bookEl.querySelector('.book-cover');
+        const cr = coverEl ? coverEl.getBoundingClientRect() : { left: er.left, top: er.top, width: er.width, height: er.width };
+        bookEl.style.visibility = 'hidden';
+        const shelf = document.createElement('div'); shelf.className = 'book-fly-temp';
+        Object.assign(shelf.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2099', pointerEvents: 'none', transformOrigin: '0 0', opacity: '1' });
+        const csBook = getComputedStyle(bookEl);
+        shelf.style.setProperty('--book-w', csBook.getPropertyValue('--book-w'));
+        shelf.style.setProperty('--plate-h', csBook.getPropertyValue('--plate-h'));
+        const bookClone = bookEl.cloneNode(true); bookClone.style.visibility = 'visible'; bookClone.style.margin = '0'; shelf.appendChild(bookClone);
+        document.body.appendChild(shelf);
+        const ccEl = shelf.querySelector('.book-cover');
+        const ccr = ccEl ? ccEl.getBoundingClientRect() : { left: er.left, top: er.top, width: er.width, height: er.width };
+
+        const bigSub = { lx: 0, ly: 0, w: cen.width, h: cen.height };
+        const shelfSub = { lx: ccr.left - er.left, ly: ccr.top - er.top, w: ccr.width, h: ccr.height };
+        const mapSub = (el, home, sub, t) => { const sx = t.width / sub.w, sy = t.height / sub.h; el.style.transform = 'translate(' + (t.left - home.left - sub.lx * sx) + 'px,' + (t.top - home.top - sub.ly * sy) + 'px) scale(' + sx + ',' + sy + ')'; };
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+        const cleanup = () => { document.querySelectorAll('.book-fly-temp').forEach(el => el.remove()); if (coverBook) coverBook.style.visibility = ''; if (bookEl) bookEl.style.visibility = ''; };
+        const done = () => { cleanup(); this.pokeReaderUi(); };
+        setTimeout(done, 1300);   // backstop
+        const st = { p: 0 };
+        gsap.to(st, { p: 1, duration: 0.6, ease: 'none', onComplete: done, onUpdate: () => {
+          const p = st.p, e = easeIO(p);
+          dark.style.opacity = String(Math.min(1, p / 0.7));
+          const fImg = { left: lerp(cr.left, cen.left, e), top: lerp(cr.top, cen.top, e), width: lerp(cr.width, cen.width, e), height: lerp(cr.height, cen.height, e) };
+          mapSub(big, cen, bigSub, fImg);
+          mapSub(shelf, er, shelfSub, fImg);
+          const sf = Math.min(1, p / 0.55), bf = Math.min(1, Math.max(0, (p - 0.28) / 0.5));
+          shelf.style.opacity = String(1 - sf); shelf.style.filter = 'blur(' + (sf * 2.5) + 'px)';
+          big.style.opacity = String(bf); big.style.filter = 'blur(' + ((1 - bf) * 2.5) + 'px)';
+        } });
+      }));
     },
     // NEW = you haven't opened it yet AND it was made in the last 3 days
     isBookNew(meta) {
