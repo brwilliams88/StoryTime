@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.67 — 2026-07-04 — Cover edge shadow: correct physics, exact interior parity, no late-turn artifact
+  • Final cover-shadow model (replaces the v0.9.64 "toward the spine" direction, which was the root of both remaining complaints):
+    – While the COVER lifts (first half): the shadow peeks OUTWARD past the free edge onto the text page beneath, clamped to the paper actually there. Because the text page's inner edge always meets the hinge, that strip is algebraically THE SAME one interior turns clamp to — verified numerically: identical opacity at every tilt angle, identical reach from 45° up, within ~1.5px below (different CSS perspective constants). The cover now matches interior BY CONSTRUCTION, and the 🧪 sliders (darkness/reach/soft/ramp) drive both at once since both read the same live options.
+    – While PAGE 1 lays down (second half): it lays onto the empty half — nothing beneath to catch a shadow — so it casts NONE. This removes the dark band that reappeared on the image page ~85–90% through the open (and its mirror when closing).
+    – Why it looked "weak/light" before: the toward-spine band was being painted ON the dark cover face itself (black on dark brown ≈ invisible) instead of on the cream page beyond the edge.
+
+--------------------------
 v0.9.66 — 2026-07-04 — Cover→page-1 edge shadow matched to interior turns; crease hand-off + decoupling
   • THE cover edge-shadow fix: on the cover→page-1 open (and page-1→cover close) the cast shadow was much too big early in the turn (~44px where an interior page turn is <1px), which read as a big cast shadow that didn't match the inner pages. Root cause: its reach was clamped to the distance-to-spine (huge near the start) instead of to the actual exposed page strip. Now it's bounded by the revealed-page width — half·(1−cos tilt) — exactly like an interior turn, so it grows and shrinks with the turn identically. Verified by running both shadow models through JavaScriptCore and matching their reach across the whole turn.
   • Decoupled the gutter/crease + spine shadows from the "Enable edge shadow" toggle again (v0.9.65 had tied them together). The gutter shadow is back to always-on and unchanged; only the edge-follow shadow + edge line answer to the toggle — consistent with the interior pages.

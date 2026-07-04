@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.66',
+      version: 'v0.9.67',
       buildDate: '2026-07-04',
 
       showSplash: true,
@@ -1943,25 +1943,28 @@ createApp({
         // 180-ang (90→180). edgePos is the perspective-projected edge position.
         const PS = window.PageShadow, o = this._shadowOpts();
         const edgeAngle = p <= 0.5 ? ang : (180 - ang);
-        // Which side the cast shadow trails onto — this is what makes the cover
-        // match interior. A cover OPEN always reveals the pages spine-ward: while the
-        // cover lifts (p<=0.5) the text half slides in on the CENTRE side, and while
-        // the image page lays down (p>0.5) it too occupies the CENTRE side of its
-        // edge. So the shadow trails toward CENTRE the whole time (opposite of an
-        // interior turn, where the exposed page is outward). Projecting it outward —
-        // as before — put it in the empty gap beyond the paper, where the anti-spill
-        // clip erased it (that was the "invisible cover shadow": full strength,
-        // clipped away — during the cover lift AND the whole image-lay half).
-        const outSign = edgePos >= center ? -1 : 1;                        // toward the spine (centre)
-        let reach = PS.shadowReachPx(edgeAngle, o, half);
-        // Bound reach to the EXPOSED page strip the SAME way an interior turn does, so
-        // the cover shadow grows/shrinks with the turn identically. The revealed page
-        // width for a leaf tilted `ang` off flat is half·(1−cos ang) (0 when flat, half
-        // at 90°). Clamping to |centre−edgePos| instead (as before) is huge near the
-        // start → a "big cast shadow" that didn't match the inner pages. Also cap at the
-        // spine so it can never spill past centre.
-        const exposed = half * (1 - Math.cos(ang * DEG));
-        reach = Math.max(0, Math.min(reach, exposed, Math.abs(center - edgePos)));
+        // PHYSICS (final model — see CHANGELOG v0.9.67):
+        // • Phase 1 (cover lifting, p<=0.5): the shadow peeks OUTWARD past the free
+        //   edge onto the text page beneath. The text page's inner edge always meets
+        //   the hinge (that's the binding), so the paper available past the edge is
+        //   (hinge+half) − edgePos = (center+ts+half) − edgePos — ALGEBRAICALLY THE
+        //   SAME strip an interior turn clamps to (|outerPos − pos|). Same formulas,
+        //   same opts ⇒ the cover shadow matches an interior turn at the same tilt,
+        //   by construction. Early in the open the cover still overhangs the text
+        //   page, so there's genuinely almost no paper to catch it — that's real.
+        //   (Trailing it toward the spine instead painted the band ON the dark cover
+        //   face — near-invisible black-on-brown = the "weak" cover shadow.)
+        // • Phase 2 (page-1 laying down, p>0.5): the leaf lays onto the EMPTY half —
+        //   there is no page beneath to catch a shadow, so it casts NONE. (Drawing
+        //   one toward the spine put a dark band ON the laying image page right
+        //   before it settled — the late-turn artifact.)
+        const outSign = edgePos >= center ? 1 : -1;      // outward, past the free edge
+        let reach = 0, shOp = 0;
+        if (p <= 0.5 && !toBack) {
+          const textOuter = center + ts + half;          // text page's outer boundary (= hinge + half)
+          reach = Math.max(0, Math.min(PS.shadowReachPx(edgeAngle, o, half), (textOuter - edgePos) * outSign));
+          shOp = PS.shadowOpacity(edgeAngle, o);
+        }
         const soft = PS.softPx(o);
         if (portrait) {
           coverEdgeShadow.style.left = '0'; coverEdgeShadow.style.width = W + 'px';
@@ -1974,7 +1977,7 @@ createApp({
         }
         coverEdgeShadow.style.background = PS.shadowGradient(
           portrait ? (outSign > 0 ? 'to bottom' : 'to top') : (outSign > 0 ? 'to right' : 'to left'), o);
-        coverEdgeShadow.style.opacity = String(toBack ? 0 : PS.shadowOpacity(edgeAngle, o));   // no page-turn shadow when opening onto the About spread
+        coverEdgeShadow.style.opacity = String(shOp);   // 0 in phase 2 and for the ⓘ→About open
         coverEdgeShadow.style.filter = soft ? 'blur(' + soft + 'px)' : '';
         // CLIP the shadow to the visible PAGE beneath (text half always; image half
         // once it lays) so it NEVER spills onto the dark/blue background. The shadow
