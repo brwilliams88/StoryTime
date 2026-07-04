@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.62',
+      version: 'v0.9.63',
       buildDate: '2026-07-03',
 
       showSplash: true,
@@ -419,7 +419,7 @@ createApp({
     // Short form for the floating indicator, e.g. "2/9"
     pageShortLabel() {
       if (!this.currentStory) return '';
-      if (this.isOnStoryToolbox) return 'End';
+      if (this.isOnStoryToolbox) return 'About';
       if (!this.currentStoryPage) return '';
       return `${this.currentPageIndex}/${this.totalStoryPages}`;
     },
@@ -1713,6 +1713,65 @@ createApp({
         return sp;
       };
 
+      // Static VISUAL replica of the About/end spread (js/template .toolbox-spread),
+      // used when the ⓘ button opens the cover STRAIGHT to the back of the book:
+      // the swinging pages show the real About content (colophon | rating panel)
+      // instead of page 1. It's inert (the overlay is pointer-events:none) and is
+      // swapped for the live, interactive toolbox the instant the open completes,
+      // so it only needs to LOOK right — the final frame must match the real spread.
+      const buildToolboxSpread = () => {
+        const s = story;
+        const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const cImg = (s.cover && s.cover.image_id) ? this.getImageURL(s.cover.image_id) : '';
+        const rating = s.rating || 0;
+        const stars = [1, 2, 3, 4, 5].map((n) => '<button class="rating-star' + (rating >= n ? ' filled' : '') + '">★</button>').join('');
+        const facts = [];
+        if (this.storyGenreLabel) facts.push('<div><dt>Genre</dt><dd>' + esc(this.storyGenreLabel) + '</dd></div>');
+        if (this.storyArtStyleLabel) facts.push('<div><dt>Artwork style</dt><dd>' + esc(this.storyArtStyleLabel) + '</dd></div>');
+        if (this.storyLengthFull) facts.push('<div><dt>Length</dt><dd>' + esc(this.storyLengthFull) + '</dd></div>');
+        const sv = (paths) => '<svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+        const ic = {
+          read: sv('<path d="M3 2v6h6"/><path d="M3.51 9a9 9 0 1 0 2.13-3.36L3 8"/>'),
+          quiz: sv('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+          share: sv('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+          cont: sv('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'),
+          exp: sv('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+          close: sv('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'),
+        };
+        const sp = document.createElement('div');
+        sp.className = 'book-page toolbox-spread' + (portrait ? ' portrait' : '');
+        Object.assign(sp.style, { position: 'absolute', left: '0', top: '0', width: W + 'px', height: H + 'px', margin: '0' });
+        sp.innerHTML =
+          '<div class="tb-info">' +
+            '<div class="tb-head">' +
+              (cImg ? '<div class="tb-thumb"><img src="' + esc(cImg) + '" alt="Cover"/></div>' : '') +
+              '<div class="tb-headtext">' +
+                '<h2 class="tb-title">' + esc(s.title) + '</h2>' +
+                '<div class="tb-byline">' + esc(this.createdByLine) + '</div>' +
+              '</div>' +
+            '</div>' +
+            (s.summary ? '<div class="tb-summary">"' + esc(s.summary) + '"</div>' : '') +
+            '<dl class="tb-facts">' + facts.join('') + '</dl>' +
+          '</div>' +
+          '<div class="tb-panel">' +
+            '<div class="tb-rate">' +
+              '<div class="rating-label">How would you rate this story?</div>' +
+              '<div class="rating-stars">' + stars + '</div>' +
+            '</div>' +
+            '<div class="tb-actions">' +
+              '<button class="btn-secondary tb-full">' + ic.read + 'Read Again</button>' +
+              (s.quiz ? '<button class="btn-secondary">' + ic.quiz + 'Quiz Me</button>' : '') +
+              '<button class="btn-secondary" disabled>' + ic.share + 'Share</button>' +
+              '<button class="btn-secondary" disabled>' + ic.cont + 'Continue</button>' +
+              '<button class="btn-secondary" disabled>' + ic.exp + 'Export</button>' +
+              '<button class="btn-secondary tb-full">' + ic.close + 'Close Book</button>' +
+            '</div>' +
+          '</div>';
+        return sp;
+      };
+      // ⓘ open-to-back → reveal the About spread; normal open → reveal page 1.
+      const makeSpread = () => (this._openToBack ? buildToolboxSpread() : buildSpread());
+
       // Build the closed-cover book FROM DATA (mirrors the template markup), so
       // the close animation works even when the live .cover-book isn't rendered.
       const buildCoverFace = () => {
@@ -1770,7 +1829,7 @@ createApp({
       Object.assign(textPage.style, { position: 'absolute', overflow: 'hidden', zIndex: '1' });
       if (portrait) Object.assign(textPage.style, { left: '0', top: center + 'px', width: W + 'px', height: half + 'px' });
       else Object.assign(textPage.style, { left: center + 'px', top: '0', width: half + 'px', height: H + 'px' });
-      const tcs = buildSpread();
+      const tcs = makeSpread();
       Object.assign(tcs.style, { left: (portrait ? 0 : -center) + 'px', top: (portrait ? -center : 0) + 'px' });
       textPage.appendChild(tcs);
       textPage.appendChild(creaseStrip('text'));
@@ -1780,7 +1839,7 @@ createApp({
       Object.assign(imageFace.style, { position: 'absolute', overflow: 'hidden', zIndex: '2', backfaceVisibility: 'hidden', opacity: '0' });
       if (portrait) Object.assign(imageFace.style, { left: '0', top: '0', width: W + 'px', height: half + 'px', transformOrigin: '50% 100%' });
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
-      imageFace.appendChild(buildSpread());
+      imageFace.appendChild(makeSpread());
       imageFace.appendChild(creaseStrip('image'));
       wrap.appendChild(imageFace);
 
@@ -1880,10 +1939,18 @@ createApp({
         // 180-ang (90→180). edgePos is the perspective-projected edge position.
         const PS = window.PageShadow, o = this._shadowOpts();
         const edgeAngle = p <= 0.5 ? ang : (180 - ang);
-        const outSign = edgePos >= center ? 1 : -1;                  // project OUTWARD from the spine
-        const outerPos = center + outSign * half;
+        // Which side the cast shadow trails onto — this is what makes the cover match
+        // interior. While the COVER lifts (p<=0.5) the revealed page (the text half,
+        // sliding into place) is on the CENTRE side of the edge, so the shadow must
+        // fall toward centre; otherwise it projects into the empty gap beyond the
+        // paper and the anti-spill clip erases it (THAT was the "weak cover shadow" —
+        // full strength, ~93% clipped early on). Once the IMAGE page lays down
+        // (p>0.5) the exposed page is outward, exactly like an interior turn.
+        const outward = edgePos >= center ? 1 : -1;
+        const outSign = p <= 0.5 ? -outward : outward;
+        const limitPos = p <= 0.5 ? center : (center + outward * half);   // don't cross the spine while lifting
         let reach = PS.shadowReachPx(edgeAngle, o, half);
-        reach = Math.max(0, Math.min(reach, Math.abs(outerPos - edgePos)));
+        reach = Math.max(0, Math.min(reach, Math.abs(limitPos - edgePos)));  // clamped to the exposed strip → never spills
         const soft = PS.softPx(o);
         if (portrait) {
           coverEdgeShadow.style.left = '0'; coverEdgeShadow.style.width = W + 'px';
@@ -1898,9 +1965,9 @@ createApp({
           portrait ? (outSign > 0 ? 'to bottom' : 'to top') : (outSign > 0 ? 'to right' : 'to left'), o);
         coverEdgeShadow.style.opacity = String(PS.shadowOpacity(edgeAngle, o));
         coverEdgeShadow.style.filter = soft ? 'blur(' + soft + 'px)' : '';
-        // CLIP the shadow to the visible paper (revealing pages) so it NEVER shows
-        // on the dark/blue background beyond the book. Union of whichever page
-        // halves are currently shown (text always; image once it starts laying).
+        // CLIP the shadow to the visible PAGE beneath (text half always; image half
+        // once it lays) so it NEVER spills onto the dark/blue background. The shadow
+        // now trails toward that page, so this only ever backstops the edges.
         {
           const wr = wrap.getBoundingClientRect();
           const rects = [textPage.getBoundingClientRect()];
@@ -2274,7 +2341,7 @@ createApp({
       if (this._coverAnim) return;
       const story = this.currentStory;
       const targetId = story && story.id;
-      if (this.isOnCover) { this._bookToShelf(targetId); return; }   // already closed → straight to the shelf morph
+      if (this.isOnCover) { this._bookToShelf(targetId, { coverClose: true }); return; }   // already closed → straight to the shelf morph (navy fades out over the shelf)
       // Part 1: the SAME simultaneous close as a regular book-close (book slides +
       // cover swings shut together), built from data so it runs from any page.
       // Part 2 (unchanged): hand to _bookToShelf for the shrink-onto-shelf morph.
@@ -2327,7 +2394,7 @@ createApp({
       document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());   // sweep strays
 
       const half = coverBook.getBoundingClientRect();                 // current pose (book-in-half, or centred)
-      const skip = !!opts.skipTravel;                                 // book is already at centre (post-close) → fly straight to slot
+      const skip = !!opts.skipTravel || !!opts.coverClose;            // book is already at centre (post-close / on the cover) → fly straight to slot
       const pa = area ? area.getBoundingClientRect() : (opts.pa || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
       const cen = skip ? { left: half.left, top: half.top, width: half.width, height: half.height }
                        : { left: pa.left + (pa.width - half.width) / 2, top: pa.top + (pa.height - half.height) / 2, width: half.width, height: half.height };
@@ -2335,7 +2402,7 @@ createApp({
       const showShelf = !!this.coverDiag.closeShowShelf || skip;     // skip the dark melt → shelf visible immediately
       const dark = document.createElement('div');
       dark.className = 'book-fly-temp';
-      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: showShelf ? '0' : '1', pointerEvents: 'none' });
+      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1a2e)', zIndex: '2050', opacity: (showShelf && !opts.coverClose) ? '0' : '1', pointerEvents: 'none' });
       // big clone is pinned at the CENTRE box; phase A just translates it from the half pose
       const big = coverBook.cloneNode(true);
       big.classList.add('book-fly-temp');
@@ -2358,7 +2425,10 @@ createApp({
         const bookEl = (slot && slot.querySelector('.book')) || slot;
         if (!bookEl) { gsap.to(dark, { opacity: 0, duration: 0.3, onComplete: cleanup }); return; }
 
-        if (!skip && bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });   // skip: shelf already scrolled before the close, so no jump
+        // Centre the target slot on screen before measuring it, so the book lands
+        // where you can see it. skipTravel already scrolled the shelf pre-close;
+        // coverClose (cover→shelf) did NOT, so it must scroll here too.
+        if ((!skip || opts.coverClose) && bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });
         requestAnimationFrame(() => {
           const er = bookEl.getBoundingClientRect();                       // the shelf slot (whole book)
           const coverEl = bookEl.querySelector('.book-cover');
@@ -2413,11 +2483,13 @@ createApp({
                 // Phase A — travel to centre, dark melts (image rides with the big clone)
                 const a = easeIO(p / pA);
                 big.style.transform = 'translate(' + ((half.left - cen.left) * (1 - a)) + 'px,' + ((half.top - cen.top) * (1 - a)) + 'px)';
-                dark.style.opacity = showShelf ? '0' : String(1 - p / pA);
+                dark.style.opacity = opts.coverClose ? '1' : (showShelf ? '0' : String(1 - p / pA));
               } else {
                 // Phase B — image-anchored fly to the slot
-                dark.style.opacity = '0';
                 const b = (p - pA) / (1 - pA), eb = easeIO(b);
+                // cover-close: navy fades OUT linearly over the shrink (the exact
+                // reverse of the open); other closes have no navy here (shelf shown).
+                dark.style.opacity = opts.coverClose ? String(1 - b) : '0';
                 const fImg = { left: lerp(cen.left, cr.left, eb), top: lerp(cen.top, cr.top, eb), width: lerp(cen.width, cr.width, eb), height: lerp(cen.height, cr.height, eb) };
                 mapSub(big, cen, bigSub, fImg);
                 mapSub(shelf, er, shelfSub, fImg);
@@ -2579,7 +2651,16 @@ createApp({
         const er = bookEl.getBoundingClientRect();
         const cr = coverEl ? coverEl.getBoundingClientRect() : { left: er.left, top: er.top, width: er.width, height: er.width };
         const cs = getComputedStyle(bookEl);
-        src = { er, cr, clone: bookEl.cloneNode(true), bookW: cs.getPropertyValue('--book-w'), plateH: cs.getPropertyValue('--plate-h') };
+        // Snapshot the whole library view too, so the open can fade the navy IN over
+        // the real bookshelf (the mirror of close fading navy OUT to reveal it) —
+        // the live library unmounts the instant we switch to the reading view.
+        const libEl = document.querySelector('.library-view');
+        src = {
+          er, cr, clone: bookEl.cloneNode(true), bookW: cs.getPropertyValue('--book-w'), plateH: cs.getPropertyValue('--plate-h'),
+          bookId: meta.id,
+          libClone: libEl ? libEl.cloneNode(true) : null,
+          libRect: libEl ? libEl.getBoundingClientRect() : null,
+        };
       }
       let story;
       try {
@@ -2616,8 +2697,22 @@ createApp({
         requestAnimationFrame(() => {
           document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());
           const cen = coverBook.getBoundingClientRect();               // destination (centred) cover box
+          // Real-bookshelf backdrop that HIDES the (already-mounted) navy reading
+          // view, so the navy fades IN over the actual shelf + books as the book
+          // grows (the exact mirror of close). It's a snapshot of the library taken
+          // on tap; brown fill behind it in case the snapshot is missing/partial.
+          const shelfBg = document.createElement('div'); shelfBg.className = 'book-fly-temp';
+          Object.assign(shelfBg.style, { position: 'fixed', inset: '0', background: '#8f6526', zIndex: '2040', overflow: 'hidden', pointerEvents: 'none' });
+          if (src.libClone && src.libRect) {
+            const lc = src.libClone; lc.style.margin = '0';
+            Object.assign(lc.style, { position: 'absolute', left: src.libRect.left + 'px', top: src.libRect.top + 'px', width: src.libRect.width + 'px', height: src.libRect.height + 'px' });
+            // hide the tapped book in the snapshot so it doesn't show under the flyer
+            try { const sel = '[data-book-id="' + (window.CSS && CSS.escape ? CSS.escape(src.bookId) : src.bookId) + '"]'; const slot = lc.querySelector(sel); if (slot) slot.style.visibility = 'hidden'; } catch (e) { /* ignore */ }
+            shelfBg.appendChild(lc);
+          }
+          document.body.appendChild(shelfBg);
           const dark = document.createElement('div'); dark.className = 'book-fly-temp';
-          Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1208)', zIndex: '2050', opacity: '0', pointerEvents: 'none' });
+          Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1a1a2e)', zIndex: '2050', opacity: '0', pointerEvents: 'none' });
           document.body.appendChild(dark);
           const big = coverBook.cloneNode(true); big.classList.add('book-fly-temp'); big.style.visibility = 'visible';
           Object.assign(big.style, { position: 'fixed', left: cen.left + 'px', top: cen.top + 'px', width: cen.width + 'px', height: cen.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', transition: 'none', opacity: '0' });
@@ -2643,7 +2738,7 @@ createApp({
           const st = { p: 0 };
           gsap.to(st, { p: 1, duration: 0.62, ease: 'none', onComplete: done, onUpdate: () => {
             const p = st.p, e = easeIO(p);
-            dark.style.opacity = String(Math.min(1, p / 0.7));
+            dark.style.opacity = String(p);   // navy fades in linearly, full exactly as the book lands centred
             const fImg = { left: lerp(cr.left, cen.left, e), top: lerp(cr.top, cen.top, e), width: lerp(cr.width, cen.width, e), height: lerp(cr.height, cen.height, e) };
             mapSub(big, cen, bigSub, fImg);
             mapSub(shelf, er, shelfSub, fImg);

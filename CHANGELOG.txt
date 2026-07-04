@@ -9,6 +9,16 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.63 — 2026-07-03 — Shelf open/close navy crossfade (over the real shelf), ⓘ→About open, cover-shadow fix, About polish
+  • Open-a-book (shelf morph): the navy reading background now FADES IN linearly as the book grows from its shelf slot to centre (0→100%, full exactly as it lands), OVER a live snapshot of the actual bookshelf + books — the exact mirror of closing a book. (No navy pop; no placeholder colour.)
+  • Close-from-cover (back arrow on the title page): the reverse — navy fades OUT (100→0%) as the book shrinks onto the shelf.
+  • Fixed a close regression: closing from the title page again scrolls the shelf so the book lands centred on screen (it had started landing off-screen).
+  • ⓘ (open-to-back): tapping it now opens the cover STRAIGHT onto the About spread's real content (colophon + rating panel) instead of flashing page 1 and then jumping.
+  • Cover-open/close edge shadow now matches the interior page-turn shadow. Root cause: while the cover lifts, the shadow was projecting into the empty gap beyond the page and getting clipped away (~93% gone early in the open) — so it looked far weaker. It now correctly trails onto the revealed page, same intensity/reach as an interior turn.
+  • The floating page bubble on the About spread now reads "About" (the small "2/9"-style indicator still said "End").
+  • About spread: fixed the portrait-vs-landscape size mismatch (thumbnail shrank + summary text grew + it felt crowded in landscape). The type/thumb clamps used vw/vh, which swap between orientations; switched them to vmin so both orientations render like the (preferred) portrait layout.
+
+--------------------------
 v0.9.62 — 2026-07-03 — End-spread bubble reads "About"; redeploy
   • End-spread page bubble now says "About" instead of "End".
   • Reverted the cover-ⓘ blank-pages open (opening straight to the real end-spread content during the cover-open is a bigger animation change, deferred).
