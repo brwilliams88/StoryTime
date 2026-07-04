@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.65',
+      version: 'v0.9.66',
       buildDate: '2026-07-04',
 
       showSplash: true,
@@ -1802,11 +1802,14 @@ createApp({
         Object.assign(s.style, { position: 'absolute', pointerEvents: 'none', zIndex: '6' });
         const STRIP = 30, dir = portrait ? 'to bottom' : 'to right';
         if (which === 'image') {   // inner edge = right (landscape) / bottom (portrait), dark TOWARD centre
-          s.style.background = 'linear-gradient(' + dir + ', rgba(74,54,24,0) 0%, rgba(74,54,24,0.17) 62%, rgba(40,28,12,0.21) 88%, rgba(23,15,6,0.53) 100%)';
+          // Stops chosen so the two 30px halves reproduce the real .book-crease (60px)
+          // EXACTLY (this half = its 0–50%), so the gutter line doesn't change width at
+          // the hand-off from the overlay to the live crease when the turn settles.
+          s.style.background = 'linear-gradient(' + dir + ', rgba(74,54,24,0) 0%, rgba(74,54,24,0.17) 60%, rgba(40,28,12,0.21) 90%, rgba(23,15,6,0.53) 100%)';
           if (portrait) Object.assign(s.style, { left: '0', right: '0', bottom: '0', height: STRIP + 'px' });
           else Object.assign(s.style, { top: '0', bottom: '0', right: '0', width: STRIP + 'px' });
-        } else {                   // text half inner edge = left/top, dark AT centre fading out
-          s.style.background = 'linear-gradient(' + dir + ', rgba(23,15,6,0.53) 0%, rgba(40,28,12,0.21) 12%, rgba(74,54,24,0.17) 38%, rgba(74,54,24,0) 100%)';
+        } else {                   // text half inner edge = left/top, dark AT centre fading out (= book-crease 50–100%)
+          s.style.background = 'linear-gradient(' + dir + ', rgba(23,15,6,0.53) 0%, rgba(40,28,12,0.21) 10%, rgba(74,54,24,0.17) 40%, rgba(74,54,24,0) 100%)';
           if (portrait) Object.assign(s.style, { left: '0', right: '0', top: '0', height: STRIP + 'px' });
           else Object.assign(s.style, { top: '0', bottom: '0', left: '0', width: STRIP + 'px' });
         }
@@ -1833,7 +1836,7 @@ createApp({
       const tcs = makeSpread();
       Object.assign(tcs.style, { left: (portrait ? 0 : -center) + 'px', top: (portrait ? -center : 0) + 'px' });
       textPage.appendChild(tcs);
-      const textCrease = creaseStrip('text'); textPage.appendChild(textCrease);
+      textPage.appendChild(creaseStrip('text'));
       wrap.appendChild(textPage);
 
       const imageFace = document.createElement('div');
@@ -1841,7 +1844,7 @@ createApp({
       if (portrait) Object.assign(imageFace.style, { left: '0', top: '0', width: W + 'px', height: half + 'px', transformOrigin: '50% 100%' });
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
       imageFace.appendChild(makeSpread());
-      const imageCrease = creaseStrip('image'); imageFace.appendChild(imageCrease);
+      imageFace.appendChild(creaseStrip('image'));
       wrap.appendChild(imageFace);
 
       const coverFace = document.createElement('div');
@@ -1878,13 +1881,6 @@ createApp({
       const apply = (p) => {
         p = Math.max(0, Math.min(1, p));
         const d = this.coverDiag;
-        // ALL of the cover's shadowing now answers to the "Enable edge shadow" master
-        // toggle — not just the edge-follow shadow, but the gutter/crease shading and
-        // the spine drop-shadow too. Before, those stayed on when you disabled the
-        // toggle, so it looked like the toggle "did nothing" to the cover.
-        const shOn = window.PageShadow ? window.PageShadow.masterOn(this._shadowOpts()) : true;
-        if (textCrease) textCrease.style.opacity = shOn ? '1' : '0';
-        if (imageCrease) imageCrease.style.opacity = shOn ? '1' : '0';
         const DEG = Math.PI / 180;
         const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
         const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
@@ -1935,7 +1931,7 @@ createApp({
         const shadows = [];
         // subtle dark-brown outline (not pure black) where the band meets the faces
         if (d.outline) shadows.push(portrait ? 'inset 0 1px 0 rgba(40,28,14,0.42), inset 0 -1px 0 rgba(40,28,14,0.42)' : 'inset 1px 0 0 rgba(40,28,14,0.42), inset -1px 0 0 rgba(40,28,14,0.42)');
-        if (d.shadow && shOn) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
+        if (d.shadow) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
         spineEdge.style.boxShadow = shadows.join(', ');
         if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
@@ -1958,7 +1954,14 @@ createApp({
         // clipped away — during the cover lift AND the whole image-lay half).
         const outSign = edgePos >= center ? -1 : 1;                        // toward the spine (centre)
         let reach = PS.shadowReachPx(edgeAngle, o, half);
-        reach = Math.max(0, Math.min(reach, Math.abs(center - edgePos)));  // clamped to the exposed strip, never past the spine → never spills
+        // Bound reach to the EXPOSED page strip the SAME way an interior turn does, so
+        // the cover shadow grows/shrinks with the turn identically. The revealed page
+        // width for a leaf tilted `ang` off flat is half·(1−cos ang) (0 when flat, half
+        // at 90°). Clamping to |centre−edgePos| instead (as before) is huge near the
+        // start → a "big cast shadow" that didn't match the inner pages. Also cap at the
+        // spine so it can never spill past centre.
+        const exposed = half * (1 - Math.cos(ang * DEG));
+        reach = Math.max(0, Math.min(reach, exposed, Math.abs(center - edgePos)));
         const soft = PS.softPx(o);
         if (portrait) {
           coverEdgeShadow.style.left = '0'; coverEdgeShadow.style.width = W + 'px';

@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.66 — 2026-07-04 — Cover→page-1 edge shadow matched to interior turns; crease hand-off + decoupling
+  • THE cover edge-shadow fix: on the cover→page-1 open (and page-1→cover close) the cast shadow was much too big early in the turn (~44px where an interior page turn is <1px), which read as a big cast shadow that didn't match the inner pages. Root cause: its reach was clamped to the distance-to-spine (huge near the start) instead of to the actual exposed page strip. Now it's bounded by the revealed-page width — half·(1−cos tilt) — exactly like an interior turn, so it grows and shrinks with the turn identically. Verified by running both shadow models through JavaScriptCore and matching their reach across the whole turn.
+  • Decoupled the gutter/crease + spine shadows from the "Enable edge shadow" toggle again (v0.9.65 had tied them together). The gutter shadow is back to always-on and unchanged; only the edge-follow shadow + edge line answer to the toggle — consistent with the interior pages.
+  • Fixed the tiny gutter-line width jump at the very end of the ⓘ→About flip: the overlay's two crease halves now reproduce the real .book-crease gradient exactly, so the centre line doesn't get slightly thinner when the overlay hands off to the live crease.
+
+--------------------------
 v0.9.65 — 2026-07-04 — Cover shadow answers to the toggle, no ⓘ→About shadow artifact, no book on shelf mid-close
   • The "Enable edge shadow" diagnostics toggle now controls ALL of the cover's shadowing. Before, only the edge-follow shadow responded; the gutter/crease shading and the spine drop-shadow stayed on regardless — which is why toggling it "did nothing" to the cover and the orange debug tint (which only tints the edge shadow) seemed to show nothing. Turning the toggle off now flattens the whole cover; on + debug shows the edge shadow orange. (Verified by driving the live code and reading each layer's opacity.)
   • ⓘ (open-to-back): the cover-open no longer casts a page-turn shadow onto the About spread — that stray shadow that appeared on the top page during the flip and vanished when it settled is gone. (Regular page turns to About never had it.)
