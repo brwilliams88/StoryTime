@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.63',
+      version: 'v0.9.64',
       buildDate: '2026-07-03',
 
       showSplash: true,
@@ -1939,18 +1939,18 @@ createApp({
         // 180-ang (90→180). edgePos is the perspective-projected edge position.
         const PS = window.PageShadow, o = this._shadowOpts();
         const edgeAngle = p <= 0.5 ? ang : (180 - ang);
-        // Which side the cast shadow trails onto — this is what makes the cover match
-        // interior. While the COVER lifts (p<=0.5) the revealed page (the text half,
-        // sliding into place) is on the CENTRE side of the edge, so the shadow must
-        // fall toward centre; otherwise it projects into the empty gap beyond the
-        // paper and the anti-spill clip erases it (THAT was the "weak cover shadow" —
-        // full strength, ~93% clipped early on). Once the IMAGE page lays down
-        // (p>0.5) the exposed page is outward, exactly like an interior turn.
-        const outward = edgePos >= center ? 1 : -1;
-        const outSign = p <= 0.5 ? -outward : outward;
-        const limitPos = p <= 0.5 ? center : (center + outward * half);   // don't cross the spine while lifting
+        // Which side the cast shadow trails onto — this is what makes the cover
+        // match interior. A cover OPEN always reveals the pages spine-ward: while the
+        // cover lifts (p<=0.5) the text half slides in on the CENTRE side, and while
+        // the image page lays down (p>0.5) it too occupies the CENTRE side of its
+        // edge. So the shadow trails toward CENTRE the whole time (opposite of an
+        // interior turn, where the exposed page is outward). Projecting it outward —
+        // as before — put it in the empty gap beyond the paper, where the anti-spill
+        // clip erased it (that was the "invisible cover shadow": full strength,
+        // clipped away — during the cover lift AND the whole image-lay half).
+        const outSign = edgePos >= center ? -1 : 1;                        // toward the spine (centre)
         let reach = PS.shadowReachPx(edgeAngle, o, half);
-        reach = Math.max(0, Math.min(reach, Math.abs(limitPos - edgePos)));  // clamped to the exposed strip → never spills
+        reach = Math.max(0, Math.min(reach, Math.abs(center - edgePos)));  // clamped to the exposed strip, never past the spine → never spills
         const soft = PS.softPx(o);
         if (portrait) {
           coverEdgeShadow.style.left = '0'; coverEdgeShadow.style.width = W + 'px';
@@ -2339,6 +2339,10 @@ createApp({
     // shelf as the limits allow. Already on the cover → skip the close, just fade.
     closeBook() {
       if (this._coverAnim) return;
+      // Invalidate any in-flight open (its deferred snapshot/flyer will now bail) and
+      // clear stray overlays before we start closing.
+      this._morphGen = (this._morphGen || 0) + 1;
+      this._sweepMorphTemps();
       const story = this.currentStory;
       const targetId = story && story.id;
       if (this.isOnCover) { this._bookToShelf(targetId, { coverClose: true }); return; }   // already closed → straight to the shelf morph (navy fades out over the shelf)
@@ -2382,6 +2386,7 @@ createApp({
     //     shelf book on landing.
     _bookToShelf(targetId, opts) {
       opts = opts || {};
+      const gen = this._morphGen;   // abandon if a newer morph starts before/while we fly
       const gsap = window.gsap;
       const area = document.querySelector('.page-area');
       // Source cover can be the live reading-view cover OR the close overlay's cover
@@ -2416,6 +2421,7 @@ createApp({
       this.currentPageIndex = 0;
       this.coverShift = false;
       this.$nextTick(() => {
+        if (gen !== this._morphGen) return;   // a newer morph took over
         const cleanup = () => { document.querySelectorAll('.book-fly-temp').forEach(el => el.remove()); };
         let slot = null;
         try {
@@ -2430,6 +2436,7 @@ createApp({
         // coverClose (cover→shelf) did NOT, so it must scroll here too.
         if ((!skip || opts.coverClose) && bookEl.scrollIntoView) bookEl.scrollIntoView({ block: 'center', inline: 'nearest' });
         requestAnimationFrame(() => {
+          if (gen !== this._morphGen) { cleanup(); return; }   // superseded → don't build the flyer
           const er = bookEl.getBoundingClientRect();                       // the shelf slot (whole book)
           const coverEl = bookEl.querySelector('.book-cover');
           const cr = coverEl ? coverEl.getBoundingClientRect()             // the shelf COVER square (= image)
@@ -2472,12 +2479,15 @@ createApp({
           const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
           const A = skip ? 0 : 0.34, B = 0.62, total = A + B, pA = A / total;   // skip the travel/melt when the close already centred the book
-          const done = () => { bookEl.style.visibility = ''; cleanup(); };
+          // Always un-hide the real book (never leave a gap); only sweep temps if we
+          // still own this morph (else a newer morph's elements would be nuked).
+          const done = () => { bookEl.style.visibility = ''; if (gen !== this._morphGen) return; cleanup(); };
           setTimeout(done, total * 1000 + 800);   // backstop
           const st = { p: 0 };
           gsap.to(st, {
             p: 1, duration: total, ease: 'none', onComplete: done,
             onUpdate: () => {
+              if (gen !== this._morphGen) return;   // superseded mid-flight
               const p = st.p;
               if (p <= pA) {
                 // Phase A — travel to centre, dark melts (image rides with the big clone)
@@ -2638,8 +2648,19 @@ createApp({
     // Tap a shelf book → go straight into the reading view (cover), morphing the
     // book UP from its shelf slot to screen centre — the reverse of the close-to-
     // shelf animation. Loads the story quietly first (no full-screen spinner).
+    // Wipe any leftover morph overlays and un-hide any book/cover that a previous
+    // (possibly interrupted) morph left hidden — so a duplicate can never persist.
+    _sweepMorphTemps() {
+      document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());
+      document.querySelectorAll('.book, .cover-book, [data-book-id]').forEach(el => { if (el.style.visibility === 'hidden') el.style.visibility = ''; });
+    },
     async openBookMorph(meta, ev) {
       if (this._coverAnim) return;
+      // Each morph gets a generation number; deferred work (nextTick/rAF/tween) checks
+      // it and bails if a newer morph has started, so a rapid open→close can't leave a
+      // half-built shelf snapshot or a stray flyer behind (the "duplicate on the shelf").
+      const gen = this._morphGen = (this._morphGen || 0) + 1;
+      this._sweepMorphTemps();
       // Capture the shelf source NOW — clone the book + measure its rects while the
       // library is still on screen (we're about to switch views, which unmounts it).
       let src = null;
@@ -2677,7 +2698,8 @@ createApp({
       this.currentStoryCost = story.cost || 0;
       this.currentTextCost = story.text_cost || 0; this.currentImagesCost = story.images_cost || 0;
       this.currentPageIndex = 0;
-      this._shelfToBook(src);
+      if (gen !== this._morphGen) return;   // superseded during the async load (e.g. tapped again / closed)
+      this._shelfToBook(src, gen);
       this.evictOldCachedBooks();
     },
     // The reverse of _bookToShelf: fly the book from its shelf slot up to screen
@@ -2685,16 +2707,19 @@ createApp({
     // on the (centred) reading cover. Image-anchored so the picture never jumps.
     // `src` (captured in openBookMorph, before the view switch) has the shelf
     // clone + rects; the shelf itself is already unmounted by now.
-    _shelfToBook(src) {
+    _shelfToBook(src, gen) {
+      if (gen == null) gen = this._morphGen;
       this.view = 'story'; this.currentPageIndex = 0; this.coverShift = false;
       const gsap = window.gsap;
       if (!gsap || !src) { this.$nextTick(() => this.pokeReaderUi()); return; }
       this.$nextTick(() => {
+        if (gen !== this._morphGen) return;   // a newer morph took over
         const area = document.querySelector('.page-area');
         const coverBook = area && area.querySelector('.cover-book');
         if (!coverBook) { this.pokeReaderUi(); return; }
         coverBook.style.visibility = 'hidden';   // hide the live cover this frame (no pop)
         requestAnimationFrame(() => {
+          if (gen !== this._morphGen) { coverBook.style.visibility = ''; return; }   // superseded → don't build the snapshot/flyer
           document.querySelectorAll('.book-fly-temp').forEach(el => el.remove());
           const cen = coverBook.getBoundingClientRect();               // destination (centred) cover box
           // Real-bookshelf backdrop that HIDES the (already-mounted) navy reading
@@ -2733,10 +2758,13 @@ createApp({
           const lerp = (a, b, t) => a + (b - a) * t;
           const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
           const cleanup = () => { document.querySelectorAll('.book-fly-temp').forEach(el => el.remove()); if (coverBook) coverBook.style.visibility = ''; };
-          const done = () => { cleanup(); this.pokeReaderUi(); };
+          // If superseded, a newer morph already swept these temps — don't clean again
+          // (that would nuke the newer morph's elements). Just stop.
+          const done = () => { if (gen !== this._morphGen) return; cleanup(); this.pokeReaderUi(); };
           setTimeout(done, 1300);   // backstop
           const st = { p: 0 };
           gsap.to(st, { p: 1, duration: 0.62, ease: 'none', onComplete: done, onUpdate: () => {
+            if (gen !== this._morphGen) return;   // superseded mid-flight
             const p = st.p, e = easeIO(p);
             dark.style.opacity = String(p);   // navy fades in linearly, full exactly as the book lands centred
             const fImg = { left: lerp(cr.left, cen.left, e), top: lerp(cr.top, cen.top, e), width: lerp(cr.width, cen.width, e), height: lerp(cr.height, cen.height, e) };
