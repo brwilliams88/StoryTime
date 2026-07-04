@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.64',
-      buildDate: '2026-07-03',
+      version: 'v0.9.65',
+      buildDate: '2026-07-04',
 
       showSplash: true,
 
@@ -1770,7 +1770,8 @@ createApp({
         return sp;
       };
       // ⓘ open-to-back → reveal the About spread; normal open → reveal page 1.
-      const makeSpread = () => (this._openToBack ? buildToolboxSpread() : buildSpread());
+      const toBack = this._openToBack;   // ⓘ open-to-back → reveal the About spread AND suppress the page-turn shadow on it
+      const makeSpread = () => (toBack ? buildToolboxSpread() : buildSpread());
 
       // Build the closed-cover book FROM DATA (mirrors the template markup), so
       // the close animation works even when the live .cover-book isn't rendered.
@@ -1832,7 +1833,7 @@ createApp({
       const tcs = makeSpread();
       Object.assign(tcs.style, { left: (portrait ? 0 : -center) + 'px', top: (portrait ? -center : 0) + 'px' });
       textPage.appendChild(tcs);
-      textPage.appendChild(creaseStrip('text'));
+      const textCrease = creaseStrip('text'); textPage.appendChild(textCrease);
       wrap.appendChild(textPage);
 
       const imageFace = document.createElement('div');
@@ -1840,7 +1841,7 @@ createApp({
       if (portrait) Object.assign(imageFace.style, { left: '0', top: '0', width: W + 'px', height: half + 'px', transformOrigin: '50% 100%' });
       else Object.assign(imageFace.style, { left: '0', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '100% 50%' });
       imageFace.appendChild(makeSpread());
-      imageFace.appendChild(creaseStrip('image'));
+      const imageCrease = creaseStrip('image'); imageFace.appendChild(imageCrease);
       wrap.appendChild(imageFace);
 
       const coverFace = document.createElement('div');
@@ -1877,6 +1878,13 @@ createApp({
       const apply = (p) => {
         p = Math.max(0, Math.min(1, p));
         const d = this.coverDiag;
+        // ALL of the cover's shadowing now answers to the "Enable edge shadow" master
+        // toggle — not just the edge-follow shadow, but the gutter/crease shading and
+        // the spine drop-shadow too. Before, those stayed on when you disabled the
+        // toggle, so it looked like the toggle "did nothing" to the cover.
+        const shOn = window.PageShadow ? window.PageShadow.masterOn(this._shadowOpts()) : true;
+        if (textCrease) textCrease.style.opacity = shOn ? '1' : '0';
+        if (imageCrease) imageCrease.style.opacity = shOn ? '1' : '0';
         const DEG = Math.PI / 180;
         const s1 = Math.min(1, p / 0.5), e1 = easeIO(s1);
         const s2 = Math.max(0, (p - 0.5) / 0.5), e2 = easeO(s2);
@@ -1927,7 +1935,7 @@ createApp({
         const shadows = [];
         // subtle dark-brown outline (not pure black) where the band meets the faces
         if (d.outline) shadows.push(portrait ? 'inset 0 1px 0 rgba(40,28,14,0.42), inset 0 -1px 0 rgba(40,28,14,0.42)' : 'inset 1px 0 0 rgba(40,28,14,0.42), inset -1px 0 0 rgba(40,28,14,0.42)');
-        if (d.shadow) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
+        if (d.shadow && shOn) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
         spineEdge.style.boxShadow = shadows.join(', ');
         if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
@@ -1963,7 +1971,7 @@ createApp({
         }
         coverEdgeShadow.style.background = PS.shadowGradient(
           portrait ? (outSign > 0 ? 'to bottom' : 'to top') : (outSign > 0 ? 'to right' : 'to left'), o);
-        coverEdgeShadow.style.opacity = String(PS.shadowOpacity(edgeAngle, o));
+        coverEdgeShadow.style.opacity = String(toBack ? 0 : PS.shadowOpacity(edgeAngle, o));   // no page-turn shadow when opening onto the About spread
         coverEdgeShadow.style.filter = soft ? 'blur(' + soft + 'px)' : '';
         // CLIP the shadow to the visible PAGE beneath (text half always; image half
         // once it lays) so it NEVER spills onto the dark/blue background. The shadow
@@ -1979,7 +1987,7 @@ createApp({
         const lw = 1.6;
         if (portrait) { coverEdgeLine.style.left = '0'; coverEdgeLine.style.width = W + 'px'; coverEdgeLine.style.top = (edgePos - lw / 2) + 'px'; coverEdgeLine.style.height = lw + 'px'; }
         else { coverEdgeLine.style.top = '0'; coverEdgeLine.style.height = H + 'px'; coverEdgeLine.style.left = (edgePos - lw / 2) + 'px'; coverEdgeLine.style.width = lw + 'px'; }
-        coverEdgeLine.style.opacity = String(PS.lineOpacity(edgeAngle, o));
+        coverEdgeLine.style.opacity = String(toBack ? 0 : PS.lineOpacity(edgeAngle, o));
       };
 
       const fx = { p: 0, apply, raf: null, wrap, stage, setClosing: (v) => { closing = v; } };
@@ -2363,8 +2371,18 @@ createApp({
       this.currentPageIndex = 0;
       if (fx.stage) fx.stage.style.background = showShelf ? 'transparent' : 'var(--bg-deep, #1a1208)';
       // Scroll the shelf to the target slot NOW (while it's hidden behind the closing
-      // overlay) so it's already in place — no "jump" when the book flies to it.
-      this.$nextTick(() => this._scrollShelfTo(targetId));
+      // overlay) so it's already in place — no "jump" when the book flies to it — AND
+      // hide that slot immediately, so you never see the book sitting on the shelf
+      // while the big book is still closing/centring (Part 2 re-hides + restores it).
+      this.$nextTick(() => {
+        this._scrollShelfTo(targetId);
+        try {
+          const sel = '[data-book-id="' + (window.CSS && CSS.escape ? CSS.escape(targetId) : targetId) + '"]';
+          const slot = document.querySelector(sel);
+          const bookEl = (slot && slot.querySelector('.book')) || slot;
+          if (bookEl) bookEl.style.visibility = 'hidden';
+        } catch (e) { /* ignore */ }
+      });
       fx.p = 1; fx.apply(1);
       // When the cover finishes closing at centre, fly it straight to the shelf
       // slot (no pause/dark-melt) — the overlay's cover is the morph source.

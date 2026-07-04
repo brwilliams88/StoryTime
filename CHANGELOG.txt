@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.65 — 2026-07-04 — Cover shadow answers to the toggle, no ⓘ→About shadow artifact, no book on shelf mid-close
+  • The "Enable edge shadow" diagnostics toggle now controls ALL of the cover's shadowing. Before, only the edge-follow shadow responded; the gutter/crease shading and the spine drop-shadow stayed on regardless — which is why toggling it "did nothing" to the cover and the orange debug tint (which only tints the edge shadow) seemed to show nothing. Turning the toggle off now flattens the whole cover; on + debug shows the edge shadow orange. (Verified by driving the live code and reading each layer's opacity.)
+  • ⓘ (open-to-back): the cover-open no longer casts a page-turn shadow onto the About spread — that stray shadow that appeared on the top page during the flip and vanished when it settled is gone. (Regular page turns to About never had it.)
+  • Closing from the end/About page ("Close Book"): you no longer briefly see the book already sitting on the shelf while the big book is still closing + centring. The shelf slot is now hidden the moment the close starts (not only once the shrink-to-shelf begins).
+
+--------------------------
 v0.9.64 — 2026-07-03 — Cover-shadow FULLY fixed, no duplicate on the shelf, robust rapid open/close, landscape title
   • Cover-open/close edge shadow now shows the full way through (this is the real fix — v0.9.63 only fixed the first half). The shadow was projecting into the empty gap beyond the page and being clipped: during BOTH the cover lift AND the image-page lay, the revealed page is on the spine side, so the shadow now trails toward the spine the whole time. Verified in a driven harness of the live code: visible fraction 7%→100% across the open, matching interior turns.
   • Open/close no longer ever shows a duplicate of the book on the shelf. Cause was a race: a fast open→close let the open's deferred shelf-snapshot build AFTER the close had started. Added a morph "generation" guard so any superseded open/close bails out of its deferred work, plus a thorough sweep that clears stray overlays and un-hides any book left hidden.
