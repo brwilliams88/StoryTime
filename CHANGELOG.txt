@@ -9,6 +9,11 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.69 — 2026-07-05 — Softer inner-page shadows; add .nojekyll to fix GitHub Pages deploys
+  • Page-turn shadow defaults dialed down so the inner pages read closer to the (subtle) cover shadow, pending a proper reconciliation later: darkness 125%→50%, reach-past-edge 25%→10%, softness unchanged (25%). Diagnostics mode stays OFF by default (toggle still lives in Settings → Developer). The cover edge shadow work is PARKED until after MVP — see the shadow-saga notes in memory.
+  • Fixed the recurring GitHub Pages deploy failures: added a .nojekyll file so Pages publishes the site as-is instead of running it through Jekyll (which this Vue SPA doesn't need and which was the failure point — the v0.9.68 deployment failed the Jekyll build). This was NOT a daily GitHub outage; it was our build config.
+
+--------------------------
 v0.9.68 — 2026-07-04 — Found the impostor shadows: cover edge shadow finally visible, only below the line, slider-tunable
   • THE breakthrough on "the cover shadow never changes": the shadows visible around the cover's edge were never the edge shadow at all — they were (a) the cover face's own big CSS drop-shadow (a black 38px-blur blob riding the tilting cover) and (b) the board-thickness bar's omnidirectional glow, which bloomed ABOVE the edge line onto the cream title plate. Neither tints orange in debug, neither obeys the sliders — which is why every edge-shadow fix "did nothing".
   • Fixes (overlay only; the resting cover keeps its normal look): the cover's ambient drop-shadow now fades out as the cover lifts (exact CSS values at rest → no pop at hand-off, gone by 90°), and the board-edge glow is now one-sided, falling only OUTWARD/below the edge line — never onto the plate.

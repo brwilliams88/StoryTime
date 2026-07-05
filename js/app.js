@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.68',
+      version: 'v0.9.69',
       buildDate: '2026-07-04',
 
       showSplash: true,
@@ -81,8 +81,8 @@ createApp({
         pageShadow: true,       // MASTER on/off
         shadowDebug: false,     // tint the shadow orange to check it's working
         shadowCurve: 'linear',  // ramp flat→90°: 'linear' | 'x2' | 'x2.5' | 'x3' (linear is the POR)
-        edgeDarkness: 1.25,     // 0..2 shadow darkness/opacity (slider goes to 200%)
-        edgeReach: 0.25,        // 0..1 how far the shadow reaches past the edge (∝ page size)
+        edgeDarkness: 0.5,      // 0..2 shadow darkness/opacity (slider goes to 200%) — dialed down (POR: closer to the cover look) v0.9.69
+        edgeReach: 0.10,        // 0..1 how far the shadow reaches past the edge (∝ page size) — dialed down
         edgeSoft: 0.25,         // 0..1 softness (blur) of the shadow
         closeShowShelf: true,   // FIXED ON (POR): book-close shows the real bookshelf under the closing cover
       },
