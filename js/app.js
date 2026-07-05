@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.67',
+      version: 'v0.9.68',
       buildDate: '2026-07-04',
 
       showSplash: true,
@@ -1852,6 +1852,11 @@ createApp({
       if (portrait) Object.assign(coverFace.style, { left: '0', top: cClosed + 'px', width: W + 'px', height: half + 'px', transformOrigin: '50% 0%' });
       else Object.assign(coverFace.style, { left: cClosed + 'px', top: '0', width: half + 'px', height: H + 'px', transformOrigin: '0% 50%' });
       const cbc = buildCoverFace();
+      // The overlay cover's big CSS drop-shadow (.cover-front) is faded out in
+      // apply() as the cover lifts: at rest it matches the real cover (no pop at
+      // hand-off), but mid-turn it's a black blob that isn't part of the edge-
+      // shadow model and polluted the look around the edge line.
+      const coverFrontEl = cbc.querySelector('.cover-front');
       Object.assign(cbc.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0' });
       coverFace.appendChild(cbc);
       wrap.appendChild(coverFace);
@@ -1889,6 +1894,12 @@ createApp({
           ? 'translateY(' + ((center - cClosed) * e1) + 'px) rotateX(' + (90 * e1) + 'deg)'
           : 'translateX(' + ((center - cClosed) * e1) + 'px) rotateY(' + (-90 * e1) + 'deg)';
         coverFace.style.opacity = p < 0.5 ? '1' : '0';   // fully opaque until 90° (no see-through), then gone
+        // Fade the resting cover's ambient drop-shadow out over the lift: exact CSS
+        // values at p=0 (seamless hand-off with the real cover), gone by 90° so the
+        // only shadow near the moving edge is the shared PageShadow band.
+        if (coverFrontEl) coverFrontEl.style.boxShadow = p <= 0.5
+          ? '0 16px 38px rgba(0,0,0,' + (0.5 * (1 - e1)).toFixed(3) + '), 0 4px 10px rgba(0,0,0,' + (0.4 * (1 - e1)).toFixed(3) + ')'
+          : 'none';
         // text slides into the bottom/right half
         const ts = -(center - cClosed) * (1 - e1);
         textPage.style.transform = portrait ? 'translateY(' + ts + 'px)' : 'translateX(' + ts + 'px)';
@@ -1931,7 +1942,12 @@ createApp({
         const shadows = [];
         // subtle dark-brown outline (not pure black) where the band meets the faces
         if (d.outline) shadows.push(portrait ? 'inset 0 1px 0 rgba(40,28,14,0.42), inset 0 -1px 0 rgba(40,28,14,0.42)' : 'inset 1px 0 0 rgba(40,28,14,0.42), inset -1px 0 0 rgba(40,28,14,0.42)');
-        if (d.shadow) shadows.push('0 0 ' + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
+        // one-sided: the board-edge glow falls OUTWARD (below/right of the edge line)
+        // only — an omnidirectional glow bloomed ABOVE the line onto the cover plate.
+        if (d.shadow) {
+          const outw = edgePos >= center ? 1 : -1;
+          shadows.push((portrait ? '0 ' + (outw * 3) + 'px ' : (outw * 3) + 'px 0 ') + (4 + th * 0.5) + 'px rgba(0,0,0,0.5)');
+        }
         spineEdge.style.boxShadow = shadows.join(', ');
         if (portrait) { spineEdge.style.height = th + 'px'; spineEdge.style.top = (edgePos - th / 2) + 'px'; }
         else { spineEdge.style.width = th + 'px'; spineEdge.style.left = (edgePos - th / 2) + 'px'; }
