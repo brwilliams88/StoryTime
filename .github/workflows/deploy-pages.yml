@@ -1,0 +1,45 @@
+name: Deploy to GitHub Pages
+
+# Deploy the static site via GitHub Actions instead of the legacy "deploy from a
+# branch" Jekyll pipeline (which was failing intermittently — see CHANGELOG
+# v0.9.70). This path publishes the repo as-is, is far more reliable, and leaves
+# a visible build log under the repo's Actions tab if anything ever does fail.
+#
+# ONE-TIME SETUP (required): GitHub → repo Settings → Pages → "Build and
+# deployment" → Source = "GitHub Actions". After that, every push to main
+# deploys automatically.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least-privilege perms the deploy action needs
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once; let a newer push cancel an in-flight one
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

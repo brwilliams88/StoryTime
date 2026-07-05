@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.9.70 — 2026-07-05 — Deploy GitHub Pages via Actions (fix the recurring deploy failures)
+  • Root-caused the "deploy fails every few revs" saga: it was NOT our content (the diff since the last good deploy was just version strings) and NOT Jekyll (.nojekyll in v0.9.69 didn't help — v0.9.68 AND v0.9.69 both failed the build). It's the legacy "deploy from a branch" Pages pipeline being flaky.
+  • Switched to a GitHub Actions workflow (.github/workflows/deploy-pages.yml) that publishes the repo as-is. Reliable, and any future failure now leaves a readable log in the repo's Actions tab (the legacy pipeline gave us nothing to debug).
+  • ONE-TIME SETUP by the user: repo Settings → Pages → Source = "GitHub Actions". After that, pushes to main deploy automatically.
+  • .nojekyll kept (harmless; also tells the Actions upload to skip Jekyll).
+
+--------------------------
 v0.9.69 — 2026-07-05 — Softer inner-page shadows; add .nojekyll to fix GitHub Pages deploys
   • Page-turn shadow defaults dialed down so the inner pages read closer to the (subtle) cover shadow, pending a proper reconciliation later: darkness 125%→50%, reach-past-edge 25%→10%, softness unchanged (25%). Diagnostics mode stays OFF by default (toggle still lives in Settings → Developer). The cover edge shadow work is PARKED until after MVP — see the shadow-saga notes in memory.
   • Fixed the recurring GitHub Pages deploy failures: added a .nojekyll file so Pages publishes the site as-is instead of running it through Jekyll (which this Vue SPA doesn't need and which was the failure point — the v0.9.68 deployment failed the Jekyll build). This was NOT a daily GitHub outage; it was our build config.

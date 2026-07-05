@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.69',
+      version: 'v0.9.70',
       buildDate: '2026-07-04',
 
       showSplash: true,
