@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.9.70',
-      buildDate: '2026-07-04',
+      version: 'v0.10.0',
+      buildDate: '2026-07-05',
 
       showSplash: true,
 
@@ -2987,7 +2987,18 @@ createApp({
     // Cover thumbnail for the Library: local cached blob first, then signed URL
     libraryCover(meta) {
       if (!meta || !meta.cover_image_id) return null;
-      return this.getImageURL(meta.cover_image_id) || this.coverUrls[meta.cover_image_id] || null;
+      const id = meta.cover_image_id;
+      // Prefer: local full blob (already cached → zero egress) → the small cloud
+      // THUMBNAIL → the full cloud cover (old books with no thumbnail yet).
+      return this.getImageURL(id) || this.coverUrls[id + '_t'] || this.coverUrls[id] || null;
+    },
+    // If a thumbnail URL 404s (edge case), fall back to the full cover once.
+    onCoverImgError(e, meta) {
+      const img = e && e.target;
+      if (!img || img.dataset.coverFallback || !meta) return;
+      img.dataset.coverFallback = '1';
+      const full = this.getImageURL(meta.cover_image_id) || this.coverUrls[meta.cover_image_id] || '';
+      if (full && img.getAttribute('src') !== full) img.src = full;
     },
     libraryDate(meta) {
       const iso = (meta && (meta.created_at || meta.createdAt)) || '';

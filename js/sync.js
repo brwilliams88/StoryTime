@@ -40,6 +40,54 @@ async function compressToJpeg(blob, quality = JPEG_QUALITY) {
   }
 }
 
+// ---- Cover thumbnails (egress saver) ----
+// The Library shelf renders covers tiny, so we keep a small JPEG thumbnail in
+// the SAME bucket under a derived id (<coverId>_t) and show that instead of the
+// full cover. ~10-15x less data per shelf load for books not cached on-device.
+// No DB/Worker changes: the id is derived, and /img/sign just skips a thumb
+// that doesn't exist yet (old books fall back to the full cover).
+function coverThumbId(coverImageId) { return coverImageId ? coverImageId + '_t' : null; }
+
+// Downscale an image blob to a small JPEG (longest side = maxDim).
+async function downscaleToThumb(blob, maxDim = 256, quality = 0.7) {
+  const bitmap = await createImageBitmap(blob);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  if (bitmap.close) bitmap.close();
+  return (await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))) || blob;
+}
+
+// Make + upload a cover thumbnail from the full-cover blob. Best-effort.
+async function uploadCoverThumb(coverImageId, fullBlob) {
+  if (!coverImageId || !fullBlob) return false;
+  try {
+    const thumb = await downscaleToThumb(fullBlob);
+    await uploadImageBlob(coverThumbId(coverImageId), thumb);
+    return true;
+  } catch (e) { console.warn('Cover thumb upload failed', coverImageId, e); return false; }
+}
+
+// Backfill: if a story's cover blob is on this device but its cloud thumbnail
+// isn't made yet, make + upload one (once). Runs when a book is opened.
+async function ensureCoverThumbUploaded(story) {
+  const cid = story && story.cover && story.cover.image_id;
+  if (!cid || story.cover.thumb_uploaded || !getStoredPassword()) return;
+  try {
+    const cb = await getImageBlob(cid);
+    if (!cb) return;
+    if (await uploadCoverThumb(cid, cb)) {
+      story.cover.thumb_uploaded = true;
+      try { saveStoryToStorage(story); } catch (e) { /* quota — ignore */ }
+    }
+  } catch (e) { /* best-effort */ }
+}
+
 // Blob -> base64 string (no data: prefix)
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -114,6 +162,8 @@ async function syncPushStory(story) {
       await uploadImageBlob(slot.image_id, blob);
       slot.image_uploaded = true;
       flagsChanged = true;
+      // The cover also gets a small thumbnail for the Library shelf.
+      if (slot === story.cover && await uploadCoverThumb(slot.image_id, blob)) story.cover.thumb_uploaded = true;
     } catch (e) {
       console.warn('Story image upload failed:', slot.image_id, e);
     }
@@ -249,23 +299,27 @@ async function ensureStoryImagesLocal(story) {
   for (const id of ids) {
     try { if (!(await getImageBlob(id))) missing.push(id); } catch (e) { missing.push(id); }
   }
-  if (!missing.length) return;
 
-  const pw = getStoredPassword();
-  let urls = {};
-  try { urls = (await imgSignUrls(missing, pw)).urls || {}; }
-  catch (e) { console.warn('Could not sign image URLs', e); return; }
+  if (missing.length) {
+    const pw = getStoredPassword();
+    let urls = {};
+    try { urls = (await imgSignUrls(missing, pw)).urls || {}; }
+    catch (e) { console.warn('Could not sign image URLs', e); return; }
 
-  for (const id of missing) {
-    const url = urls[id];
-    if (!url) continue;
-    try {
-      const blob = await (await fetch(url)).blob();
-      await saveImageBlob(id, blob);
-    } catch (e) {
-      console.warn('Image download failed:', id, e);
+    for (const id of missing) {
+      const url = urls[id];
+      if (!url) continue;
+      try {
+        const blob = await (await fetch(url)).blob();
+        await saveImageBlob(id, blob);
+      } catch (e) {
+        console.warn('Image download failed:', id, e);
+      }
     }
   }
+
+  // Backfill the cover thumbnail for older books now that the cover is on-device.
+  await ensureCoverThumbUploaded(story);
 }
 
 // Download character thumbnails + photos that aren't on this device yet
@@ -296,8 +350,12 @@ async function ensureCharacterImagesLocal(chars) {
 async function signCoverUrls(coverIds) {
   const ids = (coverIds || []).filter(Boolean);
   if (!ids.length) return {};
+  // Sign the full cover AND its thumbnail; the Worker/Supabase just omits any
+  // thumbnail that doesn't exist yet, so old books cleanly fall back to full.
+  const req = [];
+  for (const id of ids) { req.push(id); req.push(coverThumbId(id)); }
   const pw = getStoredPassword();
-  try { return (await imgSignUrls(ids, pw)).urls || {}; }
+  try { return (await imgSignUrls(req, pw)).urls || {}; }
   catch (e) { console.warn('Cover sign failed', e); return {}; }
 }
 

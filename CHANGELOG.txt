@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.10.0 — 2026-07-05 — Cover thumbnails (egress saver) — first step of the v0.10 egress/R2 work
+  • The Library shelf now loads a tiny cover THUMBNAIL (256px JPEG, ~2–20 KB) instead of the full cover image (~200 KB–1.4 MB) for any book not already cached on-device. That's ~100× less data per shelf load — big relief on Supabase egress while the R2 move is built.
+  • How it works (no DB or Worker changes): the thumbnail is stored in the same bucket under a derived id (<coverId>_t). New books make one on upload; older books backfill one automatically the first time you open them. The Library prefers the thumbnail and falls back to the full cover for books that don't have one yet. Full-resolution cover is still used when you actually open a book.
+  • Verified the downscaler in a browser: a 1024×1536 cover → 171×256 JPEG at ~2 KB, aspect preserved.
+  • NEXT in v0.10: move image storage to Cloudflare R2 (zero egress) via the Worker.
+
+--------------------------
 v0.9.70 — 2026-07-05 — Deploy GitHub Pages via Actions (fix the recurring deploy failures)
   • Root-caused the "deploy fails every few revs" saga: it was NOT our content (the diff since the last good deploy was just version strings) and NOT Jekyll (.nojekyll in v0.9.69 didn't help — v0.9.68 AND v0.9.69 both failed the build). It's the legacy "deploy from a branch" Pages pipeline being flaky.
   • Switched to a GitHub Actions workflow (.github/workflows/deploy-pages.yml) that publishes the repo as-is. Reliable, and any future failure now leaves a readable log in the repo's Actions tab (the legacy pipeline gave us nothing to debug).
