@@ -1,6 +1,12 @@
 // =====================================================================
-//  ███  WORKER REV: v0.9.2  (2026-06-23)  ███
-//  Changes since last deploy: added /spend/add + /spend/list (API-spend ledger).
+//  ███  WORKER REV: v0.10.1  (2026-07-06)  ███
+//  Changes since last deploy: IMAGES now stored in Cloudflare R2 (zero egress).
+//    - /img/upload writes to R2; /img/delete removes from R2 (+ Supabase cleanup)
+//    - /img/sign returns HMAC-signed <worker>/img/get/<id> URLs (App password = key)
+//    - NEW public GET /img/get/<id>?exp=&sig= serves bytes from R2, and LAZILY
+//      migrates any not-yet-moved image from Supabase Storage (write-through).
+//    - /img/usage now sums the R2 bucket.
+//  REQUIRES: an R2 bucket bound to this Worker as  IMAGES  (see README).
 //  ^^ BUMP THIS LINE EVERY TIME THE WORKER CHANGES. When pasting a new version
 //     into the Cloudflare dashboard, check this rev against the deployed one so
 //     it's obvious whether you're up to date.
@@ -44,8 +50,17 @@
 const IMAGE_BUCKET = 'story-images';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return handleCORSPreflight();
+
+    const reqUrl = new URL(request.url);
+
+    // ---- PUBLIC image serving (GET) — NOT password-gated, because <img src>
+    //      can't send headers. Access is guarded by the HMAC-signed URL instead. ----
+    if (request.method === 'GET' && reqUrl.pathname.startsWith('/img/get/')) {
+      return await imgServe(env, reqUrl, ctx);
+    }
+
     if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
     // ---- Password gate (protects every route) ----
@@ -72,9 +87,9 @@ export default {
       if (path === '/db/characters/delete') return await dbDelete(env, 'characters', body.id);
       if (path === '/db/characters/list')   return await listCharacters(env, body);
 
-      // ---- Supabase: image storage ----
+      // ---- Image storage (now Cloudflare R2; Supabase kept as lazy fallback) ----
       if (path === '/img/upload') return await imgUpload(env, body);
-      if (path === '/img/sign')   return await imgSign(env, body);
+      if (path === '/img/sign')   return await imgSign(env, body, reqUrl);
       if (path === '/img/delete') return await imgDelete(env, body);
       if (path === '/img/usage')  return await imgUsage(env);
 
@@ -223,79 +238,106 @@ async function listCharacters(env, opts) {
 }
 
 // =====================================================================
-// Supabase — image storage
+// Image storage — Cloudflare R2 (zero egress).  env.IMAGES = R2 bucket binding.
+// Supabase Storage is kept read-only as a lazy-migration fallback: any image
+// not yet in R2 is pulled from Supabase on first view and copied into R2.
 // =====================================================================
+
+// Upload a new image straight to R2.
 async function imgUpload(env, body) {
   const { id, b64, contentType } = body || {};
   if (!id || !b64) return jsonResponse({ error: 'Missing id or b64' }, 400);
   const bytes = base64ToBytes(b64);
-  const objectUrl = `${env.SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${encodeURIComponent(id)}`;
-  const res = await fetch(objectUrl, {
-    method: 'POST',
-    headers: {
-      'apikey': env.SUPABASE_SECRET_KEY,
-      'Authorization': `Bearer ${env.SUPABASE_SECRET_KEY}`,
-      'Content-Type': contentType || 'image/jpeg',
-      'x-upsert': 'true',
-    },
-    body: bytes,
-  });
-  if (!res.ok) return jsonResponse({ error: 'Image upload failed', detail: await res.text() }, res.status);
+  await env.IMAGES.put(id, bytes, { httpMetadata: { contentType: contentType || 'image/jpeg' } });
   return jsonResponse({ ok: true, id });
 }
 
-// Mint short-lived signed URLs so the browser can display private images
-async function imgSign(env, body) {
+// Return HMAC-signed, short-lived URLs pointing back at THIS Worker's public
+// GET route. <img src> works (no headers needed); access is guarded by the sig.
+// We sign every requested id without checking existence — a missing one just
+// 404s on GET and the client falls back (matches the old Supabase behaviour).
+async function imgSign(env, body, reqUrl) {
   const ids = (body && (body.ids || (body.id ? [body.id] : []))) || [];
   if (!ids.length) return jsonResponse({ error: 'Missing ids' }, 400);
   const expiresIn = (body && body.expiresIn) || 3600;
-
-  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/sign/${IMAGE_BUCKET}`, {
-    method: 'POST',
-    headers: sbHeaders(env),
-    body: JSON.stringify({ expiresIn, paths: ids }),
-  });
-  if (!res.ok) return jsonResponse({ error: 'Sign failed', detail: await res.text() }, res.status);
-
-  const arr = await res.json(); // [{ path, signedURL, error }, ...]
-  const base = `${env.SUPABASE_URL}/storage/v1`;
+  const exp = Math.floor(Date.now() / 1000) + expiresIn;
+  const base = `${reqUrl.origin}/img/get/`;
   const urls = {};
-  for (const item of arr) {
-    if (item && item.signedURL) urls[item.path] = base + item.signedURL;
+  for (const id of ids) {
+    const sig = await hmacHex(env.APP_PASSWORD, id + ':' + exp);
+    urls[id] = `${base}${encodeURIComponent(id)}?exp=${exp}&sig=${sig}`;
   }
   return jsonResponse({ ok: true, urls });
 }
 
-// Sum the size + count of every object in the image bucket (paginated)
+// PUBLIC: serve an image by id from R2, verifying the HMAC-signed URL. If the
+// object isn't in R2 yet, pull it from Supabase Storage, serve it, and copy it
+// into R2 (write-through migration — happens transparently as books are viewed).
+async function imgServe(env, reqUrl, ctx) {
+  const id = decodeURIComponent(reqUrl.pathname.slice('/img/get/'.length));
+  const exp = Number(reqUrl.searchParams.get('exp') || 0);
+  const sig = reqUrl.searchParams.get('sig') || '';
+  if (!id) return new Response('Missing id', { status: 400 });
+  if (!exp || exp < Math.floor(Date.now() / 1000)) return new Response('URL expired', { status: 403 });
+  const expect = await hmacHex(env.APP_PASSWORD, id + ':' + exp);
+  if (sig !== expect) return new Response('Bad signature', { status: 403 });
+
+  // 1) R2 (the normal path once migrated)
+  const obj = await env.IMAGES.get(id);
+  if (obj) return new Response(obj.body, { headers: imgHeaders(obj.httpMetadata && obj.httpMetadata.contentType) });
+
+  // 2) Lazy fallback: Supabase Storage → serve + copy into R2
+  const sbUrl = `${env.SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${encodeURIComponent(id)}`;
+  const sbRes = await fetch(sbUrl, {
+    headers: { 'apikey': env.SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${env.SUPABASE_SECRET_KEY}` },
+  });
+  if (!sbRes.ok) return new Response('Not found', { status: 404 });
+  const buf = await sbRes.arrayBuffer();
+  const ct = sbRes.headers.get('content-type') || 'image/jpeg';
+  if (ctx && ctx.waitUntil) ctx.waitUntil(env.IMAGES.put(id, buf, { httpMetadata: { contentType: ct } }).catch(() => {}));
+  return new Response(buf, { headers: imgHeaders(ct) });
+}
+
+// Sum the size + count of every object in the R2 bucket (paginated).
 async function imgUsage(env) {
-  let count = 0, bytes = 0, offset = 0;
-  const limit = 1000;
-  for (let i = 0; i < 50; i++) {
-    const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/list/${IMAGE_BUCKET}`, {
-      method: 'POST',
-      headers: sbHeaders(env),
-      body: JSON.stringify({ prefix: '', limit, offset, sortBy: { column: 'name', order: 'asc' } }),
-    });
-    if (!res.ok) return jsonResponse({ error: 'Usage failed', detail: await res.text() }, res.status);
-    const arr = await res.json();
-    if (!Array.isArray(arr) || arr.length === 0) break;
-    for (const o of arr) { count++; bytes += (o.metadata && o.metadata.size) || 0; }
-    if (arr.length < limit) break;
-    offset += arr.length;
+  let count = 0, bytes = 0, cursor;
+  for (let i = 0; i < 100; i++) {
+    const list = await env.IMAGES.list({ limit: 1000, cursor });
+    for (const o of list.objects) { count++; bytes += o.size || 0; }
+    if (!list.truncated) break;
+    cursor = list.cursor;
   }
   return jsonResponse({ ok: true, count, bytes });
 }
 
+// Delete from R2, and best-effort from Supabase (in case not migrated yet).
 async function imgDelete(env, body) {
   const ids = (body && (body.ids || (body.id ? [body.id] : []))) || [];
   if (!ids.length) return jsonResponse({ error: 'Missing ids' }, 400);
-  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}`, {
-    method: 'DELETE',
-    headers: sbHeaders(env),
-    body: JSON.stringify({ prefixes: ids }),
-  });
-  if (!res.ok) return jsonResponse({ error: 'Image delete failed', detail: await res.text() }, res.status);
+  await Promise.all(ids.map((id) => env.IMAGES.delete(id).catch(() => {})));
+  try {
+    await fetch(`${env.SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}`, {
+      method: 'DELETE', headers: sbHeaders(env), body: JSON.stringify({ prefixes: ids }),
+    });
+  } catch (e) { /* best-effort */ }
   return jsonResponse({ ok: true });
+}
+
+// ---- HMAC + image response helpers ----
+async function hmacHex(secret, msg) {
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret || ''), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function imgHeaders(contentType) {
+  return {
+    'Content-Type': contentType || 'image/jpeg',
+    'Access-Control-Allow-Origin': '*',
+    // image ids are content-immutable, so let the browser + Cloudflare edge cache hard
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  };
 }
 
 // =====================================================================
@@ -327,7 +369,7 @@ function handleCORSPreflight() {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-App-Password',
       'Access-Control-Max-Age': '86400',
     },

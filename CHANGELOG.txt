@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.10.1 — 2026-07-06 — Images moved to Cloudflare R2 (zero egress) — Worker REV v0.10.1
+  • Image storage moved from Supabase Storage to Cloudflare R2 (zero egress fees, 10 GB free tier). The database (stories/characters/spend ledger) stays on Supabase. ALL image blobs go to R2: covers, cover thumbnails, page images, character photos/thumbnails.
+  • Worker (worker.js REV v0.10.1): /img/upload writes to R2; /img/sign returns HMAC-signed URLs pointing at a new public GET /img/get/<id> route on the Worker (the app password doubles as the signing key — no new secret); /img/delete removes from R2; /img/usage sums the R2 bucket.
+  • Automatic, gradual migration — no downtime, nothing to run by hand: new images write straight to R2, and any older image still in Supabase Storage is copied into R2 the first time it's viewed (write-through). Supabase Storage stays as a read fallback until everything's been accessed once.
+  • Images now serve with long-lived immutable cache headers (ids are content-immutable), so repeat views are cheaper too.
+  • Settings storage bar now shows usage against R2's 10 GB (was 1 GB).
+  • USER SETUP REQUIRED (one-time, Cloudflare dashboard): create an R2 bucket, bind it to the Worker as `IMAGES`, and paste/deploy the new worker.js. See cloudflare-worker/README.md.
+
+--------------------------
 v0.10.0 — 2026-07-05 — Cover thumbnails (egress saver) — first step of the v0.10 egress/R2 work
   • The Library shelf now loads a tiny cover THUMBNAIL (256px JPEG, ~2–20 KB) instead of the full cover image (~200 KB–1.4 MB) for any book not already cached on-device. That's ~100× less data per shelf load — big relief on Supabase egress while the R2 move is built.
   • How it works (no DB or Worker changes): the thumbnail is stored in the same bucket under a derived id (<coverId>_t). New books make one on upload; older books backfill one automatically the first time you open them. The Library prefers the thumbnail and falls back to the full cover for books that don't have one yet. Full-resolution cover is still used when you actually open a book.

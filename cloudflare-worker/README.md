@@ -20,3 +20,22 @@ This local copy exists so:
 ## Secrets (set in Cloudflare dashboard, NOT in this code)
 - `OPENAI_API_KEY` — your OpenAI API key
 - `APP_PASSWORD` — the password the StoryTime app must send to use this Worker
+  (also used as the HMAC key that signs image URLs — no separate secret needed)
+- `SUPABASE_URL`, `SUPABASE_SECRET_KEY` — for the database + lazy image migration
+
+## R2 image storage (added WORKER REV v0.10.1)
+Images now live in Cloudflare R2 (zero egress) instead of Supabase Storage.
+The DB (stories/characters/spend) stays on Supabase.
+
+One-time setup in the Cloudflare dashboard:
+1. **R2** → *Create bucket* → name it `storytime-images` (any name; enabling R2
+   is free but Cloudflare may ask for a card on file — the free tier is 10 GB
+   storage + zero egress fees).
+2. Your Worker → **Settings → Variables and Secrets → Bindings → + Add → R2
+   bucket**. Set **Variable name = `IMAGES`** and select the bucket. Save.
+3. Paste the new `worker.js` and **Deploy**.
+
+Migration is automatic + gradual: new images write straight to R2; older images
+in Supabase Storage are copied into R2 the first time they're viewed
+(write-through). Nothing to run by hand; Supabase Storage can be emptied later
+once everything's been accessed at least once.

@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.10.0',
+      version: 'v0.10.1',
       buildDate: '2026-07-05',
 
       showSplash: true,
@@ -347,8 +347,8 @@ createApp({
         .filter(a => a.length).length;
     },
     cloudUsagePercent() {
-      const gb = 1073741824; // 1 GB free-tier storage
-      return Math.min(100, Math.round((this.cloudUsage.bytes / gb) * 100));
+      const cap = 10 * 1073741824; // 10 GB R2 free-tier storage
+      return Math.min(100, Math.round((this.cloudUsage.bytes / cap) * 100));
     },
     distinctCreators() { return this._distinct('created_by'); },
     _genreCounts() { return this._countField('genre'); },
