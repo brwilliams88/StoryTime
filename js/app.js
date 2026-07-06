@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.10.1',
-      buildDate: '2026-07-05',
+      version: 'v0.11.0',
+      buildDate: '2026-07-06',
 
       showSplash: true,
 
@@ -133,7 +133,12 @@ createApp({
       refreshingLibrary: false,
       pullDistance: 0,           // pull-to-refresh
       pullRefreshing: false,
-      cloudUsage: { count: 0, bytes: 0, loaded: false },   // Supabase image bucket usage
+      cloudUsage: { count: 0, bytes: 0, r2Count: 0, sbCount: 0, unmigrated: 0, loaded: false },   // image storage usage (R2 + Supabase)
+      // ---- Share a story ----
+      shareMode: false,          // true when this page is a read-only shared link
+      shareLoadError: false,     // shared story couldn't be loaded (bad/removed link)
+      shareMenu: null,           // { url, title, text } when the share sheet is open
+      shareCopied: false,        // brief "Copied!" confirmation on the share menu
       spend: null,               // API-spend summary (populated when Settings opens)
       readerUiShow: true,        // floating reader controls visible (auto-fade while reading)
       librarySearch: '',         // full-text search (server-side over story body)
@@ -396,7 +401,12 @@ createApp({
     },
 
     totalStoryPages() { return this.currentStory ? this.currentStory.pages.length : 0; },
-    totalReadingPages() { return this.currentStory ? this.totalStoryPages + 2 : 0; },
+    // Normal: cover + N pages + toolbox/about spread (= N + 2).
+    // Share mode: no toolbox/about spread — reading ends on the last text page.
+    totalReadingPages() {
+      if (!this.currentStory) return 0;
+      return this.totalStoryPages + (this.shareMode ? 1 : 2);
+    },
     isOnCover() { return this.currentPageIndex === 0; },
     isOnStoryToolbox() {
       return this.currentStory && this.currentPageIndex === this.totalStoryPages + 1;
@@ -549,6 +559,20 @@ createApp({
     };
     window.addEventListener('resize', this._resizeHandler);
 
+    // Mobile browsers show/hide their URL bar as you read, changing the usable
+    // height. visualViewport fires even when window 'resize' doesn't, so we track
+    // it into a --vvh CSS var and re-fit the text. Matters most for shared links
+    // (opened in a plain browser tab, not an installed full-screen PWA).
+    if (window.visualViewport) {
+      this._vvHandler = () => {
+        document.documentElement.style.setProperty('--vvh', window.visualViewport.height + 'px');
+        clearTimeout(this._resizeT);
+        this._resizeT = setTimeout(() => this.recomputeStoryFontSize(), 120);
+      };
+      window.visualViewport.addEventListener('resize', this._vvHandler);
+      this._vvHandler();
+    }
+
     // Desktop keyboard navigation for the reading view (arrow keys).
     // On-screen arrows were removed — touch uses swipe, desktop uses keys.
     this._keyHandler = (e) => {
@@ -579,8 +603,14 @@ createApp({
     window.addEventListener('online', this._onlineHandler);
     window.addEventListener('offline', this._offlineHandler);
 
-    // If we already have a password, sync with the cloud on open
-    if (this.password) this.initCloudData();
+    // A shared link (window.__SHARE__ injected by the Worker) boots straight
+    // into a read-only, password-free view of one story — no library, no gate.
+    if (window.__SHARE__) {
+      this.enterShareMode();
+    } else if (this.password) {
+      // If we already have a password, sync with the cloud on open
+      this.initCloudData();
+    }
   },
 
   beforeUnmount() {
@@ -588,6 +618,7 @@ createApp({
     if (this._onlineHandler) window.removeEventListener('online', this._onlineHandler);
     if (this._offlineHandler) window.removeEventListener('offline', this._offlineHandler);
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    if (this._vvHandler && window.visualViewport) window.visualViewport.removeEventListener('resize', this._vvHandler);
   },
 
   methods: {
@@ -595,7 +626,8 @@ createApp({
     dismissSplash() {
       if (!this.showSplash) return;
       this.showSplash = false;
-      if (!this.password) this.showPasswordPrompt = true;
+      // Shared links never ask for a password — they're public by design.
+      if (!this.password && !this.shareMode && !window.__SHARE__) this.showPasswordPrompt = true;
     },
 
     submitPassword() {
@@ -2129,8 +2161,106 @@ createApp({
     handleContinueStory() {
       alert('Continue Story is coming soon! This will let you make a Part 2 using the same characters and setting.');
     },
-    handleShareStory() {
-      alert('Sharing is coming soon! You\'ll be able to send someone a private link to this story by text or email.');
+    // ================= SHARE A STORY =================
+
+    // Boot a public shared link: fetch the one story (password-free) and drop
+    // straight into the reader with the shelf / about / toolbox all removed.
+    async enterShareMode() {
+      this.shareMode = true;
+      this.showPasswordPrompt = false;
+      this.loading = true;                 // keeps the book-loader up if the splash auto-dismisses first
+      this.loadingMessage = 'Opening story…';
+      this.loadingHint = 'just a moment';
+      try { document.body.classList.add('share-page'); } catch (e) {}
+      const info = window.__SHARE__ || {};
+      const api = info.api || getWorkerUrl();
+      try {
+        const res = await fetch(`${api}/share-data/${encodeURIComponent(info.token || '')}`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.ok || !data.story) throw new Error('not found');
+        // Pre-seed the reactive URL map with the Worker-signed image URLs so the
+        // reader shows images directly — it never calls the password-gated signer.
+        this.imageUrls = data.images || {};
+        this.currentStory = data.story;
+        this.currentStoryRecord = data.story;
+        this.currentPageIndex = 0;
+        this.loading = false;
+        this.view = 'story';
+        this.showSplash = false;
+        document.title = (data.story.title ? data.story.title + ' — ' : '') + 'StoryTime';
+        this.$nextTick(() => { window.scrollTo(0, 0); this.recomputeStoryFontSize(); });
+      } catch (e) {
+        console.warn('Share load failed:', e);
+        this.loading = false;
+        this.shareLoadError = true;
+        this.showSplash = false;
+      }
+    },
+
+    // Build the stable, unguessable share URL for a story (client-side, no
+    // network). token = HMAC(appPassword, storyId) — the exact value the Worker
+    // re-derives to resolve the link. See worker.js share routes.
+    async computeShareToken(storyId) {
+      const pw = getStoredPassword() || this.password || '';
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey('raw', enc.encode(pw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(storyId));
+      const hex = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
+      return hex.slice(0, 12);
+    },
+    shareSlug(title) {
+      const s = (title || 'story').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+      return s || 'story';
+    },
+    async buildShareUrl(story) {
+      const token = await this.computeShareToken(story.id);
+      return `${getWorkerUrl()}/share/${this.shareSlug(story.title)}-${token}`;
+    },
+
+    // The "Share" button on the toolbox/back-of-book spread.
+    async handleShareStory() {
+      if (!this.currentStory) return;
+      try {
+        const url = await this.buildShareUrl(this.currentStory);
+        const title = this.currentStory.title || 'our story';
+        const who = (this.currentStory.created_by && this.currentStory.created_by.trim()) || 'We';
+        const text = `${who} made the story "${title}" on StoryTime and want to share it with you. Tap below to read it!`;
+        this.shareMenu = { url, title, text };
+      } catch (e) {
+        console.warn('Could not build share link:', e);
+        alert('Sorry — could not create a share link just now. Please try again.');
+      }
+    },
+    closeShareMenu() { this.shareMenu = null; },
+    // Native OS share sheet (Messages / Mail / WhatsApp / AirDrop …) where available.
+    async shareViaSheet() {
+      if (!this.shareMenu) return;
+      const { url, title, text } = this.shareMenu;
+      if (navigator.share) {
+        try { await navigator.share({ title: `${title} — StoryTime`, text, url }); this.closeShareMenu(); }
+        catch (e) { /* user cancelled — leave the menu open */ }
+      } else {
+        this.shareCopyLink(true);   // fall back to copy on desktops without Web Share
+      }
+    },
+    shareViaEmail() {
+      if (!this.shareMenu) return;
+      const { url, title, text } = this.shareMenu;
+      const subject = encodeURIComponent(`A StoryTime story: "${title}"`);
+      const body = encodeURIComponent(`${text}\n\n${url}`);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    },
+    async shareCopyLink(quiet) {
+      if (!this.shareMenu) return;
+      const url = this.shareMenu.url;
+      try {
+        await navigator.clipboard.writeText(url);
+        this.shareCopied = true;
+        setTimeout(() => { this.shareCopied = false; }, 1800);
+        if (!quiet) { /* keep menu open with the "Copied!" confirmation */ }
+      } catch (e) {
+        window.prompt('Copy this link:', url);
+      }
     },
 
     openImageInspection(target) {
@@ -2618,7 +2748,14 @@ createApp({
     async fetchCloudUsage() {
       try {
         const r = await imgUsage(getStoredPassword());
-        this.cloudUsage = { count: r.count || 0, bytes: r.bytes || 0, loaded: true };
+        const r2 = (r.r2Count != null ? r.r2Count : r.count) || 0;
+        this.cloudUsage = {
+          count: r2, bytes: r.bytes || 0,
+          r2Count: r2,
+          sbCount: r.sbCount || 0,
+          unmigrated: r.unmigrated || 0,
+          loaded: true,
+        };
       } catch (e) { console.warn('Usage fetch failed:', e); }
     },
 

@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.10.1" />
+  <link rel="stylesheet" href="css/style.css?v=0.11.0" />
 </head>
 <body>
 
@@ -38,6 +38,13 @@
         <button @click="submitPassword" class="btn-primary">Enter</button>
         <p v-if="error" class="error-text">{{ error }}</p>
       </div>
+    </div>
+
+    <!-- ====== SHARED LINK — STORY NOT FOUND ====== -->
+    <div v-else-if="shareLoadError" class="share-error">
+      <div class="share-error-emoji">📖</div>
+      <h2>Story not found</h2>
+      <p>This share link may be broken, or the story was removed.</p>
     </div>
 
     <!-- ============== MAIN APP ============== -->
@@ -365,10 +372,11 @@
 
           <!-- Floating controls: back (top-left) + page count (top-right). They
                only appear when you tap the screen, and hide while turning pages. -->
-          <button @click="closeBook" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
+          <!-- Back-to-shelf is hidden on shared links (there is no shelf to go to). -->
+          <button v-if="!shareMode" @click="closeBook" :class="['reader-back', { 'reader-ui-hide': !readerUiShow }]" aria-label="Back to library">‹</button>
           <div v-if="currentStoryPage || isOnStoryToolbox" :class="['reader-pagenum', { 'reader-ui-hide': !readerUiShow }]">{{ pageShortLabel }}</div>
-          <!-- Cover only: jump straight to the back of the book (its info/end spread). -->
-          <button v-if="isOnCover" @click="openToBack" :class="['reader-about', { 'reader-ui-hide': !readerUiShow }]" aria-label="About this book">
+          <!-- Cover only: jump straight to the back of the book (its info/end spread). Hidden on shared links. -->
+          <button v-if="isOnCover && !shareMode" @click="openToBack" :class="['reader-about', { 'reader-ui-hide': !readerUiShow }]" aria-label="About this book">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </button>
 
@@ -512,7 +520,7 @@
                   <button v-if="currentStory.quiz" @click="openQuiz" class="btn-secondary">
                     <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Quiz Me
                   </button>
-                  <button @click="handleShareStory" class="btn-secondary" disabled title="Coming soon — share a link to this story">
+                  <button @click="handleShareStory" class="btn-secondary" title="Share a link to this story">
                     <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share
                   </button>
                   <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">
@@ -534,6 +542,34 @@
         </div>
 
       </main>
+
+      <!-- ============== SHARE STORY MENU ============== -->
+      <div v-if="shareMenu" class="modal-overlay" @click.self="closeShareMenu">
+        <div class="modal share-modal">
+          <div class="modal-header">
+            <h2>Share this story</h2>
+            <button @click="closeShareMenu" class="modal-close">✕</button>
+          </div>
+          <p class="modal-text">
+            Anyone with this link can read <strong>"{{ shareMenu.title }}"</strong> — no app or password needed.
+          </p>
+          <div class="share-actions">
+            <button @click="shareViaSheet" class="btn-primary share-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              Share…
+            </button>
+            <button @click="shareViaEmail" class="btn-secondary share-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
+              Email
+            </button>
+            <button @click="shareCopyLink(false)" class="btn-secondary share-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {{ shareCopied ? 'Copied!' : 'Copy Link' }}
+            </button>
+          </div>
+          <div class="share-url">{{ shareMenu.url }}</div>
+        </div>
+      </div>
 
       <!-- ============== COPYRIGHT FALLBACK MODAL ============== -->
       <div v-if="copyrightModal" class="modal-overlay">
@@ -889,8 +925,9 @@
             <div class="settings-section-title">📊 Your Library (in the cloud)</div>
             <div class="settings-row"><span>Books</span><strong>{{ libraryBooks.length }}</strong></div>
             <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
-            <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? cloudUsage.count : '…' }}</strong></div>
-            <div class="settings-row"><span>Image storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
+            <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? (cloudUsage.r2Count + ' (R2) / ' + cloudUsage.sbCount + ' (SB)') : '…' }}</strong></div>
+            <div v-if="cloudUsage.loaded && cloudUsage.unmigrated > 0" class="settings-row settings-subnote"><span>Still only in Supabase</span><strong>{{ cloudUsage.unmigrated }}</strong></div>
+            <div class="settings-row"><span>Image Storage (R2)</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: cloudUsagePercent + '%' }"></div></div>
           </div>
 
@@ -1026,16 +1063,18 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.10.1"></script>
-  <script src="js/imageStorage.js?v=0.10.1"></script>
-  <script src="js/api.js?v=0.10.1"></script>
-  <script src="js/sync.js?v=0.10.1"></script>
-  <script src="js/pageShadow.js?v=0.10.1"></script>
-  <script src="js/pageCurl.js?v=0.10.1"></script>
-  <script src="js/app.js?v=0.10.1"></script>
+  <script src="js/storage.js?v=0.11.0"></script>
+  <script src="js/imageStorage.js?v=0.11.0"></script>
+  <script src="js/api.js?v=0.11.0"></script>
+  <script src="js/sync.js?v=0.11.0"></script>
+  <script src="js/pageShadow.js?v=0.11.0"></script>
+  <script src="js/pageCurl.js?v=0.11.0"></script>
+  <script src="js/app.js?v=0.11.0"></script>
 
   <script>
-    if ('serviceWorker' in navigator) {
+    // Shared links are served from the Worker origin (cross-origin to sw.js) and
+    // are one-time reads — skip the service worker entirely there.
+    if ('serviceWorker' in navigator && !window.__SHARE__) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
           .then((reg) => {

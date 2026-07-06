@@ -4,6 +4,10 @@
 
 const WORKER_URL = 'https://storytime-api.brwilliams88.workers.dev';
 
+// Public base for share links (same Worker). Kept as its own accessor so that
+// swapping in a custom domain later is a one-line change here.
+function getWorkerUrl() { return WORKER_URL; }
+
 // ----- Length presets -----
 // More pages (not more words per page) to hit accurate reading times
 // while keeping each page short enough to fit a phone screen.

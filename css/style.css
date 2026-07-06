@@ -2979,3 +2979,61 @@ body:has(.app-main-reading) {
   border-radius: 4px 0 0 4px;
   background: linear-gradient(to right, rgba(0,0,0,0.5), rgba(255,255,255,0.28) 55%, rgba(0,0,0,0.18));
 }
+
+/* ============================================================
+   SHARE A STORY  (v0.11.0)
+   ============================================================ */
+
+/* Shared links open in a plain browser tab (not an installed full-screen PWA).
+   The reader already fills the DYNAMIC viewport via `100dvh` on
+   .app-main-reading, so it shrinks/grows as the browser's URL bar hides/shows.
+   The remaining gap — re-running the JS text auto-fit on that toggle — is
+   handled by the visualViewport listener in app.js (see _vvHandler). */
+
+/* Share menu (the toolbox "Share" button opens this) */
+.share-modal { max-width: 420px; }
+.share-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1.1rem 0 0.9rem;
+}
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.share-btn svg { width: 18px; height: 18px; }
+.share-url {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  word-break: break-all;
+  background: var(--bg-input);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  user-select: all;
+}
+
+/* "Story not found" screen for a broken/removed shared link */
+.share-error {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-main);
+  background: var(--bg-deep);
+}
+.share-error-emoji { font-size: 2.6rem; margin-bottom: 0.4rem; }
+.share-error h2 { margin: 0.2rem 0; }
+.share-error p { color: var(--text-dim); max-width: 22rem; }
+
+/* Settings: small indented note under the image count (migration progress) */
+.settings-subnote {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  padding-left: 0.6rem;
+}

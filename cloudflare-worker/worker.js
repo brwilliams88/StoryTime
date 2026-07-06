@@ -1,11 +1,15 @@
 // =====================================================================
-//  ███  WORKER REV: v0.10.1  (2026-07-06)  ███
-//  Changes since last deploy: IMAGES now stored in Cloudflare R2 (zero egress).
-//    - /img/upload writes to R2; /img/delete removes from R2 (+ Supabase cleanup)
-//    - /img/sign returns HMAC-signed <worker>/img/get/<id> URLs (App password = key)
-//    - NEW public GET /img/get/<id>?exp=&sig= serves bytes from R2, and LAZILY
-//      migrates any not-yet-moved image from Supabase Storage (write-through).
-//    - /img/usage now sums the R2 bucket.
+//  ███  WORKER REV: v0.11.0  (2026-07-06)  ███
+//  Changes since last deploy: SHARE-A-STORY + dual (R2/Supabase) usage count.
+//    - NEW public GET /share/<slug>-<token>  → serves the reader in "share mode"
+//      (a standalone, password-free reading page with OG link-preview tags).
+//    - NEW public GET /share-data/<token>    → story JSON + freshly signed image
+//      URLs (Worker signs server-side, so the recipient needs no password).
+//    - NEW public GET /share-cover/<token>   → cover thumbnail for the OG card.
+//      The token is HMAC(APP_PASSWORD, storyId) truncated — unguessable, stable,
+//      derivable client-side, so no DB column and no per-share write are needed.
+//    - /img/usage now ALSO counts Supabase Storage + how many are R2-only-missing
+//      (so Settings can show "197 (R2) / 326 (SB)" and a migration-progress line).
 //  REQUIRES: an R2 bucket bound to this Worker as  IMAGES  (see README).
 //  ^^ BUMP THIS LINE EVERY TIME THE WORKER CHANGES. When pasting a new version
 //     into the Cloudflare dashboard, check this rev against the deployed one so
@@ -59,6 +63,23 @@ export default {
     //      can't send headers. Access is guarded by the HMAC-signed URL instead. ----
     if (request.method === 'GET' && reqUrl.pathname.startsWith('/img/get/')) {
       return await imgServe(env, reqUrl, ctx);
+    }
+
+    // ---- PUBLIC share routes (GET) — NOT password-gated. Access is guarded by
+    //      the unguessable token (HMAC of the story id). See the REV notes. ----
+    if (request.method === 'GET' && reqUrl.pathname.startsWith('/share-data/')) {
+      const token = decodeURIComponent(reqUrl.pathname.slice('/share-data/'.length));
+      return await shareData(env, token, reqUrl);
+    }
+    if (request.method === 'GET' && reqUrl.pathname.startsWith('/share-cover/')) {
+      const token = decodeURIComponent(reqUrl.pathname.slice('/share-cover/'.length));
+      return await shareCover(env, token, ctx);
+    }
+    if (request.method === 'GET' && reqUrl.pathname.startsWith('/share/')) {
+      // Slug is cosmetic; the token is everything after the LAST hyphen.
+      const tail = decodeURIComponent(reqUrl.pathname.slice('/share/'.length));
+      const token = tail.slice(tail.lastIndexOf('-') + 1);
+      return await sharePage(env, token, reqUrl);
     }
 
     if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
@@ -298,16 +319,50 @@ async function imgServe(env, reqUrl, ctx) {
   return new Response(buf, { headers: imgHeaders(ct) });
 }
 
-// Sum the size + count of every object in the R2 bucket (paginated).
+// Sum the size + count of every object in the R2 bucket (paginated), AND count
+// what's still sitting in Supabase Storage so Settings can show the migration
+// crossing over: "197 (R2) / 326 (SB)". `unmigrated` = objects that exist in
+// Supabase but NOT yet in R2 (the true "still to move" number).
 async function imgUsage(env) {
-  let count = 0, bytes = 0, cursor;
+  // ---- R2 ----
+  const r2Ids = new Set();
+  let bytes = 0, cursor;
   for (let i = 0; i < 100; i++) {
     const list = await env.IMAGES.list({ limit: 1000, cursor });
-    for (const o of list.objects) { count++; bytes += o.size || 0; }
+    for (const o of list.objects) { r2Ids.add(o.key); bytes += o.size || 0; }
     if (!list.truncated) break;
     cursor = list.cursor;
   }
-  return jsonResponse({ ok: true, count, bytes });
+
+  // ---- Supabase Storage (paginated; 100 per page) ----
+  const sbIds = new Set();
+  for (let offset = 0; offset < 100000; offset += 100) {
+    let page = [];
+    try {
+      const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/list/${IMAGE_BUCKET}`, {
+        method: 'POST',
+        headers: sbHeaders(env),
+        body: JSON.stringify({ limit: 100, offset, prefix: '', sortBy: { column: 'name', order: 'asc' } }),
+      });
+      if (res.ok) page = await res.json();
+    } catch (e) { /* best-effort — SB count just won't show */ }
+    if (!Array.isArray(page) || !page.length) break;
+    for (const o of page) { if (o && o.name) sbIds.add(o.name); }
+    if (page.length < 100) break;
+  }
+
+  // How many Supabase objects have NOT been copied into R2 yet.
+  let unmigrated = 0;
+  for (const id of sbIds) { if (!r2Ids.has(id)) unmigrated++; }
+
+  return jsonResponse({
+    ok: true,
+    count: r2Ids.size,          // back-compat: old clients read `count` as the R2 count
+    bytes,
+    r2Count: r2Ids.size,
+    sbCount: sbIds.size,
+    unmigrated,
+  });
 }
 
 // Delete from R2, and best-effort from Supabase (in case not migrated yet).
@@ -321,6 +376,153 @@ async function imgDelete(env, body) {
     });
   } catch (e) { /* best-effort */ }
   return jsonResponse({ ok: true });
+}
+
+// =====================================================================
+// Share a story — public, password-free, guarded by an unguessable token.
+// token = HMAC(APP_PASSWORD, storyId) truncated. Because it's derived (not
+// stored), the app can build a share link client-side with no round-trip, and
+// there's no DB column to migrate. Trade-off: to find a story FROM a token we
+// scan story ids and re-derive each token — fine at personal-library scale.
+// =====================================================================
+const SHARE_SITE = 'https://brwilliams88.github.io/StoryTime';
+
+async function shareTokenFor(env, storyId) {
+  return (await hmacHex(env.APP_PASSWORD, storyId)).slice(0, 12);
+}
+
+// Find the story whose token matches. Returns light metadata (no big data blob).
+async function resolveShare(env, token) {
+  if (!token || !/^[a-f0-9]{6,32}$/.test(token)) return null;
+  const res = await fetch(
+    sbRest(env, 'stories?select=id,title,created_by,cover_image_id&limit=2000'),
+    { headers: sbHeaders(env) });
+  if (!res.ok) return null;
+  const rows = await res.json();
+  for (const r of rows) {
+    if ((await shareTokenFor(env, r.id)) === token) return r;
+  }
+  return null;
+}
+
+// Story JSON + freshly signed image URLs (signed here, so no password needed).
+async function shareData(env, token, reqUrl) {
+  const meta = await resolveShare(env, token);
+  if (!meta) return jsonResponse({ ok: false, error: 'Story not found' }, 404);
+
+  const res = await fetch(
+    sbRest(env, `stories?id=eq.${encodeURIComponent(meta.id)}&select=data`),
+    { headers: sbHeaders(env, { 'Accept': 'application/vnd.pgrst.object+json' }) });
+  if (!res.ok) return jsonResponse({ ok: false, error: 'Story not found' }, 404);
+  const row = await res.json();
+  const story = row && row.data;
+  if (!story) return jsonResponse({ ok: false, error: 'Story not found' }, 404);
+
+  const ids = [story.cover && story.cover.image_id, ...((story.pages || []).map(p => p.image_id))].filter(Boolean);
+  const exp = Math.floor(Date.now() / 1000) + 6 * 3600;   // 6h — a comfy reading window
+  const base = `${reqUrl.origin}/img/get/`;
+  const images = {};
+  for (const id of ids) {
+    const sig = await hmacHex(env.APP_PASSWORD, id + ':' + exp);
+    images[id] = `${base}${encodeURIComponent(id)}?exp=${exp}&sig=${sig}`;
+  }
+  return jsonResponse({ ok: true, story, images });
+}
+
+// Cover image for the link-preview card (crawlers can't sign URLs, so this is
+// public via the token). Prefer the small thumbnail; fall back to full cover.
+async function shareCover(env, token, ctx) {
+  const meta = await resolveShare(env, token);
+  if (!meta || !meta.cover_image_id) return new Response('Not found', { status: 404 });
+  const thumbId = meta.cover_image_id + '_t';
+  for (const id of [thumbId, meta.cover_image_id]) {
+    const obj = await env.IMAGES.get(id);
+    if (obj) return new Response(obj.body, { headers: imgHeaders(obj.httpMetadata && obj.httpMetadata.contentType) });
+    // Lazy fallback to Supabase (+ copy into R2), same as normal image serving.
+    const sbUrl = `${env.SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${encodeURIComponent(id)}`;
+    const sbRes = await fetch(sbUrl, { headers: { 'apikey': env.SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${env.SUPABASE_SECRET_KEY}` } });
+    if (sbRes.ok) {
+      const buf = await sbRes.arrayBuffer();
+      const ct = sbRes.headers.get('content-type') || 'image/jpeg';
+      if (ctx && ctx.waitUntil) ctx.waitUntil(env.IMAGES.put(id, buf, { httpMetadata: { contentType: ct } }).catch(() => {}));
+      return new Response(buf, { headers: imgHeaders(ct) });
+    }
+  }
+  return new Response('Not found', { status: 404 });
+}
+
+// The standalone reading page. We fetch the real app's index.html and inject:
+//   - <base> so its relative js/css/asset URLs still resolve to GitHub Pages
+//   - OG/Twitter tags (so the link unfurls into a cover+title card)
+//   - theme-color + noindex
+//   - window.__SHARE__ so the app boots straight into password-free share mode
+async function sharePage(env, token, reqUrl) {
+  const meta = await resolveShare(env, token);
+  if (!meta) {
+    return new Response(shareNotFoundHtml(), {
+      status: 404,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  }
+
+  let html;
+  try {
+    const siteRes = await fetch(`${SHARE_SITE}/index.html`, { cf: { cacheTtl: 300, cacheEverything: true } });
+    html = await siteRes.text();
+  } catch (e) {
+    return new Response('Could not load the reader. Please try again.', { status: 502 });
+  }
+
+  const creators = (meta.created_by && meta.created_by.trim()) || 'We';
+  const title = escapeHtml(meta.title || 'A StoryTime story');
+  const desc = escapeHtml(`${creators} made this story on StoryTime and want to share it with you. Tap to read it!`);
+  const ogImg = `${reqUrl.origin}/share-cover/${token}`;
+
+  const inject =
+    `<base href="${SHARE_SITE}/">` +
+    `<meta name="theme-color" content="#1a1a2e">` +
+    `<meta name="robots" content="noindex, nofollow">` +
+    `<meta property="og:type" content="book">` +
+    `<meta property="og:site_name" content="StoryTime">` +
+    `<meta property="og:title" content="${title}">` +
+    `<meta property="og:description" content="${desc}">` +
+    `<meta property="og:image" content="${ogImg}">` +
+    `<meta name="twitter:card" content="summary_large_image">` +
+    `<meta name="twitter:title" content="${title}">` +
+    `<meta name="twitter:description" content="${desc}">` +
+    `<meta name="twitter:image" content="${ogImg}">` +
+    `<script>window.__SHARE__=${JSON.stringify({ token, api: reqUrl.origin })};</script>`;
+
+  html = html.replace('<title>StoryTime</title>', `<title>${title} — StoryTime</title>`);
+  html = html.replace('<head>', '<head>\n' + inject);
+
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function shareNotFoundHtml() {
+  return '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<meta name="robots" content="noindex, nofollow">' +
+    '<title>Story not found — StoryTime</title>' +
+    '<style>html,body{height:100%;margin:0}body{background:#1a1a2e;color:#eee;' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+    'display:flex;align-items:center;justify-content:center;text-align:center;padding:1.5rem}' +
+    'h1{font-size:1.4rem;margin:.2rem 0}p{opacity:.7}</style></head><body><div>' +
+    '<div style="font-size:2.4rem">📖</div><h1>Story not found</h1>' +
+    '<p>This share link may be broken or the story was removed.</p></div></body></html>';
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ---- HMAC + image response helpers ----

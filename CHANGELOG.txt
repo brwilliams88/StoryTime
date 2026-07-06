@@ -9,6 +9,17 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.11.0 — 2026-07-06 — Share a story (public read-only links) + dual R2/Supabase image count — Worker REV v0.11.0
+  • SHARE A STORY: the "Share" button on a book's back-of-book (toolbox) spread now works. It opens a small menu with three ways to share: Share… (the native OS share sheet — Messages/Mail/WhatsApp/AirDrop on mobile), Email (opens the mail app pre-filled with a friendly note + link), and Copy Link. The email/text note is dynamic, e.g. "Kai & Papa made the story "The Brave Tugboat" on StoryTime and want to share it with you. Tap below to read it!" (the creators come from the story's "created by").
+  • The link opens a STANDALONE, password-free reading page: just that one story, from the title cover through the last page ending in "The End." No bookshelf, no back arrow, no (i) About button, no toolbox spread. Page-turn animations, curl, and shadows all work exactly as in the app.
+  • URL shape: <worker>/share/<title-slug>-<token>, e.g. …workers.dev/share/the-brave-tugboat-1a2b3c4d5e6f. The token is HMAC(app password, story id) truncated — unguessable and stable, so each story has ONE permanent link (same every time you share it), it's derivable client-side (no database, no per-share write), and only stories you actually hand out are reachable. Note: not individually revocable by design (a shared link is "out there").
+  • Link-preview cards: pasting the link into Messages/WhatsApp/email unfurls into a card with the story's COVER THUMBNAIL + title (the Worker injects Open Graph tags and serves the cover via a public /share-cover/<token> route). Shared pages are marked noindex (never show up in search).
+  • Images on shared pages are signed server-side by the Worker (6-hour URLs, re-signed on each open), so recipients never need a password and links keep working.
+  • Browser chrome: the shared page sets theme-color to the reading-view navy so the mobile browser bar blends in, and re-fits the text when the URL bar shows/hides (visualViewport). The book already fills the dynamic viewport (100dvh). Note: a non-installed browser tab can't hide the URL bar on iOS — that's an OS limit, not fixable in-app.
+  • SETTINGS — migration dashboard: the image count now shows BOTH stores, e.g. "197 (R2) / 326 (SB)", the storage row is relabeled "Image Storage (R2)", and a small "Still only in Supabase: N" line appears while any images haven't been copied to R2 yet — so you can watch the gradual migration and know when a force-migrate is safe.
+  • USER SETUP REQUIRED (one-time): paste/deploy the new cloudflare-worker/worker.js (REV v0.11.0). No new secrets or bindings. Backlog (later, deliberate step): a "force-migrate & sweep" to copy any remaining Supabase images into R2 and then delete the Supabase originals.
+
+--------------------------
 v0.10.1 — 2026-07-06 — Images moved to Cloudflare R2 (zero egress) — Worker REV v0.10.1
   • Image storage moved from Supabase Storage to Cloudflare R2 (zero egress fees, 10 GB free tier). The database (stories/characters/spend ledger) stays on Supabase. ALL image blobs go to R2: covers, cover thumbnails, page images, character photos/thumbnails.
   • Worker (worker.js REV v0.10.1): /img/upload writes to R2; /img/sign returns HMAC-signed URLs pointing at a new public GET /img/get/<id> route on the Worker (the app password doubles as the signing key — no new secret); /img/delete removes from R2; /img/usage sums the R2 bucket.
