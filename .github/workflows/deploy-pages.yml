@@ -1,26 +1,28 @@
 name: Deploy to GitHub Pages
 
-# Deploy the static site via GitHub Actions instead of the legacy "deploy from a
-# branch" Jekyll pipeline (which was failing intermittently — see CHANGELOG
-# v0.9.70). This path publishes the repo as-is, is far more reliable, and leaves
-# a visible build log under the repo's Actions tab if anything ever does fail.
+# Deploys the static site via GitHub Actions.
 #
-# ONE-TIME SETUP (required): GitHub → repo Settings → Pages → "Build and
-# deployment" → Source = "GitHub Actions". After that, every push to main
-# deploys automatically.
+# Reliability notes (v0.10.0 deploy kept flaking on the final "Deploy" step):
+#   • We publish ONLY the real site files (assembled into _site) instead of the
+#     whole repo. The old `path: '.'` bundled the 25MB .git folder + dev dirs
+#     (thousands of tiny objects) into the artifact, which the Deploy step then
+#     had to publish — slow and flaky. _site is ~13MB of just what's served.
+#   • The Deploy step auto-retries once if GitHub's Pages backend hiccups.
+#
+# ONE-TIME SETUP (already done): Settings → Pages → Source = "GitHub Actions".
+# If a deploy ever still fails, just re-run it from the Actions tab (no new
+# commit needed) — the workflow_dispatch trigger also lets you run it manually.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Least-privilege perms the deploy action needs
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Never run two deploys at once; let a newer push cancel an in-flight one
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -29,17 +31,27 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_retry.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
+      - name: Assemble site (only the files we actually serve — no .git / dev dirs)
+        run: |
+          mkdir _site
+          cp -r index.html sw.js .nojekyll css js assets _site/
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: _site
       - name: Deploy
-        id: deployment
+        id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Deploy (retry once if the Pages backend flaked)
+        id: deploy_retry
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
