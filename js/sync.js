@@ -49,7 +49,10 @@ async function compressToJpeg(blob, quality = JPEG_QUALITY) {
 function coverThumbId(coverImageId) { return coverImageId ? coverImageId + '_t' : null; }
 
 // Downscale an image blob to a small JPEG (longest side = maxDim).
-async function downscaleToThumb(blob, maxDim = 256, quality = 0.7) {
+// 400px: the shelf renders covers at most 168px CSS = 336px on a 2x Retina
+// laptop (cropped square), so 400 stays crisp there with headroom; still ~10x
+// smaller than the full cover. Bump toward 480 if 3x phones look soft.
+async function downscaleToThumb(blob, maxDim = 400, quality = 0.72) {
   const bitmap = await createImageBitmap(blob);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
   const w = Math.max(1, Math.round(bitmap.width * scale));
