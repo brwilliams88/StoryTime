@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.11.2',
+      version: 'v0.11.3',
       buildDate: '2026-07-06',
 
       showSplash: true,
@@ -1939,6 +1939,12 @@ createApp({
         const ang2 = 90 * (1 - e2);
         imageFace.style.transform = portrait ? 'rotateX(' + (-ang2) + 'deg)' : 'rotateY(' + ang2 + 'deg)';
         imageFace.style.opacity = p <= 0.5 ? '0' : '1';   // fully opaque the instant it passes 90° (no fade-in)
+        // Near fully-closed, hide the underlying text page so its SHARP corners
+        // don't peek past the cover's ROUNDED corners in the final moment of the
+        // close (it's about to be fully covered anyway) — only the rounded cover
+        // shows as the book finishes shutting. Invisible during open (the closed
+        // cover already covers it below this threshold).
+        textPage.style.opacity = p < 0.06 ? '0' : '1';
         // free (fore) edge of the visible leaf: cover's outer edge up to 90°, then
         // the image page's outer edge as it lays down. ang = the leaf's tilt angle.
         let edgePos, ang;

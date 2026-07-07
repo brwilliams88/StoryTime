@@ -2990,26 +2990,19 @@ body:has(.app-main-reading) {
    The remaining gap — re-running the JS text auto-fit on that toggle — is
    handled by the visualViewport listener in app.js (see _vvHandler). */
 
-/* Shared link, LANDSCAPE only: show the open spread as two SQUARE pages centered
-   on the navy background (like the cover), so the outer edges read navy instead
-   of the cream text page bleeding to the screen edge. The artwork isn't resized
-   — the blurred fill and the cream page simply become square and the leftover
-   width on each side shows the navy reading background. The installed app is left
-   full-fit (this is scoped to body.share-page). */
-body.share-page .reading-view:not(.portrait-mode) .story-spread {
-  justify-content: center;
-  background-image: none;            /* the spread container itself is navy… */
-  background-color: var(--bg-deep);  /* …so the outer margins show navy */
+/* Shared link, LANDSCAPE: keep pages FULL-WIDTH (never resize during a page turn
+   — the page-curl always animates at full width, so the settled page must be full
+   width too). To stop the cream text page from bleeding cream into any thin edge
+   at the screen border, give the SPREAD ITSELF a navy background and paint the
+   cream onto the text page directly — so anything that isn't the page shows navy,
+   never cream. Scoped to `.story-spread` (NOT under `.reading-view`) so it matches
+   the live spread AND the page-curl's cloned leaves alike → identical size, no
+   jump. `:not(.portrait)` keeps portrait (stacked halves) untouched. */
+body.share-page .story-spread:not(.portrait) {
+  background-image: none;            /* drop the cream paper from the spread container… */
+  background-color: var(--bg-deep);  /* …so any uncovered sliver reads navy */
 }
-body.share-page .reading-view:not(.portrait-mode) .story-spread > .spread-image,
-body.share-page .reading-view:not(.portrait-mode) .story-spread > .spread-text {
-  flex: 0 0 auto;
-  width: auto;
-  height: 100%;
-  aspect-ratio: 1 / 1;
-}
-/* …and re-apply the cream paper to the text page itself (its container is navy now) */
-body.share-page .reading-view:not(.portrait-mode) .story-spread > .spread-text {
+body.share-page .story-spread:not(.portrait) > .spread-text {
   background-image:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.035'/></svg>"),
     radial-gradient(130% 100% at 50% 42%, rgba(0,0,0,0) 62%, rgba(120,92,40,0.10) 100%),

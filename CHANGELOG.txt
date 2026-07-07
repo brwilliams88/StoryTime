@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.11.3 - 2026-07-06 - Shared-link landscape: full-width pages (no page-turn resize) + cover-close corner fix; no worker change
+  • Fixed the page-turn resize jump in the shared-link landscape view. v0.11.2 made the settled pages SQUARE, but the page-curl always animates at full page width, so pages "grew" during the turn and snapped smaller on landing. Pages are now full-width everywhere (settled AND during the turn), matching the cover - no resize. The share-mode background styling is scoped to `.story-spread` (not `.reading-view`) so it applies to the page-curl's cloned leaves too, keeping the size identical throughout the turn.
+  • With full-width pages the cream text page reaches the screen edge (this is the deliberate trade: a navy edge would require narrower-than-full pages, which is exactly what caused the resize). To stop cream bleeding into any thin edge/gap at the screen border, the spread's own background is navy and the cream is painted onto the text page directly - so any sliver reads navy, never cream.
+  • Cover-close corner fix: when closing the book, the underlying page's SHARP corners used to peek past the cover's ROUNDED corners in the final moment before disappearing. Now the underlying text page is hidden for the last ~6% of the close, so only the rounded cover shows as the book finishes shutting. (Open is unaffected - the closed cover already covers it below that threshold.)
+  • No worker change (worker.js stays REV v0.11.0) - just deploy the site.
+
+--------------------------
 v0.11.2 - 2026-07-06 - Shared-link landscape: framed square pages on navy (revert the app-wide padding); no worker change
   • Reverted the v0.11.1 landscape padding. It only added safe-area insets in the installed PWA, which shrank the book on both sides and made the pages resize mid-page-turn. The normal (installed) app is back to full-fit, edge-to-edge pages.
   • Shared links in landscape now show the open spread as two SQUARE pages centered on the navy background (like the cover), so the outer edges read navy instead of the cream text page bleeding to the screen edge. The artwork isn't resized - the blurred fill and the cream page just become square and the leftover width on each side shows navy. Scoped to shared links only (body.share-page); the installed app stays full-fit. Verified in a landscape preview, including a page turn (lands square, no resize).
