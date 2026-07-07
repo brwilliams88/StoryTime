@@ -1441,16 +1441,6 @@ body:has(.app-main-reading) {
   overflow: hidden;
   touch-action: none;   /* we own the drag for page turns (both orientations) */
 }
-/* Landscape on notched phones: the interior spread fills the full width, so its
-   cream text half was bleeding to the physical edge under the safe-area inset
-   (a stray cream strip beside the book). Inset the book so the navy reading-view
-   shows in the safe areas instead. Symmetric (max of both insets) so the centred
-   spine/crease stays put even when the notch is only on one side. No effect on
-   non-notched displays (insets = 0). */
-.reading-view:not(.portrait-mode) .page-area {
-  padding-left: max(env(safe-area-inset-left), env(safe-area-inset-right));
-  padding-right: max(env(safe-area-inset-left), env(safe-area-inset-right));
-}
 /* No text selection anywhere in the reader — a finger-swipe on the story text used
    to start a text selection instead of turning the page (iOS), which is why the
    first swipe only "nudged" the page. Disable selection + the iOS callout menu. */
@@ -2999,6 +2989,33 @@ body:has(.app-main-reading) {
    .app-main-reading, so it shrinks/grows as the browser's URL bar hides/shows.
    The remaining gap — re-running the JS text auto-fit on that toggle — is
    handled by the visualViewport listener in app.js (see _vvHandler). */
+
+/* Shared link, LANDSCAPE only: show the open spread as two SQUARE pages centered
+   on the navy background (like the cover), so the outer edges read navy instead
+   of the cream text page bleeding to the screen edge. The artwork isn't resized
+   — the blurred fill and the cream page simply become square and the leftover
+   width on each side shows the navy reading background. The installed app is left
+   full-fit (this is scoped to body.share-page). */
+body.share-page .reading-view:not(.portrait-mode) .story-spread {
+  justify-content: center;
+  background-image: none;            /* the spread container itself is navy… */
+  background-color: var(--bg-deep);  /* …so the outer margins show navy */
+}
+body.share-page .reading-view:not(.portrait-mode) .story-spread > .spread-image,
+body.share-page .reading-view:not(.portrait-mode) .story-spread > .spread-text {
+  flex: 0 0 auto;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+}
+/* …and re-apply the cream paper to the text page itself (its container is navy now) */
+body.share-page .reading-view:not(.portrait-mode) .story-spread > .spread-text {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.035'/></svg>"),
+    radial-gradient(130% 100% at 50% 42%, rgba(0,0,0,0) 62%, rgba(120,92,40,0.10) 100%),
+    linear-gradient(180deg, var(--paper-hi), var(--paper) 38%, var(--paper));
+  background-size: 120px 120px, cover, cover;
+}
 
 /* The Share button goes straight to the native OS share sheet — no in-app menu.
    On desktop (no Web Share) it copies the link and shows this brief toast. */

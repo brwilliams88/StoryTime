@@ -9,6 +9,12 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.11.2 - 2026-07-06 - Shared-link landscape: framed square pages on navy (revert the app-wide padding); no worker change
+  • Reverted the v0.11.1 landscape padding. It only added safe-area insets in the installed PWA, which shrank the book on both sides and made the pages resize mid-page-turn. The normal (installed) app is back to full-fit, edge-to-edge pages.
+  • Shared links in landscape now show the open spread as two SQUARE pages centered on the navy background (like the cover), so the outer edges read navy instead of the cream text page bleeding to the screen edge. The artwork isn't resized - the blurred fill and the cream page just become square and the leftover width on each side shows navy. Scoped to shared links only (body.share-page); the installed app stays full-fit. Verified in a landscape preview, including a page turn (lands square, no resize).
+  • Network-error "Retry" screen (from v0.11.1) unchanged. No worker change (worker.js stays REV v0.11.0) - just deploy the site.
+
+--------------------------
 v0.11.1 — 2026-07-06 — Share polish: no image flash, simpler share button, landscape edge fix (no worker change)
   • FIXED the black-then-flash images on shared links. The normal app pre-downloads every image before opening a book; share mode didn't, so each page loaded (and flashed in) only when revealed. Now a shared link decodes the cover + first page BEFORE showing the reader (so the first turn is clean), then preloads + decodes all remaining pages in the background while you look at the cover. Seamless.
   • SIMPLIFIED the Share button: it now goes STRAIGHT to the native OS share sheet (Messages/Mail/Copy/etc.) with just the link — no in-app popup, no email/copy buttons, no pre-written message. The story title is passed as metadata only (used as the subject line by Mail etc.). On desktop (no Web Share) it copies the link and shows a brief "Link copied" toast.
