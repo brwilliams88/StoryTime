@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.11.0',
+      version: 'v0.11.1',
       buildDate: '2026-07-06',
 
       showSplash: true,
@@ -136,9 +136,9 @@ createApp({
       cloudUsage: { count: 0, bytes: 0, r2Count: 0, sbCount: 0, unmigrated: 0, loaded: false },   // image storage usage (R2 + Supabase)
       // ---- Share a story ----
       shareMode: false,          // true when this page is a read-only shared link
-      shareLoadError: false,     // shared story couldn't be loaded (bad/removed link)
-      shareMenu: null,           // { url, title, text } when the share sheet is open
-      shareCopied: false,        // brief "Copied!" confirmation on the share menu
+      shareLoadError: false,     // shared story genuinely not found (bad/removed link → 404)
+      shareNetworkError: false,  // couldn't reach the server (flaky signal/offline → offer retry)
+      shareCopied: false,        // brief "Link copied" confirmation (desktop share fallback)
       spend: null,               // API-spend summary (populated when Settings opens)
       readerUiShow: true,        // floating reader controls visible (auto-fade while reading)
       librarySearch: '',         // full-text search (server-side over story body)
@@ -2168,33 +2168,77 @@ createApp({
     async enterShareMode() {
       this.shareMode = true;
       this.showPasswordPrompt = false;
+      this.shareLoadError = false;
+      this.shareNetworkError = false;
       this.loading = true;                 // keeps the book-loader up if the splash auto-dismisses first
       this.loadingMessage = 'Opening story…';
       this.loadingHint = 'just a moment';
       try { document.body.classList.add('share-page'); } catch (e) {}
       const info = window.__SHARE__ || {};
       const api = info.api || getWorkerUrl();
+
+      let res;
       try {
-        const res = await fetch(`${api}/share-data/${encodeURIComponent(info.token || '')}`);
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || !data.ok || !data.story) throw new Error('not found');
-        // Pre-seed the reactive URL map with the Worker-signed image URLs so the
-        // reader shows images directly — it never calls the password-gated signer.
-        this.imageUrls = data.images || {};
-        this.currentStory = data.story;
-        this.currentStoryRecord = data.story;
-        this.currentPageIndex = 0;
-        this.loading = false;
-        this.view = 'story';
-        this.showSplash = false;
-        document.title = (data.story.title ? data.story.title + ' — ' : '') + 'StoryTime';
-        this.$nextTick(() => { window.scrollTo(0, 0); this.recomputeStoryFontSize(); });
+        res = await fetch(`${api}/share-data/${encodeURIComponent(info.token || '')}`);
       } catch (e) {
-        console.warn('Share load failed:', e);
-        this.loading = false;
-        this.shareLoadError = true;
-        this.showSplash = false;
+        // Couldn't even reach the server (flaky signal, offline) — offer a retry
+        // rather than the misleading "story not found".
+        console.warn('Share fetch failed (network):', e);
+        this.loading = false; this.showSplash = false; this.shareNetworkError = true;
+        return;
       }
+      const data = await res.json().catch(() => null);
+      if (res.status === 404 || (data && data.ok === false)) {
+        this.loading = false; this.showSplash = false; this.shareLoadError = true;
+        return;
+      }
+      if (!res.ok || !data || !data.story) {
+        this.loading = false; this.showSplash = false; this.shareNetworkError = true;
+        return;
+      }
+
+      // Pre-seed the reactive URL map with the Worker-signed image URLs so the
+      // reader shows images directly — it never calls the password-gated signer.
+      this.imageUrls = data.images || {};
+      this.currentStory = data.story;
+      this.currentStoryRecord = data.story;
+      this.currentPageIndex = 0;
+      document.title = (data.story.title ? data.story.title + ' — ' : '') + 'StoryTime';
+
+      // The normal app pre-downloads every image before showing a book; share
+      // mode must do the same or pages flash in black. Decode the cover + page 1
+      // BEFORE revealing (so the first turn is clean), then warm the rest in the
+      // background while the reader looks at the cover.
+      const ids = [data.story.cover && data.story.cover.image_id,
+                   ...((data.story.pages || []).map(p => p.image_id))].filter(Boolean);
+      await this._preloadImages(ids.slice(0, 2), 4000);   // cover + first page (with a timeout so a slow net can't hang the loader)
+
+      this.loading = false;
+      this.view = 'story';
+      this.showSplash = false;
+      this.$nextTick(() => { window.scrollTo(0, 0); this.recomputeStoryFontSize(); });
+
+      this._preloadImages(ids.slice(2)).catch(() => {});   // rest, in the background
+    },
+    // Retry after a network failure on a shared link.
+    retryShare() {
+      this.shareNetworkError = false;
+      this.enterShareMode();
+    },
+    // Fetch + decode a set of images (by id, via the seeded signed URLs) so the
+    // browser has them cached and decoded before the page is shown. Best-effort.
+    _preloadImages(ids, timeoutMs) {
+      const urls = (ids || []).map(id => this.imageUrls[id]).filter(Boolean);
+      const loadOne = (u) => new Promise((resolve) => {
+        const img = new Image();
+        const done = () => resolve();
+        img.onload = () => { if (img.decode) img.decode().then(done, done); else done(); };
+        img.onerror = done;
+        img.src = u;
+      });
+      const all = Promise.all(urls.map(loadOne));
+      if (!timeoutMs) return all;
+      return Promise.race([all, new Promise(r => setTimeout(r, timeoutMs))]);
     },
 
     // Build the stable, unguessable share URL for a story (client-side, no
@@ -2217,50 +2261,35 @@ createApp({
       return `${getWorkerUrl()}/share/${this.shareSlug(story.title)}-${token}`;
     },
 
-    // The "Share" button on the toolbox/back-of-book spread.
+    // The "Share" button on the toolbox/back-of-book spread. Goes STRAIGHT to the
+    // native OS share sheet (which already offers Messages/Mail/Copy/etc.) with
+    // just the link — no in-app menu, no pre-written message. Title is passed as
+    // metadata only (used as the subject line by Mail etc.), not as body text.
     async handleShareStory() {
-      if (!this.currentStory) return;
+      if (this._sharing || !this.currentStory) return;
+      this._sharing = true;
       try {
         const url = await this.buildShareUrl(this.currentStory);
-        const title = this.currentStory.title || 'our story';
-        const who = (this.currentStory.created_by && this.currentStory.created_by.trim()) || 'We';
-        const text = `${who} made the story "${title}" on StoryTime and want to share it with you. Tap below to read it!`;
-        this.shareMenu = { url, title, text };
+        const title = `${this.currentStory.title || 'A story'} — StoryTime`;
+        if (navigator.share) {
+          try { await navigator.share({ title, url }); }
+          catch (e) { /* user cancelled the sheet — nothing to do */ }
+        } else {
+          // Desktop / no Web Share: copy the link and confirm briefly.
+          try { await navigator.clipboard.writeText(url); this._flashShareCopied(); }
+          catch (e) { window.prompt('Copy this link:', url); }
+        }
       } catch (e) {
         console.warn('Could not build share link:', e);
         alert('Sorry — could not create a share link just now. Please try again.');
+      } finally {
+        this._sharing = false;
       }
     },
-    closeShareMenu() { this.shareMenu = null; },
-    // Native OS share sheet (Messages / Mail / WhatsApp / AirDrop …) where available.
-    async shareViaSheet() {
-      if (!this.shareMenu) return;
-      const { url, title, text } = this.shareMenu;
-      if (navigator.share) {
-        try { await navigator.share({ title: `${title} — StoryTime`, text, url }); this.closeShareMenu(); }
-        catch (e) { /* user cancelled — leave the menu open */ }
-      } else {
-        this.shareCopyLink(true);   // fall back to copy on desktops without Web Share
-      }
-    },
-    shareViaEmail() {
-      if (!this.shareMenu) return;
-      const { url, title, text } = this.shareMenu;
-      const subject = encodeURIComponent(`A StoryTime story: "${title}"`);
-      const body = encodeURIComponent(`${text}\n\n${url}`);
-      window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    },
-    async shareCopyLink(quiet) {
-      if (!this.shareMenu) return;
-      const url = this.shareMenu.url;
-      try {
-        await navigator.clipboard.writeText(url);
-        this.shareCopied = true;
-        setTimeout(() => { this.shareCopied = false; }, 1800);
-        if (!quiet) { /* keep menu open with the "Copied!" confirmation */ }
-      } catch (e) {
-        window.prompt('Copy this link:', url);
-      }
+    _flashShareCopied() {
+      this.shareCopied = true;
+      clearTimeout(this._shareCopiedT);
+      this._shareCopiedT = setTimeout(() => { this.shareCopied = false; }, 1800);
     },
 
     openImageInspection(target) {

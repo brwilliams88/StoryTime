@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.11.1 — 2026-07-06 — Share polish: no image flash, simpler share button, landscape edge fix (no worker change)
+  • FIXED the black-then-flash images on shared links. The normal app pre-downloads every image before opening a book; share mode didn't, so each page loaded (and flashed in) only when revealed. Now a shared link decodes the cover + first page BEFORE showing the reader (so the first turn is clean), then preloads + decodes all remaining pages in the background while you look at the cover. Seamless.
+  • SIMPLIFIED the Share button: it now goes STRAIGHT to the native OS share sheet (Messages/Mail/Copy/etc.) with just the link — no in-app popup, no email/copy buttons, no pre-written message. The story title is passed as metadata only (used as the subject line by Mail etc.). On desktop (no Web Share) it copies the link and shows a brief "Link copied" toast.
+  • FIXED a landscape edge glitch on notched phones: the interior spread fills the full width, so its cream text half was bleeding to the physical screen edge under the safe-area inset (a stray cream strip beside the book, changing from navy when you opened the book). The book is now inset from the safe areas in landscape so the navy background shows on both edges; the inset is symmetric so the centered spine stays aligned even when the notch is one-sided. (Also benefits the main app, not just shared links.)
+  • ROBUSTNESS: a shared link that fails to load now tells network trouble apart from a bad link — a flaky/offline connection shows "Couldn't load the story — Retry" instead of the misleading "Story not found."
+  • No worker change (worker.js stays REV v0.11.0) — all fixes are client-side. Just deploy the site.
+
+--------------------------
 v0.11.0 — 2026-07-06 — Share a story (public read-only links) + dual R2/Supabase image count — Worker REV v0.11.0
   • SHARE A STORY: the "Share" button on a book's back-of-book (toolbox) spread now works. It opens a small menu with three ways to share: Share… (the native OS share sheet — Messages/Mail/WhatsApp/AirDrop on mobile), Email (opens the mail app pre-filled with a friendly note + link), and Copy Link. The email/text note is dynamic, e.g. "Kai & Papa made the story "The Brave Tugboat" on StoryTime and want to share it with you. Tap below to read it!" (the creators come from the story's "created by").
   • The link opens a STANDALONE, password-free reading page: just that one story, from the title cover through the last page ending in "The End." No bookshelf, no back arrow, no (i) About button, no toolbox spread. Page-turn animations, curl, and shadows all work exactly as in the app.
