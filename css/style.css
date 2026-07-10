@@ -28,7 +28,7 @@
   --text-dim:  #9a9ac0;  /* muted lavender-grey for secondary text */
 
   /* --- Accents: warm light on the cool dark --- */
-  --accent:      #f4b740; /* lamplight gold — primary buttons & active states */
+  --accent:      #eaa93f; /* lamplight gold (toned down) — primary buttons & active/selected states */
   --accent-warm: #e8825e; /* soft coral — secondary pops */
   --on-accent:   #1b1b3a; /* text placed ON a gold fill (dark, for contrast) */
 
@@ -40,6 +40,9 @@
   --wood-base:  #c79350;
   --wood-grain: #6e451d;
   --wood-lip:   #d8ad6b;
+  /* Reusable oak grain tile — shared by the shelf field, crown, and base so they
+     all match. Bump the last matrix value's multiplier (0.8) for stronger grain. */
+  --wood-grain-img: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.15' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0.32 0 0 0 0 0.2 0 0 0 0 0.06 1.0 0 0 0 -0.31'/></filter><rect width='240' height='240' filter='url(%23g)'/></svg>");
 
   --border-soft: #33335e;
   --error:       #ff8b8b;
@@ -51,9 +54,11 @@
 }
 
 html { background: var(--bg-deep); }
-/* In the Library, the bounce/overscroll area behind everything is WOOD, never
-   navy — so you can never see blue around or below the bookshelf. */
-html:has(.library-view) { background: #8f6526; }
+/* In the Library, everything ABOVE the shelf (the toolbar / pull-to-refresh) is
+   the night-indigo "wall". The full-bleed wooden bookshelf has a min-height of
+   ~4 rows (>1000px), so it always overflows the viewport — the shelf and its
+   wood base fill the middle and bottom, and indigo can't show below it. */
+html:has(.library-view) { background: var(--bg-deep); }
 
 body {
   font-family: var(--font-ui);
@@ -63,7 +68,7 @@ body {
   line-height: 1.5;
   overscroll-behavior: none;   /* no rubber-band that reveals empty space past the shelf */
 }
-body:has(.library-view) { background: #8f6526; }
+body:has(.library-view) { background: var(--bg-deep); }
 
 #app {
   min-height: 100vh;
@@ -1871,7 +1876,7 @@ body:has(.app-main-reading) {
 .tb-title { font-size: clamp(1.02rem, 3.2vmin, 1.4rem); font-weight: 700; line-height: 1.18; margin: 0; color: var(--ink); }
 .tb-byline { font-size: clamp(0.72rem, 1.8vmin, 0.88rem); color: var(--ink-dim); font-style: italic; margin-top: 0.22rem; }
 .tb-summary {
-  font-size: clamp(0.76rem, 2.1vmin, 0.96rem); line-height: 1.45; color: var(--ink);
+  font-size: clamp(0.9rem, 2.4vmin, 1.06rem); line-height: 1.5; color: var(--ink);
   font-style: italic; margin: 0; max-width: 42ch;
   display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
 }
@@ -2271,14 +2276,19 @@ body:has(.app-main-reading) {
 .bar-icon-btn {
   flex: 0 0 44px; width: 44px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg-input); border: 1px solid var(--border-soft); border-radius: 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(234,169,63,0.30); border-radius: 10px;
   color: var(--text-main); cursor: pointer; padding: 0;
 }
 .bar-icon-btn svg { width: 22px; height: 22px; }
+.bar-icon-btn:hover { border-color: var(--accent); }
 .bar-icon-btn.filter-active { border-color: var(--accent); color: var(--accent); }
+/* Search field on the night wall: soft translucent, warm gold edge + icon */
+.library-bar .search-wrap .text-input {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(234,169,63,0.30); border-radius: 10px;
+}
 .search-wrap .search-icon {
   position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-  width: 18px; height: 18px; color: var(--text-dim); pointer-events: none;
+  width: 18px; height: 18px; color: var(--accent); pointer-events: none;
 }
 .search-wrap .library-search { padding-left: 2.2rem; }
 .library-loading { text-align: center; color: var(--text-dim); padding: 2rem 0; }
@@ -2300,7 +2310,7 @@ body:has(.app-main-reading) {
 .shelf-crown {
   position: relative; z-index: 2;
   height: 42px;
-  background: linear-gradient(to bottom,
+  background-image: var(--wood-grain-img), linear-gradient(to bottom,
     #f5d28c 0px,        /* bright top lip catching light */
     #e8bd6e 8px,        /* top surface receding back */
     #d8a857 13px,       /* crest of the rounded face */
@@ -2308,6 +2318,7 @@ body:has(.app-main-reading) {
     #a37636 34px,
     #835c2b 40px,       /* deep underside */
     rgba(0,0,0,0.5) 42px);
+  background-size: 240px 240px, auto;
   box-shadow: 0 7px 13px rgba(0,0,0,0.45);
 }
 /* a soft vertical sheen so the molding reads as carved, not flat */
@@ -2320,8 +2331,9 @@ body:has(.app-main-reading) {
 /* Thick base board that caps the bottom of the bookcase */
 .shelf-base {
   height: 36px;
-  background: linear-gradient(to bottom,
+  background-image: var(--wood-grain-img), linear-gradient(to bottom,
     rgba(255,246,224,0.5) 0px, #cf9a4b 3px, #b9842f 60%, #8f6526 100%);
+  background-size: 240px 240px, auto;
   box-shadow: 0 -4px 9px rgba(0,0,0,0.4), 0 3px 8px rgba(0,0,0,0.4);
   position: relative; z-index: 2;
 }
@@ -2348,6 +2360,10 @@ body:has(.app-main-reading) {
   /* recessed-box depth: soft shadow down the inside left/right walls */
   box-shadow: inset 13px 0 18px -11px rgba(0,0,0,0.5), inset -13px 0 18px -11px rgba(0,0,0,0.5);
   background-image:
+    /* (0) OAK GRAIN — turbulence grain over the whole wood field. It's a background
+       layer, so it sits BEHIND the books (grid children) and can never show on
+       covers. Shared with the crown + base via --wood-grain-img. */
+    var(--wood-grain-img),
     /* per row: (1) ambient-occlusion shadow at the TOP of the bay (under the shelf
        above), then (2) the shelf board — a lit TOP SURFACE seen slightly from above
        (shadowed at the back, bright at the front edge), a FRONT FACE, an under-shadow. */
@@ -2368,10 +2384,11 @@ body:has(.app-main-reading) {
     repeating-linear-gradient(to right,
       transparent 0, transparent 86px,
       rgba(0,0,0,0.10) 87px, rgba(255,255,255,0.06) 89px, transparent 90px),
-    /* base wood tone */
-    linear-gradient(to bottom, #d9a458, #cf9a4b);
-  background-repeat: repeat, repeat, repeat;
-  background-position: top center, top left, top left;
+    /* base wood tone — paler honey oak */
+    linear-gradient(to bottom, #dcae63, #d0a052);
+  background-repeat: repeat, repeat, repeat, repeat;
+  background-position: top left, top center, top left, top left;
+  background-size: 240px 240px, auto, auto, auto;
 }
 @media (min-width: 600px) { .shelf-grid { --book-w: 150px; --plate-h: 46px; } }
 @media (min-width: 900px) { .shelf-grid { --book-w: 168px; --plate-h: 48px; } }
@@ -2460,12 +2477,13 @@ body:has(.app-main-reading) {
   background: linear-gradient(#fbf3df, #ecdcbb);
   border-top: 1px solid rgba(0,0,0,0.12);
   border-radius: 0 0 5px 3px;
-  padding: 3px 9px 3px 16px;   /* extra left padding so titles clear the spine */
+  padding: 2px 9px 2px 16px;   /* extra left padding so titles clear the spine */
   display: flex; align-items: center; justify-content: center;  /* center title in the visible area */
 }
 .book-plate-text {
   text-align: center;
-  font-size: 0.66rem; line-height: 1.12; font-weight: 700; color: #463115;
+  font-family: var(--font-display);   /* Fraunces — storybook serif on the spine plate */
+  font-size: 0.74rem; line-height: 1.1; font-weight: 600; color: #463115;
   overflow: hidden;
   -webkit-line-clamp: 3; -webkit-box-orient: vertical; display: -webkit-box;
 }
