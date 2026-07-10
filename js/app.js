@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.1',
-      buildDate: '2026-07-09',
+      version: 'v0.12.2',
+      buildDate: '2026-07-10',
 
       showSplash: true,
 
@@ -213,7 +213,7 @@ createApp({
         { value: 'pencil',           emoji: '✏️', label: 'Pencil Sketch (B&W)' },
         { value: 'crayon',           emoji: '🖍️', label: 'Crayon' },
         { value: 'comic-book',       emoji: '📚', label: 'Comic Book' },
-        { value: 'anime',            emoji: '🌸', label: 'Anime / Manga' },
+        { value: 'anime',            emoji: '🌸', label: 'Anime' },
         { value: 'pixel-art',        emoji: '👾', label: 'Retro Video Game' },
         { value: '3d-animation',     emoji: '🎬', label: '3D Animation' },
         { value: 'claymation',       emoji: '🏺', label: 'Claymation' },
@@ -221,6 +221,14 @@ createApp({
         { value: 'stuffies',         emoji: '🐻', label: 'Stuffies' },
         { value: 'paper-cutouts',    emoji: '✂️', label: 'Paper Cutouts' },
         { value: 'chalkboard',       emoji: '📋', label: 'Chalkboard' },
+        { value: '3d-printed',       emoji: '🖨️', label: '3D Printed' },
+        { value: 'photorealistic',   emoji: '📷', label: 'Photorealistic' },
+        { value: 'stained-glass',    emoji: '🪟', label: 'Stained Glass' },
+        { value: 'colored-pencil',   emoji: '🌈', label: 'Colored Pencil' },
+        { value: 'oil-painting',     emoji: '🖼️', label: 'Oil Painting' },
+        { value: 'ukiyo-e',          emoji: '🌊', label: 'Ukiyo-e' },
+        { value: 'origami',          emoji: '🦢', label: 'Origami' },
+        { value: 'candy-world',      emoji: '🍬', label: 'Candy World' },
       ],
       ingredientsRaw: [
         { value: 'funny',          emoji: '😄', label: 'Funny Moments' },
