@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.2" />
+  <link rel="stylesheet" href="css/style.css?v=0.12.3" />
 </head>
 <body>
 
@@ -203,9 +203,6 @@
             </div>
             <button @click="showFilters = !showFilters" :class="['bar-icon-btn', { 'filter-active': showFilters || anyFilterActive }]" title="Filter &amp; sort" aria-label="Filter and sort">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
-            </button>
-            <button @click="openManageBooks" class="bar-icon-btn" title="Delete stories" aria-label="Delete stories">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>
             </button>
             <button @click="openSettings" class="bar-icon-btn" title="Settings" aria-label="Settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1047,13 +1044,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.2"></script>
-  <script src="js/imageStorage.js?v=0.12.2"></script>
-  <script src="js/api.js?v=0.12.2"></script>
-  <script src="js/sync.js?v=0.12.2"></script>
-  <script src="js/pageShadow.js?v=0.12.2"></script>
-  <script src="js/pageCurl.js?v=0.12.2"></script>
-  <script src="js/app.js?v=0.12.2"></script>
+  <script src="js/storage.js?v=0.12.3"></script>
+  <script src="js/imageStorage.js?v=0.12.3"></script>
+  <script src="js/api.js?v=0.12.3"></script>
+  <script src="js/sync.js?v=0.12.3"></script>
+  <script src="js/pageShadow.js?v=0.12.3"></script>
+  <script src="js/pageCurl.js?v=0.12.3"></script>
+  <script src="js/app.js?v=0.12.3"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
