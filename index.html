@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.3" />
+  <link rel="stylesheet" href="css/style.css?v=0.12.4" />
 </head>
 <body>
 
@@ -56,11 +56,6 @@
     <!-- ============== MAIN APP ============== -->
     <template v-else>
 
-      <header v-if="view === 'create'" class="app-header">
-        <h1 @click="goLibrary">📖 StoryTime</h1>
-        <p class="tagline">Bedtime stories for Kai &amp; Nozomi</p>
-      </header>
-
       <main class="app-main" :class="{ 'app-main-reading': view === 'story' && currentStory }">
 
         <!-- ============== LOADING ============== -->
@@ -81,10 +76,10 @@
         <div v-else-if="view === 'create'" class="create-form">
 
           <div class="form-top-bar">
-            <h2 class="section-title">Create a New Story</h2>
+            <button @click="goLibrary" class="header-back-btn" aria-label="Back to library" title="Back to library">‹</button>
+            <h2 class="section-title create-title">New Story</h2>
             <div class="form-top-actions">
               <button v-if="currentStory" @click="backToStory" class="btn-secondary btn-small">← Back to Story</button>
-              <button @click="goLibrary" class="btn-secondary btn-small">← Library</button>
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset Form</button>
               <button @click="openSettings" class="btn-secondary btn-small gear-btn" title="Settings">⚙️</button>
             </div>
@@ -326,6 +321,8 @@
                     <span class="create-sparkle create-sparkle-1">✦</span>
                     <span class="create-sparkle create-sparkle-2">✦</span>
                     <span class="create-sparkle create-sparkle-3">✦</span>
+                    <span class="create-sparkle create-sparkle-4">✦</span>
+                    <span class="create-sparkle create-sparkle-5">✦</span>
                     <span class="create-plus">+</span>
                   </div>
                   <div class="book-plate create-plate"><span class="book-plate-text">New Story</span></div>
@@ -912,6 +909,28 @@
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: cloudUsagePercent + '%' }"></div></div>
           </div>
 
+          <div class="settings-section" v-if="libraryBooks.length">
+            <div class="settings-section-title">📊 Story Breakdown</div>
+            <div class="breakdown-group">
+              <p class="breakdown-label">By genre</p>
+              <div v-for="row in genreBreakdown" :key="'g-' + row.value" class="breakdown-row">
+                <span class="breakdown-emoji">{{ row.emoji }}</span>
+                <span class="breakdown-name">{{ row.label }}</span>
+                <span class="breakdown-bar"><span class="breakdown-fill" :style="{ width: Math.max(row.pct, 6) + '%' }"></span></span>
+                <span class="breakdown-count">{{ row.count }}</span>
+              </div>
+            </div>
+            <div class="breakdown-group">
+              <p class="breakdown-label">By art style</p>
+              <div v-for="row in artBreakdown" :key="'a-' + row.value" class="breakdown-row">
+                <span class="breakdown-emoji">{{ row.emoji }}</span>
+                <span class="breakdown-name">{{ row.label }}</span>
+                <span class="breakdown-bar"><span class="breakdown-fill" :style="{ width: Math.max(row.pct, 6) + '%' }"></span></span>
+                <span class="breakdown-count">{{ row.count }}</span>
+              </div>
+            </div>
+          </div>
+
           <div class="settings-section">
             <div class="settings-section-title">💾 Offline Cache</div>
             <div class="settings-row"><span>Images on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
@@ -1044,13 +1063,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.3"></script>
-  <script src="js/imageStorage.js?v=0.12.3"></script>
-  <script src="js/api.js?v=0.12.3"></script>
-  <script src="js/sync.js?v=0.12.3"></script>
-  <script src="js/pageShadow.js?v=0.12.3"></script>
-  <script src="js/pageCurl.js?v=0.12.3"></script>
-  <script src="js/app.js?v=0.12.3"></script>
+  <script src="js/storage.js?v=0.12.4"></script>
+  <script src="js/imageStorage.js?v=0.12.4"></script>
+  <script src="js/api.js?v=0.12.4"></script>
+  <script src="js/sync.js?v=0.12.4"></script>
+  <script src="js/pageShadow.js?v=0.12.4"></script>
+  <script src="js/pageCurl.js?v=0.12.4"></script>
+  <script src="js/app.js?v=0.12.4"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

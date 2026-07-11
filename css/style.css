@@ -8,7 +8,7 @@
 /* Fonts: Fraunces = storybook serif (titles), Nunito = rounded UI sans (body).
    Pulled from Google Fonts. If the device is offline, the fallback stacks in
    --font-display / --font-ui take over, so text never disappears. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;600;700&display=swap');
 
 /* Reset some browser defaults so things look consistent */
 *, *::before, *::after {
@@ -71,6 +71,12 @@ body {
   overscroll-behavior: none;   /* no rubber-band that reveals empty space past the shelf */
 }
 body:has(.library-view) { background: var(--bg-deep); }
+
+/* Storybook serif (Fraunces) on all major headings; body, labels, buttons stay Nunito. */
+.splash-title, .app-header h1, h2, .story-title,
+.settings-section-title, .quiz-section-title, .empty-title {
+  font-family: var(--font-display);
+}
 
 #app {
   min-height: 100vh;
@@ -537,6 +543,28 @@ body:has(.library-view) { background: var(--bg-deep); }
   gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
+
+/* Create-page header: back-to-library icon + "New Story" title */
+.header-back-btn {
+  flex: 0 0 auto; width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(234,169,63,0.30);
+  border-radius: 10px; color: var(--text-main); font-size: 1.7rem; line-height: 1;
+  cursor: pointer; padding: 0 0 4px;
+}
+.header-back-btn:hover { border-color: var(--accent); }
+.create-title { flex: 1; text-align: left; margin: 0; }
+
+/* Settings — story-breakdown bars */
+.breakdown-group { margin-bottom: 0.85rem; }
+.breakdown-group:last-child { margin-bottom: 0; }
+.breakdown-label { font-size: 0.8rem; font-weight: 700; color: var(--text-dim); margin: 0 0 0.4rem; }
+.breakdown-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; font-size: 0.85rem; }
+.breakdown-emoji { flex: 0 0 1.3rem; text-align: center; }
+.breakdown-name { flex: 0 0 38%; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.breakdown-bar { flex: 1; height: 10px; background: var(--bg-input); border-radius: 5px; overflow: hidden; }
+.breakdown-fill { height: 100%; background: var(--accent); border-radius: 5px; }
+.breakdown-count { flex: 0 0 auto; min-width: 1.4rem; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 .form-top-actions {
   display: flex;
@@ -2418,7 +2446,10 @@ body:has(.app-main-reading) {
   0%, 100% { transform: translateX(-50%) scaleX(0.78); opacity: 0.55; }   /* book low → tight + dark */
   50%      { transform: translateX(-50%) scaleX(1.08); opacity: 0.3; }    /* book high → wide + soft */
 }
-@media (prefers-reduced-motion: reduce) { .create-slot::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .create-slot::after, .create-book, .book-cover.create-cover,
+  .book-cover.create-cover::before, .create-sparkle { animation: none; }
+}
 
 /* A "book" = square cover + a label plate. Spine on the left, leaned back ~10°. */
 .book {
@@ -2494,12 +2525,30 @@ body:has(.app-main-reading) {
 .book-cover.create-cover {
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 50% 36%, #fffcef, #ffe0a0);
-  border: 2px dashed #e0a93c;
+  overflow: hidden;                 /* keep the shimmer sweep inside the cover */
   animation: createGlow 2.4s ease-in-out infinite;
 }
+/* Inset dashed "new" frame — extra left inset (17px) so the book spine ridge
+   (11px, drawn on top) never covers its left edge. */
+.book-cover.create-cover::after {
+  content: ''; position: absolute; inset: 7px 8px 7px 17px; z-index: 2;
+  border: 2px dashed #e0a63c; border-radius: 5px;
+  background: none; pointer-events: none;
+}
+/* Slow gold shimmer sweep for extra magic. */
+.book-cover.create-cover::before {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255,246,205,0.85) 50%, transparent 62%);
+  background-size: 260% 100%; background-repeat: no-repeat;
+  animation: createShimmer 3.6s ease-in-out infinite;
+}
+@keyframes createShimmer {
+  0%       { background-position: 130% 0; }
+  55%,100% { background-position: -50% 0; }
+}
 @keyframes createGlow {
-  0%, 100% { box-shadow: 0 0 10px rgba(255,200,90,0.55), inset 0 0 16px rgba(255,212,120,0.4); }
-  50%      { box-shadow: 0 0 28px 4px rgba(255,205,100,1), inset 0 0 26px rgba(255,222,140,0.7); }
+  0%, 100% { box-shadow: 0 0 14px 1px rgba(255,200,90,0.6), inset 0 0 18px rgba(255,212,120,0.45); }
+  50%      { box-shadow: 0 0 36px 8px rgba(255,205,100,1), inset 0 0 30px rgba(255,222,140,0.8); }
 }
 /* gentle bob (keeps the lean-back tilt) */
 .create-book { animation: createBob 3.2s ease-in-out infinite; }
@@ -2507,12 +2556,14 @@ body:has(.app-main-reading) {
   0%, 100% { transform: perspective(700px) rotateX(8deg) translateY(0); }
   50%      { transform: perspective(700px) rotateX(8deg) translateY(-5px); }
 }
-.create-plus { font-size: 2.4rem; font-weight: 800; color: #cc8a1e; line-height: 1; text-shadow: 0 0 10px rgba(255,200,90,0.8); }
+.create-plus { position: relative; z-index: 3; font-size: 2.6rem; font-weight: 800; color: #cc8a1e; line-height: 1; text-shadow: 0 0 14px rgba(255,205,100,0.95); }
 .create-plate { color: #a86b00; font-weight: 800; background: linear-gradient(#fff3d4, #ffe1a3); }
-.create-sparkle { position: absolute; color: #ffe08a; font-size: 1.05rem; text-shadow: 0 0 6px rgba(255,210,110,0.9); animation: sparkleTwinkle 1.8s ease-in-out infinite; }
-.create-sparkle-1 { top: 14px; right: 18px; }
-.create-sparkle-2 { bottom: 16px; left: 16px; animation-delay: 0.6s; font-size: 0.8rem; }
-.create-sparkle-3 { top: 40%; left: 22px; animation-delay: 1.2s; font-size: 0.7rem; }
+.create-sparkle { position: absolute; z-index: 3; color: #fff0b0; font-size: 1.25rem; text-shadow: 0 0 8px rgba(255,214,120,1); animation: sparkleTwinkle 1.6s ease-in-out infinite; pointer-events: none; }
+.create-sparkle-1 { top: 12px; right: 16px; }
+.create-sparkle-2 { bottom: 14px; left: 14px; animation-delay: 0.5s; font-size: 0.95rem; }
+.create-sparkle-3 { top: 42%; left: 20px; animation-delay: 1.0s; font-size: 0.8rem; }
+.create-sparkle-4 { top: 22px; left: 40%; animation-delay: 1.4s; font-size: 0.75rem; }
+.create-sparkle-5 { bottom: 26px; right: 26px; animation-delay: 0.8s; font-size: 0.9rem; }
 @keyframes sparkleTwinkle {
   0%, 100% { opacity: 0.15; transform: scale(0.6) rotate(0deg); }
   50%      { opacity: 1;    transform: scale(1.25) rotate(15deg); }

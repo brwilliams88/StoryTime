@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.3',
+      version: 'v0.12.4',
       buildDate: '2026-07-10',
 
       showSplash: true,
@@ -367,6 +367,9 @@ createApp({
     _genreCounts() { return this._countField('genre'); },
     _artCounts() { return this._countField('art_style'); },
     _creatorCounts() { return this._countField('created_by'); },
+    // Story-breakdown bar rows (Settings), sorted by count desc
+    genreBreakdown() { return this._breakdownRows(this._genreCounts, this.genresRaw); },
+    artBreakdown()   { return this._breakdownRows(this._artCounts, this.artStylesRaw); },
     // Filter options ordered by most-used first (Age stays in natural age order)
     filterGenreOptions() {
       const c = this._genreCounts;
@@ -2807,6 +2810,15 @@ createApp({
       const set = new Set();
       this.libraryBooks.forEach(b => { if (b[field]) set.add(b[field]); });
       return [...set].sort();
+    },
+    _breakdownRows(counts, options) {
+      const entries = Object.entries(counts || {});
+      if (!entries.length) return [];
+      const max = Math.max(...entries.map(([, n]) => n));
+      return entries.map(([value, count]) => {
+        const opt = (options || []).find(o => o.value === value);
+        return { value, count, pct: Math.round((count / max) * 100), emoji: opt ? opt.emoji : '📖', label: opt ? opt.label : value };
+      }).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     },
     _countField(field) {
       const m = {};
