@@ -9,6 +9,44 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.12.5 - 2026-07-10 - Create form + Manage Characters UX overhaul; no worker change
+  • Create form: tapping "New Story" now plays a sparkle-burst wipe and the fields stagger in. Cleaner top bar (back-to-library + "New Story" title; removed the Settings and "Back to Story" buttons). Genre and Artwork Style became compact fields that open a bottom-sheet picker instead of dropdowns. The Story Details box is larger, each section's help text is a light subtitle under its label, and "Generate Story" got a magical treatment (shimmer sweep, glow pulse, twinkling stars).
+  • Character roles simplified to a single Villain tag (an unlabeled character is treated as a hero), and selected-character chips now show a thumbnail. Story Ingredients was removed from the form but kept in the code behind `showIngredients` for an easy future re-add.
+  • Manage Characters: the default avatar is now a lightweight SVG monogram (retires the 1.8 MB character-default.png), square with no ring and sized to match real thumbnails; the edit placeholder shows a "mystery" star while an avatar is drawing. Removed the expanded-profile block from the list; added a sort button beside search (recent / most used / A-Z / newest) and a subtle "N stories" link that opens a popup listing the stories a character appears in. When a character is stuck on its generic image description, Edit now shows a "Use my original" banner to clear the flag.
+  • No worker change.
+
+--------------------------
+v0.12.4 - 2026-07-10 - New Story tile magic + spine fix; Fraunces on all headings; Settings story breakdown; cleaner create header; no worker change
+  • New Story book: the dashed frame is now inset so the book spine no longer covers its left edge, and it's more magical (stronger glow pulse, a gold shimmer sweep, five brighter sparkles).
+  • Fraunces (the storybook serif) now applies to all major headings app-wide (screen, section, modal and settings titles); body text and labels stay Nunito.
+  • Settings gained a "Story Breakdown" section showing genre and art-style distribution as horizontal bars sorted by count (story length isn't stored per book, so it's omitted for now).
+  • The create page dropped the redundant StoryTime logo + "Bedtime stories" tagline for a clean bar (a back-to-library icon and a "New Story" title). No worker change.
+
+--------------------------
+v0.12.3 - 2026-07-10 - Library polish: seamless wood grain, no toolbar trash button, white search icon, matching book-title font; no worker change
+  • Fixed the visible tile seams in the shelf wood grain by pinning the feTurbulence filter region to the exact 240px tile (filterUnits=userSpaceOnUse) so it tiles seamlessly; also turned the grain down slightly (0.9).
+  • Removed the dedicated Delete/trash button from the library toolbar — manage/delete lives in Settings > Library Tools again. The search magnifier icon is now the same cream as the filter/settings icons instead of gold.
+  • The opened-cover title now uses Fraunces to match the shelf book plate, so the font no longer changes when a book flies off the shelf. No worker change.
+
+--------------------------
+v0.12.2 - 2026-07-10 - Add 8 new illustration styles + shorten Anime label; no worker change
+  • Added eight art styles to the picker (13 -> 21 options): 3D Printed, Photorealistic, Stained Glass, Colored Pencil, Oil Painting, Ukiyo-e, Origami, and Candy World. Each was prototyped through the real gpt-image-1 pipeline (two sample scenes apiece) before being wired in.
+  • Each style's descriptive `style_anchor` prompt was added to ARTWORK_STYLE_GUIDANCE, and all eight values were added to the `chosen_art_style` list so "Surprise me" can pick them too. 3D-Printed uses a "visible filament layer-lines + full printed diorama + multi-filament flat colors" wording; Candy World makes candy the literal medium so the characters and objects ARE candy.
+  • Shortened "Anime / Manga" to "Anime". Filters and the story's "Artwork style" label derive from the same list, so both updated automatically. No worker change.
+
+--------------------------
+v0.12.1 - 2026-07-09 - Library: grainy honey-oak shelf, indigo toolbar, toned gold, bigger titles; no worker change
+  • Added procedural oak wood grain to the bookshelf (SVG feTurbulence, shared by the shelf field, crown and base) as a background layer, so it never shows on the book covers and stays crisp at any window size — fixing the old raster-texture rescaling problem. Nudged the base wood to a paler honey oak. The tuned shelf-board geometry and book seating were left unchanged.
+  • The library page background is now the night-indigo "wall" instead of brown, so the search bar no longer clashes; the search field and icon buttons were restyled with gold-tinted edges. The full-bleed bookshelf always fills below, keeping the shelf and wood base at the bottom.
+  • Toned the global gold accent from #f4b740 to #eaa93f so selected pills and buttons read as "lit" rather than a neon block on the dark navy. Book titles were bumped up and set in Fraunces. No worker change.
+
+--------------------------
+v0.12.0 - 2026-07-09 - Storybook Twilight theme foundation; no worker change
+  • Established the app-wide "Storybook Twilight" design system: a calm night-indigo base (so the AI cover art pops), a warm lamplight-gold accent, and parchment for reading surfaces. All colors and fonts now live in :root as CSS variables, so the whole app themes from one place.
+  • Added two fonts — Fraunces (a bookish serif for titles) and Nunito (a rounded sans for UI/body) — loaded from Google Fonts with graceful fallbacks; the body font switched to Nunito.
+  • This rev only repoints the tokens and fonts; individual screens are re-themed in the following revs. No worker change.
+
+--------------------------
 v0.11.3 - 2026-07-06 - Shared-link landscape: full-width pages (no page-turn resize) + cover-close corner fix; no worker change
   • Fixed the page-turn resize jump in the shared-link landscape view. v0.11.2 made the settled pages SQUARE, but the page-curl always animates at full page width, so pages "grew" during the turn and snapped smaller on landing. Pages are now full-width everywhere (settled AND during the turn), matching the cover - no resize. The share-mode background styling is scoped to `.story-spread` (not `.reading-view`) so it applies to the page-curl's cloned leaves too, keeping the size identical throughout the turn.
   • With full-width pages the cream text page reaches the screen edge (this is the deliberate trade: a navy edge would require narrower-than-full pages, which is exactly what caused the resize). To stop cream bleeding into any thin edge/gap at the screen border, the spread's own background is navy and the cream is painted onto the text page directly - so any sliver reads navy, never cream.
