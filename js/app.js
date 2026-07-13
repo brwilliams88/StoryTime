@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.4',
+      version: 'v0.12.5',
       buildDate: '2026-07-10',
 
       showSplash: true,
@@ -179,6 +179,12 @@ createApp({
       expandedCharIds: [],
       showCharFallbackFields: false,
       charSearch: '',
+      charSort: 'recent',            // recent | used | name | newest
+      showCharSortMenu: false,
+      charStoriesFor: null,          // character whose "used in stories" popup is open
+      openPicker: null,              // 'genre' | 'artStyle' — which sheet picker is open
+      showIngredients: false,        // Story Ingredients section hidden (kept in code for a future re-add — Kai liked it)
+      createBurst: false,            // sparkle-burst overlay when opening the New Story form
       analyzingPhoto: false,
 
       // Quiz
@@ -279,7 +285,20 @@ createApp({
     charactersAtMax() { return this.selectedCharCount >= MAX_SELECTED_CHARACTERS; },
 
     sortedCharacters() {
-      return [...this.characters].sort((a, b) => {
+      const list = [...this.characters];
+      if (this.charSort === 'name') {
+        return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      }
+      if (this.charSort === 'newest') {
+        return list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      }
+      if (this.charSort === 'used') {
+        return list.sort((a, b) =>
+          this.characterStoryCount(b) - this.characterStoryCount(a) ||
+          (b.last_used_at || '').localeCompare(a.last_used_at || ''));
+      }
+      // 'recent' (default): brand-new first, then most-recently-used
+      return list.sort((a, b) => {
         const aNew = !a.last_used_at;
         const bNew = !b.last_used_at;
         if (aNew && !bNew) return -1;
@@ -287,6 +306,9 @@ createApp({
         if (aNew && bNew) return (b.created_at || '').localeCompare(a.created_at || '');
         return b.last_used_at.localeCompare(a.last_used_at);
       });
+    },
+    charSortLabel() {
+      return { recent: 'Recently used', used: 'Most used', name: 'Name A–Z', newest: 'Newest' }[this.charSort] || 'Recently used';
     },
     filteredCharacters() {
       const q = (this.charSearch || '').toLowerCase().trim();
@@ -706,11 +728,48 @@ createApp({
     setCharacterRole(charId, role) { this.formData.characterRoles[charId] = role; },
     getCharacterRole(charId) { return this.formData.characterRoles[charId] || 'none'; },
     roleLabel(role) {
-      if (role === 'good-guy') return 'Good Guy';
-      if (role === 'bad-guy') return 'Bad Guy';
+      if (role === 'good-guy') return 'Hero';
+      if (role === 'bad-guy') return 'Villain';
       return '';
     },
+    // A character is the villain when explicitly tagged; otherwise treated as a hero.
+    isVillain(charId) { return this.getCharacterRole(charId) === 'bad-guy'; },
+    toggleVillain(charId) { this.setCharacterRole(charId, this.isVillain(charId) ? 'none' : 'bad-guy'); },
     formatRelative(iso) { return formatRelativeTime(iso); },
+    // ----- Character avatar placeholder + story-usage -----
+    avatarInitial(char) {
+      const n = (char && char.name || '').trim();
+      return n ? n.charAt(0).toUpperCase() : '?';
+    },
+    characterStoryTitles(char) {
+      const name = (char && char.name || '').toLowerCase().trim();
+      if (!name) return [];
+      return (this.libraryBooks || [])
+        .filter(b => (b.character_names || '').toLowerCase().includes(name))
+        .map(b => ({ id: b.id, title: b.title || 'Untitled' }));
+    },
+    characterStoryCount(char) { return this.characterStoryTitles(char).length; },
+    openCharStories(char) { this.charStoriesFor = char; },
+    closeCharStories() { this.charStoriesFor = null; },
+    openCharStory(id) { this.charStoriesFor = null; const b = (this.libraryBooks || []).find(x => x.id === id); if (b) { this.closeCharactersModal(); this.openBookMorph(b, null); } },
+    setCharSort(mode) { this.charSort = mode; this.showCharSortMenu = false; },
+    // ----- Genre / Art Style pop-up sheet picker -----
+    pickerOptions() { return this.openPicker === 'artStyle' ? this.artStyles : this.genres; },
+    pickerTitle() { return this.openPicker === 'artStyle' ? 'Artwork style' : 'Genre'; },
+    pickerCurrent() { return this.openPicker === 'artStyle' ? this.formData.artStyle : this.formData.genre; },
+    pickerLabel(which) {
+      const list = which === 'artStyle' ? this.artStyles : this.genres;
+      const val = which === 'artStyle' ? this.formData.artStyle : this.formData.genre;
+      const opt = list.find(o => o.value === val);
+      return opt ? { emoji: opt.emoji, label: opt.label } : { emoji: '📖', label: 'Choose…' };
+    },
+    openPickerSheet(which) { this.openPicker = which; },
+    selectPickerOption(value) {
+      if (this.openPicker === 'artStyle') this.formData.artStyle = value;
+      else this.formData.genre = value;
+      this.openPicker = null;
+    },
+    closePicker() { this.openPicker = null; },
     isCharacterNew(char) { return !char.last_used_at; },
     charIsPossiblyProblematic(char) {
       // Don't flag confirmed-safe or always-fallback or both-failed characters
@@ -2536,7 +2595,15 @@ createApp({
 
     // ---- Navigation between the 3 areas ----
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
-    goCreate()  { this.view = 'create';  window.scrollTo(0, 0); },
+    goCreate() {
+      window.scrollTo(0, 0);
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce) { this.view = 'create'; return; }
+      // Sparkle-burst wipe, then reveal the form (fields stagger in via CSS).
+      this.createBurst = true;
+      setTimeout(() => { this.view = 'create'; }, 240);
+      setTimeout(() => { this.createBurst = false; }, 950);
+    },
 
     // Reader back arrow: close the book with the same turn used for page 1 →
     // cover, but driven STRAIGHT from whatever page you're on to the cover (the
