@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.5',
+      version: 'v0.12.6',
       buildDate: '2026-07-10',
 
       showSplash: true,
@@ -182,6 +182,7 @@ createApp({
       charSort: 'recent',            // recent | used | name | newest
       showCharSortMenu: false,
       charStoriesFor: null,          // character whose "used in stories" popup is open
+      openCharMenu: null,            // character id whose ⋯ (Edit/Delete) menu is open
       openPicker: null,              // 'genre' | 'artStyle' — which sheet picker is open
       showIngredients: false,        // Story Ingredients section hidden (kept in code for a future re-add — Kai liked it)
       createBurst: false,            // sparkle-burst overlay when opening the New Story form
@@ -746,7 +747,7 @@ createApp({
       if (!name) return [];
       return (this.libraryBooks || [])
         .filter(b => (b.character_names || '').toLowerCase().includes(name))
-        .map(b => ({ id: b.id, title: b.title || 'Untitled' }));
+        .map(b => ({ id: b.id, title: b.title || 'Untitled', cover: this.libraryCover(b) }));
     },
     characterStoryCount(char) { return this.characterStoryTitles(char).length; },
     openCharStories(char) { this.charStoriesFor = char; },
@@ -763,13 +764,13 @@ createApp({
       const opt = list.find(o => o.value === val);
       return opt ? { emoji: opt.emoji, label: opt.label } : { emoji: '📖', label: 'Choose…' };
     },
-    openPickerSheet(which) { this.openPicker = which; },
+    openPickerSheet(which) { this.openPicker = which; document.body.classList.add('sheet-scroll-lock'); },
     selectPickerOption(value) {
       if (this.openPicker === 'artStyle') this.formData.artStyle = value;
       else this.formData.genre = value;
-      this.openPicker = null;
+      this.closePicker();
     },
-    closePicker() { this.openPicker = null; },
+    closePicker() { this.openPicker = null; document.body.classList.remove('sheet-scroll-lock'); },
     isCharacterNew(char) { return !char.last_used_at; },
     charIsPossiblyProblematic(char) {
       // Don't flag confirmed-safe or always-fallback or both-failed characters
@@ -2599,10 +2600,11 @@ createApp({
       window.scrollTo(0, 0);
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (reduce) { this.view = 'create'; return; }
-      // Sparkle-burst wipe, then reveal the form (fields stagger in via CSS).
+      // Spellbook open: the book scales up + its cover swings open, then the pages
+      // expand to fill and fade out to reveal the form (fields stagger in via CSS).
       this.createBurst = true;
-      setTimeout(() => { this.view = 'create'; }, 240);
-      setTimeout(() => { this.createBurst = false; }, 950);
+      setTimeout(() => { this.view = 'create'; }, 620);   // mount the form behind the expanding pages
+      setTimeout(() => { this.createBurst = false; }, 1180);
     },
 
     // Reader back arrow: close the book with the same turn used for page 1 →

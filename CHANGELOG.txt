@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.12.6 - 2026-07-10 - Spellbook open transition; 2-col sheet pickers; compact character tiles + Edit page sections; no worker change
+  • Create form: tapping "New Story" now plays a "spellbook" open — the book scales up, its cover swings open in 3D to reveal glowing parchment pages, and the pages expand to fill the screen and fade to reveal the form (the fields still stagger in). Replaces the earlier sparkle-burst wipe.
+  • Genre and Artwork Style pickers now lay their options out in a centered 2-per-row grid (you see more at once), and the background is locked from scrolling while a sheet is open (so you can't accidentally drag the form under it). The small help text is back inline next to each label (e.g. "Genre — the type of story"), and the subtitles under Story Details and Picture Artwork Style were removed.
+  • Manage Characters: the sort/filter button now matches the search bar's height and uses the library's funnel icon. Character tiles are more compact — a larger avatar, Edit/Delete tucked into a ⋯ menu, and a clickable "Appears in N stories" on the meta line. The stories popup shows each story's cover thumbnail beside its title, with bigger rows and an ✕ close button.
+  • Edit Character: split into two labeled sections — "Create Your Character" (name, description, reference photo, and the Bring to Life button) and "Meet Your Character" (the AI-generated tagline, profile, avatar, and advanced backup), which materializes into view when it appears. All the small hints are inline italic like the create page, and "Bring to Life" got a magical glow/shimmer ("Conjuring…" while it works).
+  • No worker change.
+
+--------------------------
 v0.12.5 - 2026-07-10 - Create form + Manage Characters UX overhaul; no worker change
   • Create form: tapping "New Story" now plays a sparkle-burst wipe and the fields stagger in. Cleaner top bar (back-to-library + "New Story" title; removed the Settings and "Back to Story" buttons). Genre and Artwork Style became compact fields that open a bottom-sheet picker instead of dropdowns. The Story Details box is larger, each section's help text is a light subtitle under its label, and "Generate Story" got a magical treatment (shimmer sweep, glow pulse, twinkling stars).
   • Character roles simplified to a single Villain tag (an unlabeled character is treated as a hero), and selected-character chips now show a thumbnail. Story Ingredients was removed from the form but kept in the code behind `showIngredients` for an easy future re-add.

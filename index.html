@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.5" />
+  <link rel="stylesheet" href="css/style.css?v=0.12.6" />
 </head>
 <body>
 
@@ -98,7 +98,7 @@
           </div>
 
           <div class="form-field">
-            <label>Genre <span class="help-text">the type of story</span></label>
+            <label>Genre <span class="help-text">— the type of story</span></label>
             <button type="button" class="picker-field" @click="openPickerSheet('genre')">
               <span class="picker-val"><span>{{ pickerLabel('genre').emoji }}</span> {{ pickerLabel('genre').label }}</span>
               <span class="picker-chev">▾</span>
@@ -106,7 +106,7 @@
           </div>
 
           <div class="form-field">
-            <label>Story Details <span class="help-text">make it your own with cool details</span></label>
+            <label>Story Details</label>
             <textarea v-model="formData.storyDetails" placeholder="Anything that makes this story special — setting, plot, surprises, who's in it... e.g. 'A rainy day in Hawaii, the kids find a magic conch, mention pancakes for breakfast'" class="textarea-input textarea-large textarea-resize textarea-story-details" rows="9"></textarea>
           </div>
 
@@ -122,12 +122,12 @@
           </div>
 
           <div class="form-field">
-            <label>Theme <span class="help-text">the moral or message</span> <span class="optional">(optional)</span></label>
+            <label>Theme <span class="help-text">— the moral or message</span> <span class="optional">(optional)</span></label>
             <input type="text" v-model="formData.theme" placeholder="e.g. 'the moral of the story is to keep trying', family, sharing, being brave..." class="text-input" />
           </div>
 
           <div class="form-field">
-            <label>Picture Artwork Style <span class="help-text">how the pictures will look</span></label>
+            <label>Picture Artwork Style</label>
             <button type="button" class="picker-field" @click="openPickerSheet('artStyle')">
               <span class="picker-val"><span>{{ pickerLabel('artStyle').emoji }}</span> {{ pickerLabel('artStyle').label }}</span>
               <span class="picker-chev">▾</span>
@@ -713,7 +713,7 @@
                 <button v-if="charSearch" @click="charSearch = ''" class="search-clear" aria-label="Clear search">✕</button>
               </div>
               <button class="char-sort-btn" :class="{ on: showCharSortMenu }" @click="showCharSortMenu = !showCharSortMenu" :title="'Sort: ' + charSortLabel" aria-label="Sort characters">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h5"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
               </button>
               <div v-if="showCharSortMenu" class="char-sort-menu">
                 <button :class="['char-sort-item', { on: charSort === 'recent' }]" @click="setCharSort('recent')">Recently used</button>
@@ -730,7 +730,7 @@
                 <div class="empty-text">Tap <strong>+ Create New</strong> to make one, or <strong>🎲 Generate Random</strong> to let the AI invent one.</div>
               </div>
               <div v-for="c in filteredCharacters" :key="c.id" :class="['char-row', { selected: isCharacterSelected(c.id), 'at-limit': !canAddCharacter(c.id) }]">
-                <div class="char-row-top">
+                <div class="char-row-main">
                   <div class="char-row-thumb">
                     <img v-if="c.thumbnail_id && getImageURL(c.thumbnail_id)" :src="getImageURL(c.thumbnail_id)" :alt="c.name" />
                     <div v-else class="char-avatar-ph char-avatar-mono">{{ avatarInitial(c) }}</div>
@@ -747,21 +747,21 @@
                       >{{ charStateBadge(c).symbol }}</button>
                     </div>
                     <div v-if="c.tagline" class="char-row-tagline">{{ c.tagline }}</div>
-                    <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}<template v-if="characterStoryCount(c)"> · <button class="char-stories-link" @click.stop="openCharStories(c)">{{ characterStoryCount(c) }} {{ characterStoryCount(c) === 1 ? 'story' : 'stories' }}</button></template></div>
+                    <div class="char-row-meta">{{ formatRelative(c.last_used_at) }}<template v-if="characterStoryCount(c)"> · <button class="char-stories-link" @click.stop="openCharStories(c)">Appears in {{ characterStoryCount(c) }} {{ characterStoryCount(c) === 1 ? 'story' : 'stories' }}</button></template></div>
                   </div>
-                  <button @click="toggleCharacterSelected(c.id)" :disabled="!canAddCharacter(c.id)" :class="['add-btn', { added: isCharacterSelected(c.id) }]">
-                    {{ isCharacterSelected(c.id) ? '✓ Added' : (canAddCharacter(c.id) ? '+ Add to Story' : 'Max') }}
-                  </button>
+                  <div class="char-row-side">
+                    <button class="char-kebab" @click.stop="openCharMenu = openCharMenu === c.id ? null : c.id" aria-label="More actions">⋯</button>
+                    <button @click="toggleCharacterSelected(c.id)" :disabled="!canAddCharacter(c.id)" :class="['add-btn', { added: isCharacterSelected(c.id) }]">
+                      {{ isCharacterSelected(c.id) ? '✓ Added' : (canAddCharacter(c.id) ? '+ Add' : 'Max') }}
+                    </button>
+                    <div v-if="openCharMenu === c.id" class="char-kebab-menu">
+                      <button class="char-kebab-item" @click.stop="openCharMenu = null; startEditCharacter(c)">Edit</button>
+                      <button class="char-kebab-item danger" @click.stop="openCharMenu = null; handleDeleteCharacter(c)">Delete</button>
+                    </div>
+                  </div>
                 </div>
                 <div v-if="isCharacterSelected(c.id)" class="char-role-pills">
                   <button :class="['pill pill-small villain-toggle', { active: isVillain(c.id) }]" @click="toggleVillain(c.id)">{{ isVillain(c.id) ? '😈 Villain' : 'Make villain' }}</button>
-                </div>
-                <div class="char-row-bottom">
-                  <div class="char-row-edit-actions">
-                    <button @click="startEditCharacter(c)" class="text-link">Edit</button>
-                    <span class="text-link-sep">·</span>
-                    <button @click="handleDeleteCharacter(c)" class="text-link text-link-danger">Delete</button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -781,6 +781,10 @@
                 <span class="fb-text">Images use a <strong>generic</strong> description for this character (the original was blocked before). Switch back if that was a mistake.</span>
                 <button @click="charForm.always_use_fallback = false">Use my original</button>
               </div>
+
+              <div class="char-section">
+                <div class="char-section-head">Create Your Character</div>
+                <div class="char-section-sub">What you tell the storyteller</div>
               <div class="form-field">
                 <label>Name</label>
                 <input type="text" v-model="charForm.name" placeholder="e.g. Kai, Bumble, Lord Frostbeard" class="text-input" />
@@ -811,8 +815,13 @@
                 </details>
               </div>
 
-              <button @click="handleEnhance" :disabled="!charFormCanEnhance" class="btn-primary">✨ {{ enhancing ? 'Bringing to life…' : 'Bring to Life' }}</button>
-              <div v-if="charForm.visual_description" class="form-field" style="margin-top: 1.2rem;">
+                <button @click="handleEnhance" :disabled="!charFormCanEnhance" :class="['btn-primary btn-conjure', { conjuring: enhancing }]"><span>✨ {{ enhancing ? 'Conjuring…' : 'Bring to Life' }}</span></button>
+              </div>
+
+              <div v-if="charForm.visual_description" class="char-section meet char-meet">
+                <div class="char-section-head">Meet Your Character</div>
+                <div class="char-section-sub">AI-generated — tweak anything</div>
+              <div class="form-field">
                 <label>Tagline <span class="help-text">— short identifier shown in the list</span></label>
                 <input type="text" v-model="charForm.tagline" placeholder="e.g. 8-year-old curious boy" class="text-input" />
               </div>
@@ -859,6 +868,7 @@
                   <span>Always use generic for images</span>
                 </label>
               </template>
+              </div>
 
               <div v-if="error" class="error-text">{{ error }}</div>
               <p v-if="isThumbGenerating()" class="form-hint" style="text-align:center; margin: 0.2rem 0 0;">Avatar is still drawing — you can close; it'll finish in the background.</p>
@@ -1093,17 +1103,33 @@
         </div>
       </div>
 
-      <!-- Sparkle-burst when opening the New Story form -->
+      <!-- Spellbook open when tapping the New Story book -->
       <div v-if="createBurst" class="create-burst">
-        <div class="cb-flash"></div>
-        <div class="cb-ring"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="sb-glow"></div>
+        <div class="sb-book">
+          <div class="sb-spread"></div>
+          <div class="sb-cover">+</div>
+        </div>
+        <div class="sb-pages"></div>
+        <span class="sb-spark" style="--dx:-32px; margin-left:-20px;">✦</span>
+        <span class="sb-spark" style="--dx:28px; margin-left:14px; animation-delay:.34s;">✦</span>
+        <span class="sb-spark" style="--dx:-6px; margin-left:0; animation-delay:.5s;">✦</span>
       </div>
 
-      <!-- "Used in stories" popup -->
+      <!-- "Appears in stories" popup -->
       <div v-if="charStoriesFor" class="char-stories-overlay" @click.self="closeCharStories">
         <div class="char-stories-card">
-          <h3>{{ charStoriesFor.name }} appears in</h3>
-          <button v-for="s in characterStoryTitles(charStoriesFor)" :key="s.id" class="char-story-item" @click="openCharStory(s.id)">{{ s.title }}</button>
+          <div class="char-stories-head">
+            <h3>{{ charStoriesFor.name }} appears in</h3>
+            <button class="char-stories-close" @click="closeCharStories" aria-label="Close">✕</button>
+          </div>
+          <button v-for="s in characterStoryTitles(charStoriesFor)" :key="s.id" class="char-story-item" @click="openCharStory(s.id)">
+            <span class="char-story-thumb">
+              <img v-if="s.cover" :src="s.cover" :alt="s.title" />
+              <span v-else class="char-avatar-ph char-avatar-mono">📖</span>
+            </span>
+            <span class="char-story-title">{{ s.title }}</span>
+          </button>
           <p v-if="!characterStoryTitles(charStoriesFor).length" class="char-stories-empty">Not used in any stories yet.</p>
         </div>
       </div>
@@ -1115,13 +1141,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.5"></script>
-  <script src="js/imageStorage.js?v=0.12.5"></script>
-  <script src="js/api.js?v=0.12.5"></script>
-  <script src="js/sync.js?v=0.12.5"></script>
-  <script src="js/pageShadow.js?v=0.12.5"></script>
-  <script src="js/pageCurl.js?v=0.12.5"></script>
-  <script src="js/app.js?v=0.12.5"></script>
+  <script src="js/storage.js?v=0.12.6"></script>
+  <script src="js/imageStorage.js?v=0.12.6"></script>
+  <script src="js/api.js?v=0.12.6"></script>
+  <script src="js/sync.js?v=0.12.6"></script>
+  <script src="js/pageShadow.js?v=0.12.6"></script>
+  <script src="js/pageCurl.js?v=0.12.6"></script>
+  <script src="js/app.js?v=0.12.6"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
