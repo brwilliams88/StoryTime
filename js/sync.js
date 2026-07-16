@@ -125,6 +125,7 @@ function storyToRow(story) {
     theme: fd.theme || '',
     summary: story.summary || '',
     character_names: characterNames,
+    character_ids: story.character_ids || [],
     search_text: searchText,
     rating: story.rating || 0,
     cover_image_id: (story.cover && story.cover.image_id) || null,

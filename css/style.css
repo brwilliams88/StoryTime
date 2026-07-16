@@ -612,7 +612,7 @@ body:has(.library-view) { background: var(--bg-deep); }
   width: 100%;
   padding: 0.7rem 0.9rem;
   background: var(--bg-input);
-  border: 1px solid var(--border-soft);
+  border: 1px solid rgba(234,169,63,0.30);   /* visible gold-tinted edge (was near-invisible) */
   border-radius: 8px;
   color: var(--text-main);
   font-size: 1rem;
@@ -942,31 +942,37 @@ body:has(.library-view) { background: var(--bg-deep); }
 
 .quiz-option {
   background: var(--bg-input);
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  padding: 0.65rem 0.9rem;
+  border: 1.5px solid rgba(234,169,63,0.22);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
   color: var(--text-main);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  touch-action: manipulation;
 }
 
 .quiz-option:hover { border-color: var(--accent); }
+.quiz-option:active { transform: scale(0.99); }
 .quiz-option.selected {
-  background: rgba(244, 162, 97, 0.15);
+  background: rgba(234,169,63,0.15);
   border-color: var(--accent);
 }
 .quiz-option.correct {
-  background: rgba(120, 200, 120, 0.2);
-  border-color: rgb(120, 200, 120);
+  background: rgba(93,202,165,0.2);
+  border-color: #5dcaa5;
+  color: #bff0df;
+  animation: quizPop 0.4s ease;
 }
 .quiz-option.incorrect {
-  background: rgba(255, 139, 139, 0.15);
-  border-color: var(--error);
+  background: rgba(232,130,94,0.16);
+  border-color: var(--accent-warm);
+  color: #f4b9a3;
 }
 .quiz-option:disabled { cursor: default; }
+@keyframes quizPop { 0% { transform: scale(1); } 40% { transform: scale(1.03); } 100% { transform: scale(1); } }
 
 .quiz-score {
   margin-top: 0.8rem;
@@ -3223,22 +3229,11 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .create-form > *:nth-child(n+10){animation-delay:.45s}
 @keyframes fieldIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* Spellbook open: book scales up, its cover swings open (3D), then the pages
-   expand to fill and fade out to reveal the create form. Triggered by createBurst. */
-.create-burst { position: fixed; inset: 0; z-index: 1200; pointer-events: none; overflow: hidden; perspective: 1200px; }
-.sb-glow { position: absolute; left: 50%; top: 45%; width: 280px; height: 280px; margin: -140px 0 0 -140px; background: radial-gradient(circle, rgba(255,214,120,.55), transparent 62%); opacity: 0; animation: sbGlowPulse 1.15s ease-out forwards; }
-.sb-book { position: absolute; left: 50%; top: 45%; width: 92px; height: 120px; margin: -60px 0 0 -46px; transform-style: preserve-3d; animation: sbBookIn 0.34s ease-out forwards; }
-.sb-spread { position: absolute; inset: 0; background: linear-gradient(#fdf6e0,#f2e4c0); border-radius: 4px 6px 6px 4px; box-shadow: 0 0 22px rgba(255,235,180,.6); }
-.sb-spread::after { content: ''; position: absolute; left: 50%; top: 8px; bottom: 8px; width: 1px; background: rgba(150,110,50,.25); }
-.sb-cover { position: absolute; inset: 0; background: radial-gradient(circle at 50% 38%, #fffcef, #ffe0a0); border-radius: 4px 6px 6px 4px; transform-origin: left center; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; color: #cc8a1e; font-weight: 800; font-size: 34px; box-shadow: 0 4px 14px rgba(0,0,0,.4); animation: sbCoverOpen 0.36s ease-in 0.30s forwards; }
-.sb-cover::before { content: ''; position: absolute; inset: 9px 9px 9px 15px; border: 2px dashed #e0a63c; border-radius: 6px; }
-.sb-pages { position: absolute; left: 50%; top: 45%; width: 92px; height: 120px; margin: -60px 0 0 -46px; background: linear-gradient(#fdf6e0,#efe0bb); border-radius: 8px; box-shadow: 0 0 34px rgba(255,235,180,.6); opacity: 0; transform: scale(1); transform-origin: center; animation: sbPagesExpand 0.5s cubic-bezier(.5,0,.2,1) 0.58s forwards; }
-.sb-spark { position: absolute; left: 50%; top: 45%; color: #ffe08a; font-size: 16px; text-shadow: 0 0 8px #ffd36a; opacity: 0; animation: sbSparkRise 0.9s ease-out 0.28s forwards; }
-@keyframes sbBookIn { 0% { transform: translateY(22px) scale(.4); opacity: 0; } 55% { opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
-@keyframes sbCoverOpen { 0% { transform: rotateY(0); } 100% { transform: rotateY(-165deg); } }
-@keyframes sbPagesExpand { 0% { opacity: 0; transform: scale(1); } 16% { opacity: 1; } 72% { opacity: 1; transform: scale(14); } 100% { opacity: 0; transform: scale(16); } }
-@keyframes sbGlowPulse { 0% { opacity: 0; transform: scale(.5); } 42% { opacity: 1; } 100% { opacity: 0; transform: scale(1.5); } }
-@keyframes sbSparkRise { 0% { opacity: 0; transform: translate(0,0) scale(.5); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx,0), -64px) scale(1); } }
+/* New Story open: a GSAP flyer (see _spellbookOpen) clones the tapped book and
+   flies it from its shelf slot to centre, then swings the cover open over these
+   parchment "pages". The spine ridge is hidden on the flyer for a clean open. */
+.sb-fly-pages { position: absolute; left: 0; top: 0; width: 100%; aspect-ratio: 1 / 1; border-radius: 3px 5px 0 0; background: linear-gradient(#fdf6e0, #efe0bb); box-shadow: 0 0 34px rgba(255,235,180,.6); z-index: 0; }
+.sb-fly-temp.book::before { display: none !important; }
 
 /* Magical Generate button */
 .generate-wrap { position: relative; margin-top: 0.6rem; }
@@ -3298,7 +3293,7 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 
 @media (prefers-reduced-motion: reduce) {
   .create-form > *, .btn-generate, .btn-generate::before, .gen-star,
-  .sb-book, .sb-cover, .sb-pages, .sb-glow, .sb-spark, .sheet, .sheet-overlay,
+  .sheet, .sheet-overlay,
   .char-meet, .btn-conjure, .btn-conjure::before { animation: none !important; }
 }
 
@@ -3356,3 +3351,11 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .btn-conjure::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg,transparent 38%,rgba(255,255,255,.55) 50%,transparent 62%); background-size: 260% 100%; background-repeat: no-repeat; animation: genShim 3.6s ease-in-out infinite; }
 .btn-conjure > * { position: relative; z-index: 1; }
 .btn-conjure.conjuring { animation: genGlow 1.1s ease-in-out infinite; }
+
+/* =============================================================
+   v0.12.7 — misc
+   ============================================================= */
+/* Themed placeholder for a story with no cover thumbnail (older stories) */
+.char-story-noimg { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--bg-input); color: var(--text-dim); font-size: 1.25rem; border-radius: 8px; }
+/* Transparent catcher that closes the character ⋯ menu on an outside tap */
+.char-menu-backdrop { position: fixed; inset: 0; z-index: 7; }

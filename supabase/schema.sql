@@ -157,3 +157,18 @@ create table if not exists public.spend_events (
   amount    numeric(10,4) not null
 );
 create index if not exists spend_events_ts_idx on public.spend_events (ts);
+
+
+-- ============================================================
+-- v0.12.7 migration — run this block once (safe to re-run)
+-- Adds a character_ids column so the Library can tell two characters with the
+-- SAME name apart (the old character_names string can't). Backfills from each
+-- story's saved data blob; new/edited stories self-heal on their next sync.
+-- ============================================================
+alter table public.stories add column if not exists character_ids text[] default '{}';
+update public.stories
+  set character_ids = coalesce(
+    (select array_agg(v::text) from jsonb_array_elements_text(data->'character_ids') as v),
+    '{}'
+  )
+  where (character_ids is null or character_ids = '{}') and data ? 'character_ids';

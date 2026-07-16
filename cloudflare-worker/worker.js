@@ -1,5 +1,5 @@
 // =====================================================================
-//  ███  WORKER REV: v0.11.0  (2026-07-06)  ███
+//  ███  WORKER REV: v0.12.7  (2026-07-10)  ███  (added character_ids to the library select)
 //  Changes since last deploy: SHARE-A-STORY + dual (R2/Supabase) usage count.
 //    - NEW public GET /share/<slug>-<token>  → serves the reader in "share mode"
 //      (a standalone, password-free reading page with OG link-preview tags).
@@ -235,7 +235,7 @@ async function listStories(env, opts) {
     : 'created_at.desc';
   const limit = Math.min(parseInt(opts.limit, 10) || 100, 200);
   const offset = parseInt(opts.offset, 10) || 0;
-  const cols = 'id,title,created_by,genre,age_range,art_style,theme,summary,character_names,rating,created_at,last_read_at,cover_image_id';
+  const cols = 'id,title,created_by,genre,age_range,art_style,theme,summary,character_names,character_ids,rating,created_at,last_read_at,cover_image_id';
   let q = `stories?select=${cols}&order=${order}&limit=${limit}&offset=${offset}`;
 
   if (opts.search && String(opts.search).trim()) {

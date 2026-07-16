@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.6',
+      version: 'v0.12.7',
       buildDate: '2026-07-10',
 
       showSplash: true,
@@ -743,10 +743,15 @@ createApp({
       return n ? n.charAt(0).toUpperCase() : '?';
     },
     characterStoryTitles(char) {
-      const name = (char && char.name || '').toLowerCase().trim();
-      if (!name) return [];
+      if (!char || !char.id) return [];
+      const name = (char.name || '').toLowerCase().trim();
       return (this.libraryBooks || [])
-        .filter(b => (b.character_names || '').toLowerCase().includes(name))
+        .filter(b => {
+          // Prefer an exact character-id match (distinguishes two characters with the
+          // same name); fall back to name for older stories that predate character_ids.
+          if (Array.isArray(b.character_ids)) return b.character_ids.includes(char.id);
+          return name && (b.character_names || '').toLowerCase().includes(name);
+        })
         .map(b => ({ id: b.id, title: b.title || 'Untitled', cover: this.libraryCover(b) }));
     },
     characterStoryCount(char) { return this.characterStoryTitles(char).length; },
@@ -1029,7 +1034,10 @@ createApp({
     // ============================================================
     async handleGenerate() {
       this.error = '';
-      // Story Details + Created By are now required
+      // Characters, Story Details + Created By are all required
+      if (!this.selectedCharCount) {
+        this.error = 'Choose at least one character before generating.'; return;
+      }
       if (!this.formData.storyDetails || !this.formData.storyDetails.trim()) {
         this.error = 'Please fill in Story Details before generating.'; return;
       }
@@ -2596,15 +2604,50 @@ createApp({
 
     // ---- Navigation between the 3 areas ----
     goLibrary() { this.view = 'library'; window.scrollTo(0, 0); },
-    goCreate() {
+    goCreate(ev) {
       window.scrollTo(0, 0);
+      const gsap = window.gsap;
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (reduce) { this.view = 'create'; return; }
-      // Spellbook open: the book scales up + its cover swings open, then the pages
-      // expand to fill and fade out to reveal the form (fields stagger in via CSS).
-      this.createBurst = true;
-      setTimeout(() => { this.view = 'create'; }, 620);   // mount the form behind the expanding pages
-      setTimeout(() => { this.createBurst = false; }, 1180);
+      const bookEl = ev && ev.currentTarget;
+      if (!gsap || !bookEl || reduce) { this.view = 'create'; return; }
+      this._spellbookOpen(bookEl);
+    },
+    // Fly the tapped New Story book from its shelf slot up to centre (like a book
+    // coming off the shelf to be read), swing its cover open in 3D over a parchment
+    // spread, then cross-fade the flyer out as the create form appears beneath.
+    _spellbookOpen(bookEl) {
+      const gsap = window.gsap;
+      const er = bookEl.getBoundingClientRect();
+      document.querySelectorAll('.sb-fly-temp').forEach(el => el.remove());
+      // navy backdrop that fades in as the book grows (mirror of the reading open)
+      const dark = document.createElement('div'); dark.className = 'sb-fly-temp';
+      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1b1b3a)', zIndex: '2050', opacity: '0', pointerEvents: 'none' });
+      document.body.appendChild(dark);
+      // the flyer is a clone of the New Story book, pinned at its shelf rect
+      const flyer = bookEl.cloneNode(true);
+      flyer.classList.add('sb-fly-temp');
+      flyer.classList.remove('create-book');   // drop the bob animation (it fights the GSAP transform)
+      Object.assign(flyer.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', perspective: '900px' });
+      const cover = flyer.querySelector('.book-cover');
+      if (cover) {
+        const pages = document.createElement('div'); pages.className = 'sb-fly-pages';
+        flyer.insertBefore(pages, flyer.firstChild);         // parchment revealed behind the cover
+        cover.style.position = 'relative'; cover.style.zIndex = '2';
+        cover.style.transformOrigin = 'left center'; cover.style.backfaceVisibility = 'hidden';
+      }
+      document.body.appendChild(flyer);
+      const target = Math.min(window.innerWidth * 0.62, 300);
+      const scale = target / er.width;
+      const x = (window.innerWidth - er.width * scale) / 2 - er.left;
+      const y = (window.innerHeight - er.height * scale) / 2 - er.top;
+      const cleanup = () => document.querySelectorAll('.sb-fly-temp').forEach(el => el.remove());
+      const tl = gsap.timeline({ onComplete: cleanup });
+      tl.to(dark, { opacity: 1, duration: 0.42, ease: 'power1.out' }, 0);
+      tl.to(flyer, { x, y, scale, duration: 0.5, ease: 'power2.inOut' }, 0);
+      if (cover) tl.to(cover, { rotationY: -158, duration: 0.4, ease: 'power1.in', transformPerspective: 900 }, 0.52);
+      tl.add(() => { this.view = 'create'; }, 0.78);          // mount the form behind the flyer
+      tl.to([flyer, dark], { opacity: 0, duration: 0.36, ease: 'power1.out' }, 0.92);
+      setTimeout(() => { if (this.view !== 'create') this.view = 'create'; cleanup(); }, 1700);   // backstop
     },
 
     // Reader back arrow: close the book with the same turn used for page 1 →
@@ -3567,7 +3610,12 @@ createApp({
     closeQuiz() {
       this.showQuiz = false;
     },
+    // Tap-vs-scroll guard: a finger dragging across an option while scrolling must
+    // NOT select it — only a deliberate tap does.
+    quizTouchStart(e) { this._quizMoved = false; this._quizTouchY = (e.touches && e.touches[0]) ? e.touches[0].clientY : 0; },
+    quizTouchMove(e) { if (e.touches && e.touches[0] && Math.abs(e.touches[0].clientY - (this._quizTouchY || 0)) > 8) this._quizMoved = true; },
     setQuizAnswer(qIdx, optIdx) {
+      if (this._quizMoved) { this._quizMoved = false; return; }   // was a scroll, not a tap
       if (this.quizRevealed) return;
       this.quizAnswers = { ...this.quizAnswers, [qIdx]: optIdx };
     },

@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.6" />
+  <link rel="stylesheet" href="css/style.css?v=0.12.7" />
 </head>
 <body>
 
@@ -94,7 +94,6 @@
               </div>
               <button @click="openCharactersModal" class="btn-secondary btn-small">👥 Choose Characters</button>
             </div>
-            <p v-if="selectedCharCount === 0" class="form-hint">No characters selected — tap above to add. Leave empty and the storyteller will invent them.</p>
           </div>
 
           <div class="form-field">
@@ -324,7 +323,7 @@
 
               <!-- Create-new "book" (first; hidden while searching/filtering/managing) -->
               <div v-if="!manageMode && !librarySearch.trim() && !anyFilterActive" class="book-slot create-slot">
-                <button class="book create-book" @click="goCreate" aria-label="Create a new story">
+                <button class="book create-book" @click="goCreate($event)" aria-label="Create a new story">
                   <div class="book-cover create-cover">
                     <span class="create-sparkle create-sparkle-1">✦</span>
                     <span class="create-sparkle create-sparkle-2">✦</span>
@@ -656,6 +655,8 @@
                 <button
                   v-for="(opt, optIdx) in q.options"
                   :key="optIdx"
+                  @touchstart.passive="quizTouchStart"
+                  @touchmove.passive="quizTouchMove"
                   @click="setQuizAnswer(qIdx, optIdx)"
                   :class="[
                     'quiz-option',
@@ -723,6 +724,7 @@
               </div>
             </div>
             <div v-if="error" class="error-text" style="margin: 0.5rem 0;">{{ error }}</div>
+            <div v-if="openCharMenu" class="char-menu-backdrop" @click="openCharMenu = null"></div>
             <div class="char-list">
               <div v-if="characters.length === 0" class="char-list-empty">
                 <div class="empty-emoji">👤</div>
@@ -772,9 +774,6 @@
           </template>
 
           <template v-else>
-            <div class="modal-header">
-              <h2>{{ charModalMode === 'create' ? 'Create Character' : 'Edit Character' }}</h2>
-            </div>
             <p v-if="isRandomNew" class="modal-hint modal-hint-emphasize">✨ This character is newly invented. Tap <strong>Save &amp; Close</strong> below to keep them.</p>
             <div class="char-form">
               <div v-if="charForm.always_use_fallback" class="fallback-banner">
@@ -784,14 +783,13 @@
 
               <div class="char-section">
                 <div class="char-section-head">Create Your Character</div>
-                <div class="char-section-sub">What you tell the storyteller</div>
               <div class="form-field">
                 <label>Name</label>
                 <input type="text" v-model="charForm.name" placeholder="e.g. Kai, Bumble, Lord Frostbeard" class="text-input" />
               </div>
               <div class="form-field">
-                <label>Description <span class="help-text">— the key details to keep consistent</span></label>
-                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance, personality, anything you want consistent." class="textarea-input textarea-char-desc" rows="6"></textarea>
+                <label>Description</label>
+                <textarea v-model="charForm.user_description" placeholder="Describe them in your own words — appearance and personality. e.g. 'A brave 8-year-old girl with curly red hair and freckles, always wears a green cape, loves dinosaurs and never gives up.'" class="textarea-input textarea-char-desc" rows="6"></textarea>
               </div>
 
               <!-- Photo capture -->
@@ -815,7 +813,7 @@
                 </details>
               </div>
 
-                <button @click="handleEnhance" :disabled="!charFormCanEnhance" :class="['btn-primary btn-conjure', { conjuring: enhancing }]"><span>✨ {{ enhancing ? 'Conjuring…' : 'Bring to Life' }}</span></button>
+                <button @click="handleEnhance" :disabled="!charFormCanEnhance" :class="['btn-primary btn-large btn-conjure', { conjuring: enhancing }]"><span>✨ {{ enhancing ? 'Conjuring…' : 'Bring to Life' }}</span></button>
               </div>
 
               <div v-if="charForm.visual_description" class="char-section meet char-meet">
@@ -1103,19 +1101,6 @@
         </div>
       </div>
 
-      <!-- Spellbook open when tapping the New Story book -->
-      <div v-if="createBurst" class="create-burst">
-        <div class="sb-glow"></div>
-        <div class="sb-book">
-          <div class="sb-spread"></div>
-          <div class="sb-cover">+</div>
-        </div>
-        <div class="sb-pages"></div>
-        <span class="sb-spark" style="--dx:-32px; margin-left:-20px;">✦</span>
-        <span class="sb-spark" style="--dx:28px; margin-left:14px; animation-delay:.34s;">✦</span>
-        <span class="sb-spark" style="--dx:-6px; margin-left:0; animation-delay:.5s;">✦</span>
-      </div>
-
       <!-- "Appears in stories" popup -->
       <div v-if="charStoriesFor" class="char-stories-overlay" @click.self="closeCharStories">
         <div class="char-stories-card">
@@ -1126,7 +1111,7 @@
           <button v-for="s in characterStoryTitles(charStoriesFor)" :key="s.id" class="char-story-item" @click="openCharStory(s.id)">
             <span class="char-story-thumb">
               <img v-if="s.cover" :src="s.cover" :alt="s.title" />
-              <span v-else class="char-avatar-ph char-avatar-mono">📖</span>
+              <span v-else class="char-story-noimg">📖</span>
             </span>
             <span class="char-story-title">{{ s.title }}</span>
           </button>
@@ -1141,13 +1126,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.6"></script>
-  <script src="js/imageStorage.js?v=0.12.6"></script>
-  <script src="js/api.js?v=0.12.6"></script>
-  <script src="js/sync.js?v=0.12.6"></script>
-  <script src="js/pageShadow.js?v=0.12.6"></script>
-  <script src="js/pageCurl.js?v=0.12.6"></script>
-  <script src="js/app.js?v=0.12.6"></script>
+  <script src="js/storage.js?v=0.12.7"></script>
+  <script src="js/imageStorage.js?v=0.12.7"></script>
+  <script src="js/api.js?v=0.12.7"></script>
+  <script src="js/sync.js?v=0.12.7"></script>
+  <script src="js/pageShadow.js?v=0.12.7"></script>
+  <script src="js/pageCurl.js?v=0.12.7"></script>
+  <script src="js/app.js?v=0.12.7"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
