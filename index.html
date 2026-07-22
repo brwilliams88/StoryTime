@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.7" />
+  <link rel="stylesheet" href="css/style.css?v=0.12.8" />
 </head>
 <body>
 
@@ -77,7 +77,7 @@
 
           <div class="form-top-bar">
             <button @click="goLibrary" class="header-back-btn" aria-label="Back to library" title="Back to library">‹</button>
-            <h2 class="section-title create-title">New Story</h2>
+            <h2 class="section-title create-title">Create Your Story</h2>
             <div class="form-top-actions">
               <button @click="handleResetForm" class="btn-secondary btn-small">Reset</button>
             </div>
@@ -642,54 +642,75 @@
       <!-- ============== QUIZ MODAL ============== -->
       <div v-if="showQuiz && currentStory && currentStory.quiz" class="modal-overlay" @click.self="closeQuiz">
         <div class="modal modal-wide quiz-modal">
-          <div class="modal-header">
-            <h2>🧠 Quiz Time!</h2>
-            <button @click="closeQuiz" class="modal-close modal-close-big">✕</button>
-          </div>
 
-          <div class="quiz-section">
-            <div class="quiz-section-title">What do you remember?</div>
-            <div v-for="(q, qIdx) in currentStory.quiz.comprehension" :key="'c'+qIdx" class="quiz-question">
-              <div class="quiz-q-text">{{ qIdx + 1 }}. {{ q.question }}</div>
-              <div class="quiz-options">
-                <button
-                  v-for="(opt, optIdx) in q.options"
-                  :key="optIdx"
-                  @touchstart.passive="quizTouchStart"
-                  @touchmove.passive="quizTouchMove"
-                  @click="setQuizAnswer(qIdx, optIdx)"
-                  :class="[
-                    'quiz-option',
-                    { selected: quizAnswers[qIdx] === optIdx },
-                    { correct: quizRevealed && q.correct === optIdx },
-                    { incorrect: quizRevealed && quizAnswers[qIdx] === optIdx && q.correct !== optIdx }
-                  ]"
-                  :disabled="quizRevealed"
-                >{{ opt }}</button>
+          <!-- STEP 1: comprehension questions (sized to fit an iPhone) -->
+          <template v-if="quizStep !== 'reflection'">
+            <div class="modal-header quiz-header">
+              <button @click="closeQuiz" class="modal-close modal-close-big" aria-label="Close">✕</button>
+            </div>
+
+            <div class="quiz-section">
+              <div class="quiz-section-title">What do you remember?</div>
+              <div v-for="(q, qIdx) in currentStory.quiz.comprehension" :key="'c'+qIdx" class="quiz-question">
+                <div class="quiz-q-text">{{ qIdx + 1 }}. {{ q.question }}</div>
+                <div class="quiz-options">
+                  <button
+                    v-for="(opt, optIdx) in q.options"
+                    :key="optIdx"
+                    @touchstart.passive="quizTouchStart"
+                    @touchmove.passive="quizTouchMove"
+                    @click="setQuizAnswer(qIdx, optIdx)"
+                    :class="[
+                      'quiz-option',
+                      { selected: quizAnswers[qIdx] === optIdx },
+                      { correct: quizRevealed && q.correct === optIdx },
+                      { incorrect: quizRevealed && quizAnswers[qIdx] === optIdx && q.correct !== optIdx }
+                    ]"
+                    :disabled="quizRevealed"
+                  >{{ opt }}</button>
+                </div>
+              </div>
+              <button
+                v-if="!quizRevealed && quizAllAnswered()"
+                @click="revealQuizAnswers"
+                class="btn-primary"
+              >Reveal Answers</button>
+              <div v-if="quizRevealed" class="quiz-score">
+                <div class="quiz-result-msg">{{ quizResultMessage() }}</div>
+                <div>You got <strong>{{ quizScore().correct }} / {{ quizScore().total }}</strong> right!</div>
+                <button v-if="quizScore().correct < quizScore().total" @click="tryQuizAgain" class="btn-secondary quiz-retry">🔄 Try Again</button>
               </div>
             </div>
-            <button
-              v-if="!quizRevealed && quizAllAnswered()"
-              @click="revealQuizAnswers"
-              class="btn-primary"
-            >Reveal Answers</button>
-            <div v-if="quizRevealed" class="quiz-score">
-              <div class="quiz-result-msg">{{ quizResultMessage() }}</div>
-              <div>You got <strong>{{ quizScore().correct }} / {{ quizScore().total }}</strong> right!</div>
-              <button v-if="quizScore().correct < quizScore().total" @click="tryQuizAgain" class="btn-secondary quiz-retry">🔄 Try Again</button>
-            </div>
-          </div>
 
-          <div v-if="currentStory.quiz.reflection && currentStory.quiz.reflection.length" class="quiz-section">
-            <div class="quiz-section-title">Think about it</div>
-            <div v-for="(r, rIdx) in currentStory.quiz.reflection" :key="'r'+rIdx" class="quiz-reflection">
-              {{ rIdx + 1 }}. {{ r }}
+            <div class="modal-footer">
+              <button
+                v-if="quizRevealed && currentStory.quiz.reflection && currentStory.quiz.reflection.length"
+                @click="goQuizReflection"
+                class="btn-primary"
+              >💭 Think About It →</button>
+              <button v-else @click="closeQuiz" class="btn-primary">Done</button>
             </div>
-          </div>
+          </template>
 
-          <div class="modal-footer">
-            <button @click="closeQuiz" class="btn-primary">Done</button>
-          </div>
+          <!-- STEP 2: reflection questions (their own screen) -->
+          <template v-else>
+            <div class="modal-header quiz-header">
+              <button @click="quizStep = 'quiz'" class="modal-back-btn" aria-label="Back to quiz">‹</button>
+              <button @click="closeQuiz" class="modal-close modal-close-big" aria-label="Close">✕</button>
+            </div>
+
+            <div class="quiz-section">
+              <div class="quiz-section-title">Think about it</div>
+              <div class="quiz-reflection-sub">No right answers — just fun to wonder about together.</div>
+              <div v-for="(r, rIdx) in currentStory.quiz.reflection" :key="'r'+rIdx" class="quiz-reflection">
+                {{ rIdx + 1 }}. {{ r }}
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button @click="closeQuiz" class="btn-primary">Done</button>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -783,6 +804,7 @@
 
               <div class="char-section">
                 <div class="char-section-head">Create Your Character</div>
+                <div class="char-section-sub">Fill in the details to create a character you can use in your stories.</div>
               <div class="form-field">
                 <label>Name</label>
                 <input type="text" v-model="charForm.name" placeholder="e.g. Kai, Bumble, Lord Frostbeard" class="text-input" />
@@ -796,21 +818,38 @@
               <div class="form-field">
                 <label>Reference Photo <span class="optional">(optional)</span></label>
                 <input ref="addPhotoInput" type="file" accept="image/*" @change="handlePhotoSelect" style="display: none;" />
-                <div v-if="!charForm.photo_id" class="photo-add-area" @click="!analyzingPhoto && triggerAddPhoto()" :class="{ disabled: analyzingPhoto }">
-                  <div class="photo-add-icon">📷</div>
-                  <div class="photo-add-label">Add a Photo</div>
-                  <div class="photo-add-sub">Person, drawing, or toy · AI analyzes it (~2¢)</div>
+
+                <!-- No photo yet: a simple button -->
+                <div v-if="!charForm.photo_id">
+                  <button type="button" class="btn-secondary btn-add-photo" @click="!analyzingPhoto && triggerAddPhoto()" :disabled="analyzingPhoto">📷 Add a Photo</button>
+                  <div class="photo-add-hint">A person, drawing, or toy — the AI uses it as a likeness reference.</div>
                 </div>
-                <div v-else-if="getImageURL(charForm.photo_id)" class="photo-preview-square">
-                  <img :src="getImageURL(charForm.photo_id)" alt="Reference" />
-                  <button @click="handleRemovePhoto" :disabled="analyzingPhoto" class="photo-delete-x" aria-label="Remove photo">✕</button>
+
+                <!-- Photo present: thumbnail left, actions stacked to the right -->
+                <div v-else-if="getImageURL(charForm.photo_id)" class="photo-row">
+                  <div class="photo-preview-square">
+                    <img :src="getImageURL(charForm.photo_id)" alt="Reference" />
+                    <button @click="handleRemovePhoto" :disabled="analyzingPhoto" class="photo-delete-x" aria-label="Remove photo">✕</button>
+                  </div>
+                  <div class="photo-row-actions">
+                    <div v-if="analyzingPhoto" class="form-hint" style="color: var(--accent); margin: 0;">Analyzing photo…</div>
+                    <button v-if="!analyzingPhoto" @click="handleReanalyzePhoto" class="btn-secondary btn-small">🔄 Re-analyze</button>
+                    <div v-if="charForm.photo_description && !analyzingPhoto" class="photo-desc-caption">AI description ready — see below.</div>
+                  </div>
                 </div>
-                <div v-if="analyzingPhoto" class="form-hint" style="margin-top: 0.5rem; color: var(--accent);">Analyzing photo…</div>
-                <button v-if="charForm.photo_id && !analyzingPhoto" @click="handleReanalyzePhoto" class="btn-secondary btn-small" style="margin-top: 0.5rem;">🔄 Re-analyze photo</button>
-                <details v-if="charForm.photo_description" class="photo-description-toggle" style="margin-top: 0.6rem;">
-                  <summary>▸ Photo description (auto-generated)</summary>
+
+                <!-- Expanded description textarea (full width, below the row) -->
+                <details v-if="charForm.photo_id && charForm.photo_description && !analyzingPhoto" class="photo-desc-full">
+                  <summary>Auto-generated photo description — tap to edit</summary>
                   <textarea v-model="charForm.photo_description" rows="4" class="textarea-input" style="margin-top: 0.4rem;"></textarea>
                 </details>
+
+                <!-- Friendly note when the vision model declined a photo of a real person -->
+                <div v-if="photoRefused" class="photo-refused-note">
+                  <div class="prn-title">📷 Couldn't read that photo</div>
+                  <div class="prn-body">The AI sometimes won't describe photos of real people. You can try a different, clear front-facing photo — or just describe them yourself in the <strong>Description</strong> box above and skip the photo.</div>
+                  <button type="button" class="btn-secondary btn-small" @click="handleReanalyzePhoto" :disabled="analyzingPhoto">🔄 Try again</button>
+                </div>
               </div>
 
                 <button @click="handleEnhance" :disabled="!charFormCanEnhance" :class="['btn-primary btn-large btn-conjure', { conjuring: enhancing }]"><span>✨ {{ enhancing ? 'Conjuring…' : 'Bring to Life' }}</span></button>
@@ -1086,7 +1125,6 @@
       <!-- Genre / Art Style pop-up sheet picker -->
       <div v-if="openPicker" class="sheet-overlay" @click.self="closePicker">
         <div class="sheet">
-          <div class="sheet-grip"></div>
           <div class="sheet-head">
             <h3>{{ pickerTitle() }}</h3>
             <button class="sheet-close" @click="closePicker" aria-label="Close">✕</button>
@@ -1126,13 +1164,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.7"></script>
-  <script src="js/imageStorage.js?v=0.12.7"></script>
-  <script src="js/api.js?v=0.12.7"></script>
-  <script src="js/sync.js?v=0.12.7"></script>
-  <script src="js/pageShadow.js?v=0.12.7"></script>
-  <script src="js/pageCurl.js?v=0.12.7"></script>
-  <script src="js/app.js?v=0.12.7"></script>
+  <script src="js/storage.js?v=0.12.8"></script>
+  <script src="js/imageStorage.js?v=0.12.8"></script>
+  <script src="js/api.js?v=0.12.8"></script>
+  <script src="js/sync.js?v=0.12.8"></script>
+  <script src="js/pageShadow.js?v=0.12.8"></script>
+  <script src="js/pageCurl.js?v=0.12.8"></script>
+  <script src="js/app.js?v=0.12.8"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

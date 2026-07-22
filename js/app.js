@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.7',
-      buildDate: '2026-07-10',
+      version: 'v0.12.8',
+      buildDate: '2026-07-22',
 
       showSplash: true,
 
@@ -187,11 +187,13 @@ createApp({
       showIngredients: false,        // Story Ingredients section hidden (kept in code for a future re-add — Kai liked it)
       createBurst: false,            // sparkle-burst overlay when opening the New Story form
       analyzingPhoto: false,
+      photoRefused: false,           // vision model declined to describe the photo (e.g. a real person)
 
       // Quiz
       showQuiz: false,
       quizAnswers: {},
       quizRevealed: false,
+      quizStep: 'quiz',              // 'quiz' (comprehension) | 'reflection' (separate step)
 
       // Loading toast dismissal
       toastDismissed: false,
@@ -203,6 +205,7 @@ createApp({
         { value: 'surprise-me',   emoji: '🎲', label: 'Surprise me' },
         { value: 'adventure',     emoji: '🗺️', label: 'Adventure' },
         { value: 'fairy-tale',    emoji: '🧚', label: 'Fairy Tale' },
+        { value: 'heartfelt',     emoji: '❤️', label: 'Heartfelt' },
         { value: 'fantasy',       emoji: '✨', label: 'Fantasy' },
         { value: 'sci-fi',        emoji: '🚀', label: 'Sci-Fi' },
         { value: 'pirates',       emoji: '🏴‍☠️', label: 'Pirates' },
@@ -217,7 +220,6 @@ createApp({
       artStylesRaw: [
         { value: 'surprise-me',      emoji: '🎲', label: 'Surprise me' },
         { value: 'watercolor',       emoji: '🎨', label: 'Watercolor' },
-        { value: 'pencil',           emoji: '✏️', label: 'Pencil Sketch (B&W)' },
         { value: 'crayon',           emoji: '🖍️', label: 'Crayon' },
         { value: 'comic-book',       emoji: '📚', label: 'Comic Book' },
         { value: 'anime',            emoji: '🌸', label: 'Anime' },
@@ -840,6 +842,7 @@ createApp({
 
     startCreateCharacter() {
       this.error = '';
+      this.photoRefused = false;
       this.charForm = emptyCharForm();
       this.isRandomNew = false;
       this.showCharFallbackFields = false;
@@ -847,6 +850,7 @@ createApp({
     },
     startEditCharacter(char) {
       this.error = '';
+      this.photoRefused = false;
       this.charForm = {
         id: char.id,
         name: char.name,
@@ -2608,46 +2612,43 @@ createApp({
       window.scrollTo(0, 0);
       const gsap = window.gsap;
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const bookEl = ev && ev.currentTarget;
-      if (!gsap || !bookEl || reduce) { this.view = 'create'; return; }
-      this._spellbookOpen(bookEl);
+      if (!gsap || reduce) { this.view = 'create'; return; }
+      this._creamOpen();
     },
-    // Fly the tapped New Story book from its shelf slot up to centre (like a book
-    // coming off the shelf to be read), swing its cover open in 3D over a parchment
-    // spread, then cross-fade the flyer out as the create form appears beneath.
-    _spellbookOpen(bookEl) {
+    // Tap the New Story book → the whole screen washes to warm parchment cream
+    // (the shelf book's colour), a scatter of gold sparkles twinkles in, then the
+    // cream melts away to reveal the "Create Your Story" form fading up beneath.
+    _creamOpen() {
       const gsap = window.gsap;
-      const er = bookEl.getBoundingClientRect();
-      document.querySelectorAll('.sb-fly-temp').forEach(el => el.remove());
-      // navy backdrop that fades in as the book grows (mirror of the reading open)
-      const dark = document.createElement('div'); dark.className = 'sb-fly-temp';
-      Object.assign(dark.style, { position: 'fixed', inset: '0', background: 'var(--bg-deep, #1b1b3a)', zIndex: '2050', opacity: '0', pointerEvents: 'none' });
-      document.body.appendChild(dark);
-      // the flyer is a clone of the New Story book, pinned at its shelf rect
-      const flyer = bookEl.cloneNode(true);
-      flyer.classList.add('sb-fly-temp');
-      flyer.classList.remove('create-book');   // drop the bob animation (it fights the GSAP transform)
-      Object.assign(flyer.style, { position: 'fixed', left: er.left + 'px', top: er.top + 'px', width: er.width + 'px', height: er.height + 'px', margin: '0', zIndex: '2100', pointerEvents: 'none', transformOrigin: '0 0', perspective: '900px' });
-      const cover = flyer.querySelector('.book-cover');
-      if (cover) {
-        const pages = document.createElement('div'); pages.className = 'sb-fly-pages';
-        flyer.insertBefore(pages, flyer.firstChild);         // parchment revealed behind the cover
-        cover.style.position = 'relative'; cover.style.zIndex = '2';
-        cover.style.transformOrigin = 'left center'; cover.style.backfaceVisibility = 'hidden';
+      document.querySelectorAll('.create-open-fx').forEach(el => el.remove());
+      const fx = document.createElement('div');
+      fx.className = 'create-open-fx';
+      Object.assign(fx.style, { position: 'fixed', inset: '0', zIndex: '2050', pointerEvents: 'none', opacity: '0' });
+      // sparkle layer sits over the cream wash
+      const spark = document.createElement('div');
+      spark.className = 'co-spark-layer';
+      // a scatter of gold sparkles at random spots, each with its own twinkle delay
+      const glyphs = ['✦', '✧', '✨', '⋆', '✦', '✧'];
+      const N = 12;
+      for (let i = 0; i < N; i++) {
+        const s = document.createElement('span');
+        s.className = 'co-sparkle';
+        s.textContent = glyphs[i % glyphs.length];
+        s.style.left = (6 + Math.random() * 88) + '%';
+        s.style.top = (10 + Math.random() * 78) + '%';
+        s.style.fontSize = (0.7 + Math.random() * 1.5) + 'rem';
+        s.style.setProperty('--d', (Math.random() * 0.5).toFixed(2) + 's');
+        s.style.setProperty('--r', (Math.random() * 60 - 30).toFixed(0) + 'deg');
+        spark.appendChild(s);
       }
-      document.body.appendChild(flyer);
-      const target = Math.min(window.innerWidth * 0.62, 300);
-      const scale = target / er.width;
-      const x = (window.innerWidth - er.width * scale) / 2 - er.left;
-      const y = (window.innerHeight - er.height * scale) / 2 - er.top;
-      const cleanup = () => document.querySelectorAll('.sb-fly-temp').forEach(el => el.remove());
+      fx.appendChild(spark);
+      document.body.appendChild(fx);
+      const cleanup = () => document.querySelectorAll('.create-open-fx').forEach(el => el.remove());
       const tl = gsap.timeline({ onComplete: cleanup });
-      tl.to(dark, { opacity: 1, duration: 0.42, ease: 'power1.out' }, 0);
-      tl.to(flyer, { x, y, scale, duration: 0.5, ease: 'power2.inOut' }, 0);
-      if (cover) tl.to(cover, { rotationY: -158, duration: 0.4, ease: 'power1.in', transformPerspective: 900 }, 0.52);
-      tl.add(() => { this.view = 'create'; }, 0.78);          // mount the form behind the flyer
-      tl.to([flyer, dark], { opacity: 0, duration: 0.36, ease: 'power1.out' }, 0.92);
-      setTimeout(() => { if (this.view !== 'create') this.view = 'create'; cleanup(); }, 1700);   // backstop
+      tl.to(fx, { opacity: 1, duration: 0.3, ease: 'power1.out' }, 0);       // wash to cream
+      tl.add(() => { this.view = 'create'; }, 0.34);                          // mount form under the cream
+      tl.to(fx, { opacity: 0, duration: 0.5, ease: 'power1.inOut' }, 0.62);   // cream melts → form revealed
+      setTimeout(() => { if (this.view !== 'create') this.view = 'create'; cleanup(); }, 1600);   // backstop
     },
 
     // Reader back arrow: close the book with the same turn used for page 1 →
@@ -3453,6 +3454,7 @@ createApp({
     },
     async processPhotoForCharacter(dataUrl) {
       this.analyzingPhoto = true;
+      this.photoRefused = false;
       this.error = '';
       try {
         // Save photo blob (delete previous if any)
@@ -3469,8 +3471,8 @@ createApp({
         const result = await analyzeCharacterPhotoWithRetry(dataUrl, this.password);
         recordSpend('characters', result.cost);   // photo vision counts as Character creation
         if (result.refused) {
-          // Keep the photo (so they can re-analyze) but don't store the refusal text
-          this.error = 'The photo reader declined to describe this one. Tap "🔄 Re-analyze photo" to try again, or use a clearer/different photo.';
+          // Keep the photo (so they can re-analyze) but show a friendly inline note
+          this.photoRefused = true;
         } else {
           this.charForm.photo_description = result.description;
         }
@@ -3487,6 +3489,7 @@ createApp({
     async handleReanalyzePhoto() {
       if (!this.charForm.photo_id || this.analyzingPhoto) return;
       this.analyzingPhoto = true;
+      this.photoRefused = false;
       this.error = '';
       try {
         const blob = await getImageBlob(this.charForm.photo_id);
@@ -3500,7 +3503,7 @@ createApp({
         const result = await analyzeCharacterPhotoWithRetry(dataUrl, this.password);
         recordSpend('characters', result.cost);   // photo vision counts as Character creation
         if (result.refused) {
-          this.error = 'Still couldn\'t read the photo. Try a different one — a clear, well-lit, front-facing photo works best.';
+          this.photoRefused = true;
         } else {
           this.charForm.photo_description = result.description;
         }
@@ -3516,6 +3519,7 @@ createApp({
       this.releaseImageURL(this.charForm.photo_id);
       this.charForm.photo_id = null;
       this.charForm.photo_description = '';
+      this.photoRefused = false;
       this.refreshImageStats();
     },
 
@@ -3606,10 +3610,14 @@ createApp({
       this.showQuiz = true;
       this.quizAnswers = {};
       this.quizRevealed = false;
+      this.quizStep = 'quiz';
     },
     closeQuiz() {
       this.showQuiz = false;
+      this.quizStep = 'quiz';
     },
+    // Move to the separate "Think about it" reflection screen (after submitting).
+    goQuizReflection() { this.quizStep = 'reflection'; },
     // Tap-vs-scroll guard: a finger dragging across an option while scrolling must
     // NOT select it — only a deliberate tap does.
     quizTouchStart(e) { this._quizMoved = false; this._quizTouchY = (e.touches && e.touches[0]) ? e.touches[0].clientY : 0; },

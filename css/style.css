@@ -55,7 +55,13 @@
   --font-story:   'Fraunces', Georgia, 'Times New Roman', serif;                          /* story reading text */
 }
 
-html { background: var(--bg-deep); }
+html {
+  background: var(--bg-deep);
+  /* Stop iOS Safari from auto-inflating text on rotation to landscape (and then
+     leaving it stuck big when you rotate back to portrait — the Manage Characters bug). */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 /* In the Library, everything ABOVE the shelf (the toolbar / pull-to-refresh) is
    the night-indigo "wall". The full-bleed wooden bookshelf has a min-height of
    ~4 rows (>1000px), so it always overflows the viewport — the shelf and its
@@ -791,6 +797,30 @@ body:has(.library-view) { background: var(--bg-deep); }
 }
 .photo-description-toggle summary:hover { color: var(--text-main); }
 
+/* v0.12.8 — cleaner reference-photo layout (button + compact row, no dead space) */
+.btn-add-photo { width: 100%; }
+.photo-add-hint { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.4rem; }
+
+/* Photo present: thumbnail left, actions stacked right (fills the space) */
+.photo-row { display: flex; gap: 0.85rem; align-items: flex-start; margin-top: 0.5rem; }
+.photo-row .photo-preview-square { margin-top: 0; flex: 0 0 auto; }
+.photo-row .photo-preview-square img { width: 96px; height: 96px; }
+.photo-row-actions { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; padding-top: 0.1rem; }
+.photo-desc-caption { font-size: 0.78rem; color: var(--text-dim); line-height: 1.35; }
+
+/* Full-width expandable description */
+.photo-desc-full { margin-top: 0.7rem; }
+.photo-desc-full summary { cursor: pointer; font-size: 0.85rem; color: var(--text-dim); padding: 0.3rem 0; }
+.photo-desc-full summary:hover { color: var(--text-main); }
+
+/* Friendly note when the vision model declines a real-person photo */
+.photo-refused-note {
+  margin-top: 0.7rem; padding: 0.75rem 0.9rem; border-radius: 10px;
+  background: rgba(232,130,94,0.12); border: 1px solid rgba(232,130,94,0.5);
+}
+.photo-refused-note .prn-title { font-weight: 700; color: var(--text-main); font-size: 0.9rem; margin-bottom: 0.25rem; }
+.photo-refused-note .prn-body { font-size: 0.82rem; color: var(--text-dim); line-height: 1.4; margin-bottom: 0.55rem; }
+
 /* Avatar thumbnail in edit form */
 .thumbnail-row {
   display: flex;
@@ -911,50 +941,63 @@ body:has(.library-view) { background: var(--bg-deep); }
 }
 
 .quiz-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .quiz-section-title {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--accent);
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .quiz-question {
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.85rem;
 }
 
 .quiz-q-text {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   color: var(--text-main);
 }
 
 .quiz-options {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
+
+/* Quiz header: no more "Quiz Time!" title — just the close (and a back arrow on
+   the reflection step). */
+.quiz-header { justify-content: flex-end; gap: 0.4rem; padding-bottom: 0.2rem; }
+.quiz-header .modal-back-btn {
+  margin-right: auto; background: none; border: none; color: var(--text-dim);
+  font-size: 1.7rem; line-height: 1; cursor: pointer; padding: 0 0.2rem;
+}
+.quiz-header .modal-back-btn:hover { color: var(--text-main); }
+.quiz-reflection-sub { font-size: 0.85rem; color: var(--text-dim); margin: -0.3rem 0 0.8rem; }
 
 .quiz-option {
   background: var(--bg-input);
   border: 1.5px solid rgba(234,169,63,0.22);
   border-radius: 12px;
-  padding: 0.85rem 1rem;
+  padding: 0.7rem 0.9rem;
   color: var(--text-main);
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;   /* no phantom flash on touch */
 }
 
-.quiz-option:hover { border-color: var(--accent); }
+/* Only a real pointer (mouse/trackpad) gets a hover border — on touch, :hover
+   used to stick on a soft/scroll tap and paint the orange border unintentionally. */
+@media (hover: hover) { .quiz-option:hover { border-color: var(--accent); } }
 .quiz-option:active { transform: scale(0.99); }
 .quiz-option.selected {
   background: rgba(234,169,63,0.15);
@@ -3184,23 +3227,24 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .picker-field .picker-val { display: flex; align-items: center; gap: 0.55rem; }
 .picker-field .picker-chev { color: var(--text-dim); font-size: 0.9rem; }
 
-/* Bottom sheet */
+/* Genre / Art Style picker — centered modal (fills an iPhone; 2-col grid, no scroll) */
 .sheet-overlay {
-  position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,0.55);
-  display: flex; align-items: flex-end; animation: sheetFade 0.2s ease; touch-action: none;
+  position: fixed; inset: 0; z-index: 1100; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px));
+  animation: sheetFade 0.2s ease; touch-action: none;
 }
 .sheet {
-  width: 100%; max-height: 74vh; background: var(--bg-card);
-  border-radius: 18px 18px 0 0; display: flex; flex-direction: column;
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.5); animation: sheetUp 0.26s cubic-bezier(.2,.8,.3,1);
+  width: 100%; max-width: 460px; max-height: 92vh; background: var(--bg-card);
+  border-radius: 18px; display: flex; flex-direction: column;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.55); animation: sheetPop 0.24s cubic-bezier(.2,.8,.3,1);
 }
-.sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border-soft); margin: 10px auto 2px; flex: 0 0 auto; }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 8px; flex: 0 0 auto; }
-.sheet-head h3 { font-family: var(--font-display); font-size: 1.1rem; margin: 0; color: var(--text-main); }
-.sheet-close { background: none; border: none; color: var(--text-dim); font-size: 1.3rem; cursor: pointer; line-height: 1; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 8px; flex: 0 0 auto; }
+.sheet-head h3 { font-family: var(--font-display); font-size: 1.2rem; margin: 0; color: var(--text-main); }
+.sheet-close { background: none; border: none; color: var(--text-dim); font-size: 1.4rem; cursor: pointer; line-height: 1; padding: 0 2px; }
 .sheet-list {
   overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch;
-  padding: 4px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 14px calc(16px + env(safe-area-inset-bottom, 0px));
   display: grid; grid-template-columns: 1fr 1fr; gap: 9px;
 }
 .sheet-opt {
@@ -3208,12 +3252,12 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
   background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); color: var(--text-main);
   font-size: 0.95rem; font-family: inherit; padding: 0.72rem 0.7rem; border-radius: 10px; cursor: pointer;
 }
-.sheet-opt:hover { border-color: var(--accent); }
 .sheet-opt.sel { background: rgba(234,169,63,0.15); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .sheet-opt .so-emoji { font-size: 1.15rem; width: 1.5rem; text-align: center; flex: 0 0 auto; }
 .sheet-opt .so-check { margin-left: auto; color: var(--accent); }
+@media (hover: hover) { .sheet-opt:hover { border-color: var(--accent); } }
 @keyframes sheetFade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheetPop { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* Staggered field entrance on the create form */
 .create-form > * { animation: fieldIn 0.5s cubic-bezier(.2,.7,.3,1) both; }
@@ -3229,11 +3273,26 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .create-form > *:nth-child(n+10){animation-delay:.45s}
 @keyframes fieldIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* New Story open: a GSAP flyer (see _spellbookOpen) clones the tapped book and
-   flies it from its shelf slot to centre, then swings the cover open over these
-   parchment "pages". The spine ridge is hidden on the flyer for a clean open. */
-.sb-fly-pages { position: absolute; left: 0; top: 0; width: 100%; aspect-ratio: 1 / 1; border-radius: 3px 5px 0 0; background: linear-gradient(#fdf6e0, #efe0bb); box-shadow: 0 0 34px rgba(255,235,180,.6); z-index: 0; }
-.sb-fly-temp.book::before { display: none !important; }
+/* Create Your Story open (see _creamOpen): the screen washes to warm parchment
+   cream — the shelf book's colour — a scatter of gold sparkles twinkles in, then
+   the cream melts away to reveal the form fading up beneath. */
+.create-open-fx {
+  background:
+    radial-gradient(120% 90% at 50% 40%, #fffaf0 0%, var(--parchment, #fbf3df) 55%, #efe0bb 100%);
+}
+.co-spark-layer { position: absolute; inset: 0; }
+.co-sparkle {
+  position: absolute; color: #f4b740; line-height: 1;
+  text-shadow: 0 0 8px rgba(244,183,64,0.9), 0 0 16px rgba(255,224,138,0.7);
+  transform: scale(0) rotate(var(--r, 0deg)); opacity: 0;
+  animation: coSparkle 1s ease-in-out var(--d, 0s) forwards;
+}
+@keyframes coSparkle {
+  0%   { transform: scale(0) rotate(var(--r, 0deg)); opacity: 0; }
+  40%  { transform: scale(1.15) rotate(var(--r, 0deg)); opacity: 1; }
+  70%  { transform: scale(0.95) rotate(var(--r, 0deg)); opacity: 1; }
+  100% { transform: scale(0.4) rotate(var(--r, 0deg)); opacity: 0; }
+}
 
 /* Magical Generate button */
 .generate-wrap { position: relative; margin-top: 0.6rem; }

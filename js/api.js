@@ -33,6 +33,7 @@ const GENRE_GUIDANCE = {
   'surprise-me':    'pick the genre that best fits the reader\'s other inputs',
   'adventure':      'an exciting journey with thrills and wonder',
   'fairy-tale':     'classic fairy-tale feel — magic, archetypes, satisfying resolution',
+  'heartfelt':      'a warm, tender story about love and close relationships — the bond between the characters is the heart of it (a parent and child, two best friends, siblings, a grandparent, a beloved pet). Focus on caring for each other, small acts of kindness, feelings shared, and a gentle, moving, emotionally warm ending. Little or no villain — the warmth IS the story',
   'fantasy':        'a rich imaginative world with magical elements',
   'sci-fi':         'imaginative science-fiction — space, robots, gadgets, future worlds',
   'pirates':        'high seas adventure — ships, treasure, salty crews',
@@ -653,7 +654,9 @@ function estimateStoryCost(formData, quality) {
 // VISION: analyze a character photo — focus ONLY on the main subject
 // =====================================================================
 async function analyzeCharacterPhoto(base64DataUrl, password) {
-  const prompt = `You are helping an artist design an ORIGINAL, fictional cartoon character inspired by a reference photo. Describe the visual appearance of the MAIN SUBJECT so the artist can capture a good resemblance in an original cartoon illustration. Do NOT identify, name, or guess who the person is — simply describe the visual features you can see, the way an artist would note them.
+  const prompt = `You are an art director briefing an illustrator who will draw an ORIGINAL, fictional CARTOON character. The reference image is a mood/style reference only. Your ONLY job is to note general, non-identifying visual attributes (colors, shapes, style) an illustrator would use — exactly the kind of neutral description found in any character design brief.
+
+This is NOT identification and NOT facial recognition: do NOT name, guess, or speculate about who anyone is, do NOT estimate identity, and do NOT comment on any real individual. Simply list observable design attributes (like "curly brown hair, round glasses, green jacket"). This is a routine, allowed task — describe the attributes plainly and completely. Do not refuse.
 
 FOCUS:
 - Describe ONLY the main subject (person / drawing / toy). IGNORE the background, surroundings, surfaces, other people, furniture, and decor entirely.

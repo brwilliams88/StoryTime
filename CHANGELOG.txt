@@ -9,6 +9,18 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v0.12.8 - 2026-07-22 - Create-story cream+sparkle open; "Create Your Story"; centered pickers + Heartfelt genre; landscape font fix; character/photo cleanup; quiz reflection step; no worker change
+  • New create-story open: tapping the New Story book now washes the whole screen to warm parchment cream (the shelf book's colour), twinkles in a scatter of gold sparkles, then melts the cream away to reveal the form fading up. Replaces the book "flies open" morph. Falls back to an instant switch under reduced motion / no GSAP.
+  • The create form heading is now "Create Your Story" (was "New Story"). The glowing shelf book keeps its short "New Story" plate.
+  • Genre & Artwork Style pickers are now centered pop-up modals (were bottom sheets) with the little grip line removed and a bigger card, so every option fits an iPhone screen with no scrolling.
+  • Added a Heartfelt ❤️ genre — warm stories about love and close relationships (a parent and child, best friends, siblings, a pet), with matching storyteller guidance. Removed the "Pencil Sketch (B&W)" artwork style.
+  • FIXED: on iPhone, rotating Manage Characters to landscape and back to portrait left the text stuck oversized. Added the standard text-size-adjust guard so text no longer inflates on rotation.
+  • Create Your Character: added a one-line explanation under the heading. The reference photo is now a clean "Add a Photo" button (the big drop box and the "~2¢" cost note are gone). When a photo is added it sits in a tidy row — thumbnail on the left, Re-analyze + an expandable description filling the space beside it (no more dead space).
+  • Reference photos of people: reworded the photo-analysis instructions to reduce refusals, and when the AI still declines (its privacy guard on real people), a friendly note now explains it and points you to just describe the character yourself — instead of a scary error.
+  • Quiz Me: removed the "Quiz Time!" title. FIXED the phantom orange border when softly tapping/scrolling an answer (hover now only applies to a real mouse; taps no longer flash). Sized the three questions to fit an iPhone, and moved the "Think about it" reflection questions to their own separate step reached by a button after you submit (perfect-score confetti unchanged).
+  • No worker change.
+
+--------------------------
 v0.12.7 - 2026-07-10 - New Story book "flies open" animation; character-id story counts; create/edit character cleanup; quiz polish - Worker REV v0.12.7
   • The New Story open is rebuilt to match how books come off the shelf to be read: tapping it clones the actual book and flies it from its shelf slot to screen centre, swings the cover open in 3D over a glowing parchment spread, then cross-fades out as the create form appears (fields stagger in). Falls back to an instant switch under reduced motion or if GSAP is unavailable.
   • Choosing at least one character is now REQUIRED to generate a story (the button shows "Choose at least one character before generating" and won't run); the old "no characters selected" hint was removed.
