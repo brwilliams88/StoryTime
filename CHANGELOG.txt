@@ -9,6 +9,18 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.0 - 2026-07-23 - 🎉 MVP! New app icon + installable PWA, magical loading screen with a mini-game, offline-hardened, self-calibrating time estimate
+  • MVP milestone — the app is a real, installable, offline-capable PWA now.
+  • New app icon (open book + crescent moon + rising sparkles on indigo) across web, iOS home screen, and Android/PWA install; added manifest.json (name, standalone, portrait, theme #1b1b3a, any + maskable icons, lang/dir/id/categories) + apple-web-app meta tags. Old placeholder icon removed.
+  • Offline-hardened: Vue, GSAP, canvas-confetti, and Cropper are now self-hosted and version-pinned (Vue 3.5.40) instead of loaded from CDNs, so the app boots and runs fully offline (the service worker caches same-origin assets). Fonts still load from Google with the existing fallback stack.
+  • Loading screen levelled up: the book-loader (laying back, pages turning) now has a warm lamp glow and gold sparkles rising off it — matching the app icon.
+  • Added a calm catch-the-falling-stars mini-game on the loading screen while your story generates (tap the stars, they're kept sparse so it stays on-theme, not busy). No "page 3 of 8" text — just "Writing your story…" and the time estimate.
+  • Loading time estimate now self-calibrates: each real story's generation time is measured per length and the median drives the "~Xs" hint after 3+ samples (Developer readout + reset included).
+  • Settings → Story Breakdown now shows the top 3 with a "Show all" toggle per category instead of a long list.
+  • "Surprise me" can no longer pick a black-and-white pencil style — it always chooses a colourful look.
+  • No worker change.
+
+--------------------------
 v0.12.8 - 2026-07-22 - Create-story cream+sparkle open; "Create Your Story"; centered pickers + Heartfelt genre; landscape font fix; character/photo cleanup; quiz reflection step; no worker change
   • New create-story open: tapping the New Story book now washes the whole screen to warm parchment cream (the shelf book's colour), twinkles in a scatter of gold sparkles, then melts the cream away to reveal the form fading up. Replaces the book "flies open" morph. Falls back to an instant switch under reduced motion / no GSAP.
   • The create form heading is now "Create Your Story" (was "New Story"). The glowing shelf book keeps its short "New Story" plate.

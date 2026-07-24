@@ -1,7 +1,11 @@
 {
+  "id": "/",
+  "lang": "en",
+  "dir": "ltr",
   "name": "StoryTime",
   "short_name": "StoryTime",
   "description": "Magical AI bedtime stories with illustrations, made for your kids.",
+  "categories": ["books", "education", "entertainment"],
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

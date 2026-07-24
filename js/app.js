@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.9',
+      version: 'v1.0.0',
       buildDate: '2026-07-23',
 
       showSplash: true,
@@ -41,6 +41,10 @@ createApp({
       loadingMessage: '',
       loadingHint: '',
       loadingProgress: '',
+      loadingGameOn: false,          // catch-the-stars mini-game runs during story generation
+      loadingStarsCaught: 0,
+      showAllGenres: false,          // Story Breakdown: top-3 + "Show all" toggles
+      showAllArt: false,
       genTimingVersion: 0,           // bump to refresh the Developer timing readout
 
       currentStory: null,
@@ -693,6 +697,42 @@ createApp({
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
 
+    // ---- Loading-screen catch-the-stars game ----
+    // Sparse, calm: at most a few stars falling at once, spawned into the
+    // .loading-stars layer. Tap a star to catch it. Cleaned up when loading ends.
+    startLoadingFx() {
+      this.stopLoadingFx();
+      this.loadingStarsCaught = 0;
+      const layer = document.querySelector('.loading-stars');
+      if (!layer) return;
+      const glyphs = ['⭐', '✦', '✧', '🌟'];
+      this._loadingStarTimer = setInterval(() => {
+        if (!this.loading) { this.stopLoadingFx(); return; }
+        if (layer.childElementCount > 3) return;                 // keep it uncluttered
+        const s = document.createElement('div');
+        s.className = 'loading-star';
+        s.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
+        s.style.left = (8 + Math.random() * 84) + '%';
+        s.style.fontSize = (1 + Math.random() * 0.5) + 'rem';
+        s.style.setProperty('--fall', (3.6 + Math.random() * 1.8) + 's');
+        s.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          if (s._caught) return;
+          s._caught = true;
+          this.loadingStarsCaught++;
+          s.classList.add('caught');
+          setTimeout(() => s.remove(), 240);
+        });
+        s.addEventListener('animationend', () => s.remove());
+        layer.appendChild(s);
+      }, 1300);
+    },
+    stopLoadingFx() {
+      if (this._loadingStarTimer) { clearInterval(this._loadingStarTimer); this._loadingStarTimer = null; }
+      const layer = document.querySelector('.loading-stars');
+      if (layer) layer.innerHTML = '';
+    },
+
     toggleIngredient(value) {
       const idx = this.formData.ingredients.indexOf(value);
       if (idx !== -1) this.formData.ingredients.splice(idx, 1);
@@ -1068,6 +1108,8 @@ createApp({
       const measuredSecs = measuredGenSeconds(genLen);
       this.loadingHint = measuredSecs ? ('~' + measuredSecs + ' seconds') : loadingHintForLength(genLen);
       this.loadingProgress = '';
+      this.loadingGameOn = true;                          // enable the catch-the-stars game
+      this.$nextTick(() => this.startLoadingFx());
       this.useFallbackChars = {};
       this.toastDismissed = false;
       setStickyPrefs(this.formData);
@@ -3712,6 +3754,7 @@ createApp({
   },
 
   watch: {
+    loading(v) { if (!v) { this.stopLoadingFx(); this.loadingGameOn = false; } },
     showSettings() { this.updateBodyScroll(); },
     showCharactersModal() { this.updateBodyScroll(); },
     copyrightModal() { this.updateBodyScroll(); },

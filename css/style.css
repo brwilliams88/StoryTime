@@ -571,6 +571,7 @@ body:has(.library-view) { background: var(--bg-deep); }
 .breakdown-bar { flex: 1; height: 10px; background: var(--bg-input); border-radius: 5px; overflow: hidden; }
 .breakdown-fill { height: 100%; background: var(--accent); border-radius: 5px; }
 .breakdown-count { flex: 0 0 auto; min-width: 1.4rem; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.breakdown-showall { background: none; border: none; color: var(--accent); font-family: inherit; font-size: 0.82rem; cursor: pointer; padding: 0.25rem 0 0.1rem; }
 
 .form-top-actions {
   display: flex;
@@ -2920,9 +2921,65 @@ body:has(.app-main-reading) {
    v0.9.1 — Loading: an open book with fluttering pages (replaces the
    plain spinner). Still clearly a loading state (text + time below).
    =================================================================== */
+/* Wrap holds the book + its lamp glow + rising sparkles, sitting above the
+   falling-star game layer. */
+.book-loader-wrap {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1.6rem;
+}
+.loader-glow {
+  position: absolute; left: 50%; top: 50%; width: 230px; height: 230px;
+  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(244,183,64,.42) 0%, rgba(244,183,64,.12) 45%, transparent 70%);
+  animation: loaderBreathe 3.4s ease-in-out infinite;
+}
+@keyframes loaderBreathe {
+  0%,100% { opacity: .6; transform: translate(-50%,-50%) scale(.9); }
+  50%     { opacity: 1;  transform: translate(-50%,-50%) scale(1.1); }
+}
+/* Gold sparkles rising off the book */
+.loader-spark {
+  position: absolute; left: 50%; bottom: 4px; color: var(--accent); font-size: .9rem;
+  text-shadow: 0 0 8px rgba(244,183,64,.95), 0 0 16px rgba(255,224,138,.6);
+  pointer-events: none; opacity: 0; animation: loaderRise 2.8s ease-in infinite;
+}
+.loader-spark:nth-child(3) { margin-left: -34px; animation-delay: 0s;   font-size: .8rem; }
+.loader-spark:nth-child(4) { margin-left: 10px;  animation-delay: .5s;  font-size: 1rem; }
+.loader-spark:nth-child(5) { margin-left: -8px;  animation-delay: 1s;   font-size: .7rem; }
+.loader-spark:nth-child(6) { margin-left: 30px;  animation-delay: 1.5s; font-size: .9rem; }
+.loader-spark:nth-child(7) { margin-left: -24px; animation-delay: 2s;   font-size: .75rem; }
+.loader-spark:nth-child(8) { margin-left: 20px;  animation-delay: 2.4s; font-size: .85rem; }
+@keyframes loaderRise {
+  0%   { transform: translateY(0) scale(.4); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translateY(-96px) scale(1); opacity: 0; }
+}
+
+/* Catch-the-falling-stars game layer — spaced out, behind the book, tappable */
+.loading-stars { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.loading-star {
+  position: absolute; top: -32px; color: var(--accent); pointer-events: auto; cursor: pointer;
+  text-shadow: 0 0 10px rgba(244,183,64,.95), 0 0 20px rgba(255,224,138,.6);
+  animation: loadFall var(--fall, 4s) linear forwards;
+  -webkit-tap-highlight-color: transparent;
+}
+.loading-star.caught { animation: none; transform: scale(1.7); opacity: 0; transition: transform .22s ease, opacity .22s ease; }
+@keyframes loadFall {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 0; }
+  12%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(52vh) rotate(22deg); opacity: 0; }
+}
+.loading-caught {
+  position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 18px; z-index: 3;
+  color: var(--accent); font-weight: 700; font-size: 1rem; text-shadow: 0 0 8px rgba(244,183,64,.5);
+}
+.loading-play-hint { margin-top: 1.4rem; color: var(--text-dim); font-size: .82rem; opacity: .85; }
+
 .book-loader {
   position: relative; width: 124px; height: 72px;
-  margin: 0 auto 1.6rem; perspective: 520px;
+  perspective: 520px;
 }
 .book-loader-base { position: absolute; inset: 0; transform: rotateX(32deg); }
 .book-loader-base::before, .book-loader-base::after {

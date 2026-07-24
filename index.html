@@ -10,17 +10,17 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=0.12.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=0.12.9" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=0.12.9" />
-  <link rel="manifest" href="manifest.json?v=0.12.9" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.0" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.0" />
+  <link rel="manifest" href="manifest.json?v=1.0.0" />
   <meta name="theme-color" content="#1b1b3a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.9" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.0.0" />
 </head>
 <body>
 
@@ -66,16 +66,32 @@
 
         <!-- ============== LOADING ============== -->
         <div v-if="loading" class="loading-screen">
-          <div class="book-loader" aria-label="Loading">
-            <div class="book-loader-base"></div>
-            <div class="book-loader-page"></div>
-            <div class="book-loader-page"></div>
-            <div class="book-loader-page"></div>
-            <div class="book-loader-page"></div>
-            <div class="book-loader-page"></div>
+          <!-- Catch-the-falling-stars: a calm little game while you wait. Stars are
+               spawned into this layer by startLoadingFx(); tap one to catch it. -->
+          <div class="loading-stars"></div>
+          <div v-if="loadingGameOn && loadingStarsCaught > 0" class="loading-caught">⭐ {{ loadingStarsCaught }}</div>
+
+          <div class="book-loader-wrap">
+            <div class="loader-glow"></div>
+            <div class="book-loader" aria-label="Loading">
+              <div class="book-loader-base"></div>
+              <div class="book-loader-page"></div>
+              <div class="book-loader-page"></div>
+              <div class="book-loader-page"></div>
+              <div class="book-loader-page"></div>
+              <div class="book-loader-page"></div>
+            </div>
+            <!-- gold sparkles rising off the book (matches the app icon) -->
+            <span class="loader-spark">✦</span>
+            <span class="loader-spark">✧</span>
+            <span class="loader-spark">✨</span>
+            <span class="loader-spark">✦</span>
+            <span class="loader-spark">⋆</span>
+            <span class="loader-spark">✧</span>
           </div>
           <p class="loading-text">{{ loadingMessage }}</p>
           <p class="loading-hint">Ready to read in about {{ loadingHint }}.</p>
+          <p v-if="loadingGameOn" class="loading-play-hint">✨ Tap the falling stars while you wait</p>
         </div>
 
         <!-- ============== FORM ============== -->
@@ -985,21 +1001,27 @@
             <div class="settings-section-title">📊 Story Breakdown</div>
             <div class="breakdown-group">
               <p class="breakdown-label">By genre</p>
-              <div v-for="row in genreBreakdown" :key="'g-' + row.value" class="breakdown-row">
+              <div v-for="row in (showAllGenres ? genreBreakdown : genreBreakdown.slice(0, 3))" :key="'g-' + row.value" class="breakdown-row">
                 <span class="breakdown-emoji">{{ row.emoji }}</span>
                 <span class="breakdown-name">{{ row.label }}</span>
                 <span class="breakdown-bar"><span class="breakdown-fill" :style="{ width: Math.max(row.pct, 6) + '%' }"></span></span>
                 <span class="breakdown-count">{{ row.count }}</span>
               </div>
+              <button v-if="genreBreakdown.length > 3" @click="showAllGenres = !showAllGenres" class="breakdown-showall">
+                {{ showAllGenres ? 'Show fewer ▴' : 'Show all ' + genreBreakdown.length + ' ▾' }}
+              </button>
             </div>
             <div class="breakdown-group">
               <p class="breakdown-label">By art style</p>
-              <div v-for="row in artBreakdown" :key="'a-' + row.value" class="breakdown-row">
+              <div v-for="row in (showAllArt ? artBreakdown : artBreakdown.slice(0, 3))" :key="'a-' + row.value" class="breakdown-row">
                 <span class="breakdown-emoji">{{ row.emoji }}</span>
                 <span class="breakdown-name">{{ row.label }}</span>
                 <span class="breakdown-bar"><span class="breakdown-fill" :style="{ width: Math.max(row.pct, 6) + '%' }"></span></span>
                 <span class="breakdown-count">{{ row.count }}</span>
               </div>
+              <button v-if="artBreakdown.length > 3" @click="showAllArt = !showAllArt" class="breakdown-showall">
+                {{ showAllArt ? 'Show fewer ▴' : 'Show all ' + artBreakdown.length + ' ▾' }}
+              </button>
             </div>
           </div>
 
@@ -1176,17 +1198,20 @@
     </template>
   </div>
 
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.9"></script>
-  <script src="js/imageStorage.js?v=0.12.9"></script>
-  <script src="js/api.js?v=0.12.9"></script>
-  <script src="js/sync.js?v=0.12.9"></script>
-  <script src="js/pageShadow.js?v=0.12.9"></script>
-  <script src="js/pageCurl.js?v=0.12.9"></script>
-  <script src="js/app.js?v=0.12.9"></script>
+  <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
+       service worker caches same-origin assets; it can't cache cross-origin CDNs).
+       Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
+  <script src="vendor/vue.global.js?v=1.0.0"></script>
+  <script src="vendor/cropper.min.js?v=1.0.0"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.0.0"></script>
+  <script src="vendor/gsap.min.js?v=1.0.0"></script>
+  <script src="js/storage.js?v=1.0.0"></script>
+  <script src="js/imageStorage.js?v=1.0.0"></script>
+  <script src="js/api.js?v=1.0.0"></script>
+  <script src="js/sync.js?v=1.0.0"></script>
+  <script src="js/pageShadow.js?v=1.0.0"></script>
+  <script src="js/pageCurl.js?v=1.0.0"></script>
+  <script src="js/app.js?v=1.0.0"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
