@@ -26,8 +26,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v0.12.8',
-      buildDate: '2026-07-22',
+      version: 'v0.12.9',
+      buildDate: '2026-07-23',
 
       showSplash: true,
 
@@ -41,6 +41,7 @@ createApp({
       loadingMessage: '',
       loadingHint: '',
       loadingProgress: '',
+      genTimingVersion: 0,           // bump to refresh the Developer timing readout
 
       currentStory: null,
       currentStoryCost: 0,
@@ -395,6 +396,15 @@ createApp({
     // Story-breakdown bar rows (Settings), sorted by count desc
     genreBreakdown() { return this._breakdownRows(this._genreCounts, this.genresRaw); },
     artBreakdown()   { return this._breakdownRows(this._artCounts, this.artStylesRaw); },
+    // Measured generation times per length (Developer readout for the estimate calibrator)
+    genTimingRows() {
+      this.genTimingVersion;   // reactive dependency (bumped on record/reset)
+      const store = getGenTimings();
+      return this.lengths.map(l => {
+        const arr = store[l.value] || [];
+        return { key: l.value, label: l.label, n: arr.length, median: measuredGenSeconds(l.value) };
+      });
+    },
     // Filter options ordered by most-used first (Age stays in natural age order)
     filterGenreOptions() {
       const c = this._genreCounts;
@@ -681,6 +691,7 @@ createApp({
       this.showPasswordPrompt = true;
       this.showSettings = false;
     },
+    resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
 
     toggleIngredient(value) {
       const idx = this.formData.ingredients.indexOf(value);
@@ -1050,7 +1061,12 @@ createApp({
       }
       this.loading = true;
       this.loadingMessage = 'Writing your story…';
-      this.loadingHint = loadingHintForLength(this.formData.length);
+      // Estimate: prefer the measured median of past runs at this length; fall
+      // back to the hardcoded guess until we have enough real samples.
+      const genLen = this.formData.length;
+      const genT0 = Date.now();
+      const measuredSecs = measuredGenSeconds(genLen);
+      this.loadingHint = measuredSecs ? ('~' + measuredSecs + ' seconds') : loadingHintForLength(genLen);
       this.loadingProgress = '';
       this.useFallbackChars = {};
       this.toastDismissed = false;
@@ -1165,6 +1181,11 @@ createApp({
           const firstBatch = [this.generateOneImage('cover', storyData)];
           if (storyData.pages.length > 0) firstBatch.push(this.generateOneImage(0, storyData));
           await Promise.all(firstBatch);
+
+          // Record how long "ready to read" actually took, to calibrate the
+          // estimate for next time (only the real image path is representative).
+          recordGenTiming(genLen, Date.now() - genT0);
+          this.genTimingVersion++;
 
           // Open the book now
           this.loading = false;

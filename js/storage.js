@@ -15,7 +15,40 @@ const STORAGE_KEYS = {
   CREATED_BY_LIST: 'storytime_createdby_list', // array of strings
   LIBRARY_INDEX: 'storytime_library_index',    // cloud book metadata (for offline list)
   SPEND_LEDGER: 'storytime_spend_ledger',      // running API-spend record (survives story deletes)
+  GEN_TIMINGS: 'storytime_gen_timings',        // measured generation times per length { length: [ms,...] }
 };
+
+// ---- Generation-time calibrator ------------------------------------------
+// The loading screen shows "Ready to read in about ~Xs". Rather than trust a
+// hardcoded guess, we MEASURE how long each real story actually took (from
+// "Writing your story…" to the book opening) and keep the last N samples per
+// length. measuredGenSeconds() returns a smoothed (median) estimate once we
+// have enough samples; until then callers fall back to the hardcoded default.
+const GEN_TIMING_MAX_SAMPLES = 12;
+const GEN_TIMING_MIN_FOR_HINT = 3;
+
+function getGenTimings() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.GEN_TIMINGS) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function recordGenTiming(lengthKey, ms) {
+  if (!lengthKey || !ms || ms < 1000 || ms > 600000) return;   // ignore junk / absurd values
+  const store = getGenTimings();
+  const arr = Array.isArray(store[lengthKey]) ? store[lengthKey] : [];
+  arr.push(Math.round(ms));
+  while (arr.length > GEN_TIMING_MAX_SAMPLES) arr.shift();
+  store[lengthKey] = arr;
+  try { localStorage.setItem(STORAGE_KEYS.GEN_TIMINGS, JSON.stringify(store)); } catch (e) {}
+}
+// Median seconds for a length, or null if too few samples to be trustworthy.
+function measuredGenSeconds(lengthKey) {
+  const arr = (getGenTimings()[lengthKey] || []).slice().sort((a, b) => a - b);
+  if (arr.length < GEN_TIMING_MIN_FOR_HINT) return null;
+  const mid = Math.floor(arr.length / 2);
+  const medMs = arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+  return Math.round(medMs / 1000);
+}
+function clearGenTimings() { try { localStorage.removeItem(STORAGE_KEYS.GEN_TIMINGS); } catch (e) {} }
 
 // ---- API spend ledger ----------------------------------------------------
 // We record every paid API call (story text, illustrations, character

@@ -10,11 +10,17 @@
 
   <title>StoryTime</title>
 
-  <link rel="apple-touch-icon" href="assets/icons/appicon-preMVP.png" />
-  <link rel="icon" type="image/png" href="assets/icons/appicon-preMVP.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=0.12.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=0.12.9" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=0.12.9" />
+  <link rel="manifest" href="manifest.json?v=0.12.9" />
+  <meta name="theme-color" content="#1b1b3a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" />
-  <link rel="stylesheet" href="css/style.css?v=0.12.8" />
+  <link rel="stylesheet" href="css/style.css?v=0.12.9" />
 </head>
 <body>
 
@@ -1085,6 +1091,16 @@
             <div class="settings-row"><span>Total</span><strong>{{ formatCostFriendly(currentStoryCost) }}</strong></div>
             <div v-if="lastTokens" class="settings-row"><span>Tokens</span><strong>{{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out</strong></div>
 
+            <div class="settings-sub">Generation time (measured — calibrates the loading estimate)</div>
+            <div v-for="r in genTimingRows" :key="'gt-'+r.key" class="settings-row">
+              <span>{{ r.label }}</span>
+              <strong>{{ r.median ? '~' + r.median + 's' : '—' }} <span style="color: var(--text-dim); font-weight: 400;">({{ r.n }} sample{{ r.n === 1 ? '' : 's' }})</span></strong>
+            </div>
+            <p class="settings-fine-print">Shows the guessed estimate until 3+ real stories are timed at that length, then switches to the measured median. Skip-images stories aren't counted.</p>
+            <div class="settings-row-actions">
+              <button @click="resetGenTimings" class="btn-secondary btn-tiny">Reset timing data</button>
+            </div>
+
             <div class="settings-row-actions" style="margin-top: 0.8rem;">
               <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
               <button @click="handleForceUpdate" class="btn-secondary btn-small">Refresh from Server</button>
@@ -1164,13 +1180,13 @@
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="js/storage.js?v=0.12.8"></script>
-  <script src="js/imageStorage.js?v=0.12.8"></script>
-  <script src="js/api.js?v=0.12.8"></script>
-  <script src="js/sync.js?v=0.12.8"></script>
-  <script src="js/pageShadow.js?v=0.12.8"></script>
-  <script src="js/pageCurl.js?v=0.12.8"></script>
-  <script src="js/app.js?v=0.12.8"></script>
+  <script src="js/storage.js?v=0.12.9"></script>
+  <script src="js/imageStorage.js?v=0.12.9"></script>
+  <script src="js/api.js?v=0.12.9"></script>
+  <script src="js/sync.js?v=0.12.9"></script>
+  <script src="js/pageShadow.js?v=0.12.9"></script>
+  <script src="js/pageCurl.js?v=0.12.9"></script>
+  <script src="js/app.js?v=0.12.9"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

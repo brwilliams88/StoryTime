@@ -63,7 +63,6 @@ const INGREDIENT_GUIDANCE = {
 const ARTWORK_STYLE_GUIDANCE = {
   'surprise-me':    null,  // null = let GPT-4o choose based on story context
   'watercolor':     'warm watercolor children\'s book illustration, soft painterly brushstrokes, gentle textures, hand-painted feel',
-  'pencil':         'HAND-DRAWN black-and-white pencil sketch with VISIBLE LOOSE SKETCH LINES, varied line weight, eraser marks and ghosting visible, cross-hatching for shading, paper grain texture. STRICTLY MONOCHROME — only black, white, and grayscale. NO color whatsoever. Imperfect organic strokes like a real artist\'s sketchbook page',
   'crayon':         'CHUNKY childlike crayon drawing, visible waxy strokes, paper texture peeking through, slightly imperfect coloring like a real kid drew it',
   'comic-book':     'classic American comic book illustration, bold black ink outlines, halftone dot shading, vibrant pop-art primary color palette, dynamic action poses',
   'anime':          'vibrant anime style with EXAGGERATED large expressive eyes, dynamic dramatic facial expressions, action-packed compositions, clean cel-shading',
@@ -165,7 +164,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     lines.push(`- Use this EXACT illustration style for "style_anchor": "${styleAnchorOverride}". Do not deviate or rephrase — output it verbatim.`);
   } else {
     lines.push(`- Choose ONE consistent illustration style for the whole story that fits the genre and mood (e.g. "warm watercolor", "pixel art", "soft pastel cartoon"). Output as "style_anchor".`);
-    lines.push(`- ALSO output "chosen_art_style": the single closest match from this exact list for the style you chose — one of: watercolor, pencil, crayon, comic-book, anime, pixel-art, 3d-animation, claymation, building-blocks, stuffies, paper-cutouts, chalkboard, 3d-printed, photorealistic, stained-glass, colored-pencil, oil-painting, ukiyo-e, origami, candy-world. Output the value verbatim (e.g. "watercolor").`);
+    lines.push(`- ALSO output "chosen_art_style": the single closest match from this exact list for the style you chose — one of: watercolor, crayon, comic-book, anime, pixel-art, 3d-animation, claymation, building-blocks, stuffies, paper-cutouts, chalkboard, 3d-printed, photorealistic, stained-glass, colored-pencil, oil-painting, ukiyo-e, origami, candy-world. Choose a COLORFUL style — never a plain black-and-white or monochrome pencil look. Output the value verbatim (e.g. "watercolor").`);
   }
 
   lines.push(
