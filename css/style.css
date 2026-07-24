@@ -111,9 +111,17 @@ body:has(.library-view) { background: var(--bg-deep); }
   animation: splashPulse 1.5s ease-in-out;
 }
 
-.splash-emoji {
-  font-size: 5rem;
-  margin-bottom: 0.5rem;
+.splash-icon-wrap {
+  display: flex; justify-content: center; margin-bottom: 0.9rem;
+}
+.splash-icon {
+  width: 120px; height: 120px; border-radius: 26px; display: block;
+  box-shadow: 0 0 46px rgba(244,183,64,0.4), 0 10px 30px rgba(0,0,0,0.5);
+  animation: splashFloat 3.2s ease-in-out infinite;
+}
+@keyframes splashFloat {
+  0%,100% { transform: translateY(0); box-shadow: 0 0 40px rgba(244,183,64,0.34), 0 10px 30px rgba(0,0,0,0.5); }
+  50%     { transform: translateY(-7px); box-shadow: 0 0 58px rgba(244,183,64,0.5), 0 16px 34px rgba(0,0,0,0.5); }
 }
 
 .splash-title {
@@ -572,6 +580,7 @@ body:has(.library-view) { background: var(--bg-deep); }
 .breakdown-fill { height: 100%; background: var(--accent); border-radius: 5px; }
 .breakdown-count { flex: 0 0 auto; min-width: 1.4rem; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .breakdown-showall { background: none; border: none; color: var(--accent); font-family: inherit; font-size: 0.82rem; cursor: pointer; padding: 0.25rem 0 0.1rem; }
+.toggle-note { font-style: italic; color: var(--text-dim); font-size: 0.82rem; font-weight: 400; }
 
 .form-top-actions {
   display: flex;
@@ -1730,6 +1739,8 @@ body:has(.app-main-reading) {
   text-align: justify;
   text-align-last: left;   /* don't stretch the final line */
 }
+/* Reading setting: left-aligned story text (default is justified) */
+body.reading-align-left .spread-text p { text-align: left; }
 
 /* "The End" — quiet, same ink as the body text: widely letter-spaced caps
    with a short centred underline. No colour, no animation. */
@@ -2325,8 +2336,8 @@ body:has(.app-main-reading) {
     font-size: 2.4rem;
   }
 
-  .splash-emoji {
-    font-size: 4rem;
+  .splash-icon {
+    width: 104px; height: 104px; border-radius: 23px;
   }
 
   .story-title {

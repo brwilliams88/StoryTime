@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.1 - 2026-07-23 - Critical deploy fix (blank app); on-brand splash; settings reorg; text-align toggle; origami background fix
+  • CRITICAL FIX: the GitHub Pages deploy workflow wasn't copying the new vendor/ folder or manifest.json into the published site, so v1.0.0 shipped without Vue — the app showed a stuck screen with a literal "{{ version }}". The workflow now includes vendor and manifest.json.
+  • Splash/loading title screen redesigned to the new brand: shows the actual app icon (open book + crescent moon, soft gold glow, gentle float) instead of the 📖 emoji.
+  • Settings reorganized: version/About moved to the top, emojis removed from section titles, a new "Reading" section, cloud library + offline cache + Manage/Delete Books merged into one "Library & Storage" section, and the picture-drawing modes moved into Developer.
+  • New Reading setting: toggle story text between justified (default) and left-aligned; the choice is remembered.
+  • Origami art style no longer renders subjects on a plain white background — the whole scene (sky, ground, setting) is now folded paper too; added a general "never a blank white background" rule for all styles.
+
+--------------------------
 v1.0.0 - 2026-07-23 - 🎉 MVP! New app icon + installable PWA, magical loading screen with a mini-game, offline-hardened, self-calibrating time estimate
   • MVP milestone — the app is a real, installable, offline-capable PWA now.
   • New app icon (open book + crescent moon + rising sparkles on indigo) across web, iOS home screen, and Android/PWA install; added manifest.json (name, standalone, portrait, theme #1b1b3a, any + maskable icons, lang/dir/id/categories) + apple-web-app meta tags. Old placeholder icon removed.

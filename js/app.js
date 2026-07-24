@@ -26,7 +26,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.0',
+      version: 'v1.0.1',
       buildDate: '2026-07-23',
 
       showSplash: true,
@@ -96,6 +96,7 @@ createApp({
       nextStoryQuality: 'medium',
       imageGenMode: 'all',  // 'all' | 'first-two' | 'skip'
       showInspect: false,
+      textAlignLeft: false,           // Reading: false = justified (default), true = left-aligned
 
       useFallbackChars: {},
       copyrightModal: null,
@@ -583,6 +584,8 @@ createApp({
     if (stored) this.password = stored;
 
     this.showInspect = getShowInspect();
+    this.textAlignLeft = getTextAlignLeft();
+    this.applyTextAlign();
     try { this.diagMode = localStorage.getItem('storytime_diag_mode') === '1'; } catch (e) {}
     this.characters = getStoredCharacters();
 
@@ -2601,6 +2604,14 @@ createApp({
     toggleShowInspect() {
       this.showInspect = !this.showInspect;
       setShowInspect(this.showInspect);
+    },
+    toggleTextAlign() {
+      this.textAlignLeft = !this.textAlignLeft;
+      setTextAlignLeft(this.textAlignLeft);
+      this.applyTextAlign();
+    },
+    applyTextAlign() {
+      document.body.classList.toggle('reading-align-left', this.textAlignLeft);
     },
     toggleDiagMode() {
       this.diagMode = !this.diagMode;

@@ -10,17 +10,17 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.0" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.0" />
-  <link rel="manifest" href="manifest.json?v=1.0.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.1" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.1" />
+  <link rel="manifest" href="manifest.json?v=1.0.1" />
   <meta name="theme-color" content="#1b1b3a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.0" />
-  <link rel="stylesheet" href="css/style.css?v=1.0.0" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.1" />
+  <link rel="stylesheet" href="css/style.css?v=1.0.1" />
 </head>
 <body>
 
@@ -29,7 +29,9 @@
     <!-- ============== SPLASH ============== -->
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
-        <div class="splash-emoji">📖</div>
+        <div class="splash-icon-wrap">
+          <img class="splash-icon" src="assets/icons/icon-512.png?v=1.0.1" alt="StoryTime" width="120" height="120" />
+        </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
       </div>
@@ -971,16 +973,17 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">🎨 Pictures</div>
+            <div class="settings-section-title">About</div>
+            <div class="settings-row"><span>Version</span><strong>{{ version }}</strong></div>
+            <div class="settings-row"><span>Built</span><strong>{{ buildDate }}</strong></div>
+          </div>
 
-            <div class="settings-sub">Pictures for the next story</div>
-            <div class="settings-segment settings-segment-stacked">
-              <button :class="{ active: imageGenMode === 'all' }" @click="setImageGenMode('all')">Draw all the pictures</button>
-              <button :class="{ active: imageGenMode === 'first-two' }" @click="setImageGenMode('first-two')">Just the cover + first page</button>
-              <button :class="{ active: imageGenMode === 'skip' }" @click="setImageGenMode('skip')">No pictures (text only)</button>
-            </div>
-            <p class="settings-fine-print">Fewer pictures means a faster, cheaper story. Resets to "Draw all" after one story.</p>
-
+          <div class="settings-section">
+            <div class="settings-section-title">Reading</div>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="textAlignLeft" @change="toggleTextAlign" />
+              <span>Left-align story text <em class="toggle-note">(off = justified)</em></span>
+            </label>
             <label class="toggle-line">
               <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
               <span>Show the ⓘ info button on pictures</span>
@@ -988,17 +991,26 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">📊 Your Library (in the cloud)</div>
+            <div class="settings-section-title">Library &amp; Storage</div>
             <div class="settings-row"><span>Books</span><strong>{{ libraryBooks.length }}</strong></div>
             <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
             <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? (cloudUsage.r2Count + ' (R2) / ' + cloudUsage.sbCount + ' (SB)') : '…' }}</strong></div>
             <div v-if="cloudUsage.loaded && cloudUsage.unmigrated > 0" class="settings-row settings-subnote"><span>Still only in Supabase</span><strong>{{ cloudUsage.unmigrated }}</strong></div>
-            <div class="settings-row"><span>Image Storage (R2)</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
+            <div class="settings-row"><span>Cloud image storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: cloudUsagePercent + '%' }"></div></div>
+            <div class="settings-row" style="margin-top: 0.7rem;"><span>Cached on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
+            <p class="settings-fine-print">Clearing the device cache is safe — your books live in the cloud and re-download when opened.</p>
+            <div class="settings-row-actions">
+              <button @click="openManageBooks" class="btn-secondary btn-small">🗑 Manage / Delete Books</button>
+              <button @click="handleClearImages" class="btn-secondary btn-small">Clear Offline Cache</button>
+              <button @click="handleUpdateSummaries" :disabled="summaryUpdating" class="btn-secondary btn-small">{{ summaryUpdating ? 'Updating…' : '✨ Update All Summaries' }}</button>
+            </div>
+            <p v-if="summaryProgress" class="settings-fine-print" style="color: var(--accent);">{{ summaryProgress }}</p>
+            <p class="settings-fine-print">Deleting books lives here (not on the book page) so it can't happen by accident.</p>
           </div>
 
           <div class="settings-section" v-if="libraryBooks.length">
-            <div class="settings-section-title">📊 Story Breakdown</div>
+            <div class="settings-section-title">Story Breakdown</div>
             <div class="breakdown-group">
               <p class="breakdown-label">By genre</p>
               <div v-for="row in (showAllGenres ? genreBreakdown : genreBreakdown.slice(0, 3))" :key="'g-' + row.value" class="breakdown-row">
@@ -1025,29 +1037,8 @@
             </div>
           </div>
 
-          <div class="settings-section">
-            <div class="settings-section-title">💾 Offline Cache</div>
-            <div class="settings-row"><span>Images on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
-            <p class="settings-fine-print">Clearing is safe — your books live in the cloud and re-download when opened.</p>
-            <div class="settings-row-actions">
-              <button @click="handleClearImages" class="btn-secondary btn-small">Clear Offline Cache</button>
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <div class="settings-section-title">📚 Library Tools</div>
-            <div class="settings-row-actions">
-              <button @click="handleUpdateSummaries" :disabled="summaryUpdating" class="btn-secondary btn-small">
-                {{ summaryUpdating ? 'Updating…' : '✨ Update All Summaries' }}
-              </button>
-              <button @click="openManageBooks" class="btn-secondary btn-small">🗑 Manage / Delete Books</button>
-            </div>
-            <p v-if="summaryProgress" class="settings-fine-print" style="color: var(--accent);">{{ summaryProgress }}</p>
-            <p class="settings-fine-print">Deleting books lives here (not on the book page) so it can't happen by accident.</p>
-          </div>
-
           <div class="settings-section" v-if="spend">
-            <div class="settings-section-title">💸 API Spend</div>
+            <div class="settings-section-title">For Parents · Spend</div>
 
             <div class="spend-cards">
               <div class="spend-card">
@@ -1086,20 +1077,22 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">🔐 Account</div>
+            <div class="settings-section-title">Account</div>
             <div class="settings-row-actions">
               <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
             </div>
           </div>
 
-          <div class="settings-section">
-            <div class="settings-section-title">ℹ️ About</div>
-            <div class="settings-row"><span>Version</span><strong>{{ version }}</strong></div>
-            <div class="settings-row"><span>Built</span><strong>{{ buildDate }}</strong></div>
-          </div>
-
           <details class="settings-section settings-collapsible">
-            <summary>🛠️ Developer</summary>
+            <summary>Developer</summary>
+
+            <div class="settings-sub">Pictures for the next story</div>
+            <div class="settings-segment settings-segment-stacked">
+              <button :class="{ active: imageGenMode === 'all' }" @click="setImageGenMode('all')">Draw all the pictures</button>
+              <button :class="{ active: imageGenMode === 'first-two' }" @click="setImageGenMode('first-two')">Just the cover + first page</button>
+              <button :class="{ active: imageGenMode === 'skip' }" @click="setImageGenMode('skip')">No pictures (text only)</button>
+            </div>
+            <p class="settings-fine-print">Fewer pictures means a faster, cheaper story. Resets to "Draw all" after one story.</p>
 
             <label class="toggle-line">
               <input type="checkbox" :checked="diagMode" @change="toggleDiagMode" />
@@ -1201,17 +1194,17 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.0.0"></script>
-  <script src="vendor/cropper.min.js?v=1.0.0"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.0.0"></script>
-  <script src="vendor/gsap.min.js?v=1.0.0"></script>
-  <script src="js/storage.js?v=1.0.0"></script>
-  <script src="js/imageStorage.js?v=1.0.0"></script>
-  <script src="js/api.js?v=1.0.0"></script>
-  <script src="js/sync.js?v=1.0.0"></script>
-  <script src="js/pageShadow.js?v=1.0.0"></script>
-  <script src="js/pageCurl.js?v=1.0.0"></script>
-  <script src="js/app.js?v=1.0.0"></script>
+  <script src="vendor/vue.global.js?v=1.0.1"></script>
+  <script src="vendor/cropper.min.js?v=1.0.1"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.0.1"></script>
+  <script src="vendor/gsap.min.js?v=1.0.1"></script>
+  <script src="js/storage.js?v=1.0.1"></script>
+  <script src="js/imageStorage.js?v=1.0.1"></script>
+  <script src="js/api.js?v=1.0.1"></script>
+  <script src="js/sync.js?v=1.0.1"></script>
+  <script src="js/pageShadow.js?v=1.0.1"></script>
+  <script src="js/pageCurl.js?v=1.0.1"></script>
+  <script src="js/app.js?v=1.0.1"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

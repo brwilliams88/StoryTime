@@ -344,6 +344,10 @@ function setDebugMode(enabled) { localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, e
 function getShowInspect() { return localStorage.getItem(STORAGE_KEYS.SHOW_INSPECT) === 'true'; }
 function setShowInspect(v) { localStorage.setItem(STORAGE_KEYS.SHOW_INSPECT, v ? 'true' : 'false'); }
 
+// Reading: story text alignment. Default = justified (false); true = left-aligned.
+function getTextAlignLeft() { return localStorage.getItem('storytime_text_align_left') === 'true'; }
+function setTextAlignLeft(v) { try { localStorage.setItem('storytime_text_align_left', v ? 'true' : 'false'); } catch (e) {} }
+
 // ---- Sticky prefs ----
 function getStickyPrefs() {
   const raw = localStorage.getItem(STORAGE_KEYS.STICKY_PREFS);
