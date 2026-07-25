@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.2',
+      version: 'v1.0.3',
       buildDate: '2026-07-24',
 
       showSplash: true,
@@ -165,6 +165,7 @@ createApp({
       refreshingLibrary: false,
       pullDistance: 0,           // pull-to-refresh
       pullRefreshing: false,
+      pullRefreshed: false,      // brief "Library updated ✓" confirmation after a refresh
       cloudUsage: { count: 0, bytes: 0, r2Count: 0, sbCount: 0, unmigrated: 0, loaded: false },   // image storage usage (R2 + Supabase)
       // ---- Share a story ----
       shareMode: false,          // true when this page is a read-only shared link
@@ -3018,9 +3019,21 @@ createApp({
       this._pullStartY = null;
       if (triggered) {
         this.pullRefreshing = true;
-        this.pullDistance = 42;
-        try { await this.refreshLibrary(); } finally {
+        this.pullDistance = 52;
+        const startedAt = Date.now();
+        try {
+          await this.refreshLibrary();
+        } finally {
+          // A cloud refresh can finish almost instantly, which made the spinner
+          // flash by so fast you couldn't tell it worked. Always show it for a
+          // beat, then confirm with a brief "Library updated" tick.
+          const MIN_SPIN = 900;
+          const elapsed = Date.now() - startedAt;
+          if (elapsed < MIN_SPIN) await new Promise(r => setTimeout(r, MIN_SPIN - elapsed));
           this.pullRefreshing = false;
+          this.pullRefreshed = true;
+          await new Promise(r => setTimeout(r, 900));
+          this.pullRefreshed = false;
           this.pullDistance = 0;
         }
       } else {

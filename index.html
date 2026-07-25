@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.2" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.2" />
-  <link rel="manifest" href="manifest.json?v=1.0.2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.3" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.3" />
+  <link rel="manifest" href="manifest.json?v=1.0.3" />
   <meta name="theme-color" content="#1b1b3a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <!-- "black" (NOT black-translucent): keeps the page BELOW the iOS status bar.
@@ -23,8 +23,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.2" />
-  <link rel="stylesheet" href="css/style.css?v=1.0.2" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.3" />
+  <link rel="stylesheet" href="css/style.css?v=1.0.3" />
 </head>
 <body>
 
@@ -34,7 +34,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.0.2" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.0.3" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -219,8 +219,12 @@
              @touchstart.passive="handlePullStart" @touchmove.passive="handlePullMove" @touchend="handlePullEnd">
 
           <!-- Pull-to-refresh indicator -->
-          <div class="pull-refresh" :style="{ height: pullDistance + 'px' }">
-            <div v-if="pullRefreshing" class="loading-spinner small"></div>
+          <div class="pull-refresh" :style="{ height: (pullRefreshed ? 52 : pullDistance) + 'px' }">
+            <div v-if="pullRefreshing" class="pull-refresh-spin">
+              <div class="loading-spinner small"></div>
+              <span class="pull-refresh-text">Refreshing…</span>
+            </div>
+            <span v-else-if="pullRefreshed" class="pull-refresh-done">✓ Library updated</span>
             <span v-else-if="pullDistance > 4" class="pull-refresh-text">{{ pullDistance > 55 ? '↑ release to refresh' : '↓ pull to refresh' }}</span>
           </div>
 
@@ -1198,17 +1202,17 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.0.2"></script>
-  <script src="vendor/cropper.min.js?v=1.0.2"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.0.2"></script>
-  <script src="vendor/gsap.min.js?v=1.0.2"></script>
-  <script src="js/storage.js?v=1.0.2"></script>
-  <script src="js/imageStorage.js?v=1.0.2"></script>
-  <script src="js/api.js?v=1.0.2"></script>
-  <script src="js/sync.js?v=1.0.2"></script>
-  <script src="js/pageShadow.js?v=1.0.2"></script>
-  <script src="js/pageCurl.js?v=1.0.2"></script>
-  <script src="js/app.js?v=1.0.2"></script>
+  <script src="vendor/vue.global.js?v=1.0.3"></script>
+  <script src="vendor/cropper.min.js?v=1.0.3"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.0.3"></script>
+  <script src="vendor/gsap.min.js?v=1.0.3"></script>
+  <script src="js/storage.js?v=1.0.3"></script>
+  <script src="js/imageStorage.js?v=1.0.3"></script>
+  <script src="js/api.js?v=1.0.3"></script>
+  <script src="js/sync.js?v=1.0.3"></script>
+  <script src="js/pageShadow.js?v=1.0.3"></script>
+  <script src="js/pageCurl.js?v=1.0.3"></script>
+  <script src="js/app.js?v=1.0.3"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

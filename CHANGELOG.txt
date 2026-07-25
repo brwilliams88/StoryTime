@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.3 - 2026-07-24 - Book reading view properly centred on iPhone (real fix); clearer pull-to-refresh
+  • REAL FIX for the book layout. v1.0.2 only stopped the toolbar hiding behind the Dynamic Island; the reader was still wrong because the app's viewport is set to cover the WHOLE screen (edge to edge), so the book was centring itself on the full screen — including the parts hidden behind the status bar and the home indicator. Measured on an iPhone-sized screen: the top of the image page sat at 0 (under the status bar), the gutter crease landed 12.5px above the true visual centre, and the bottom page ran past the visible area leaving a band of indigo.
+  • The reader now lays the book out inside the SAFE area instead: the image page starts exactly at the top of the visible screen, the bottom page ends exactly at the bottom, the crease sits dead-centre, and the closed cover is perfectly centred (verified: equal 179.8 / 179.7 gaps above and below).
+  • Landscape fixed too — the page no longer crops at the top and the book's rounded right-hand corner is fully visible (it was running under the notch/home-indicator margins).
+  • The floating reader buttons and the gutter crease were adjusted to match, so nothing double-shifts. On screens with no notch, the layout is byte-for-byte identical to before — this only changes behaviour where the phone actually has those areas.
+  • Pull-to-refresh is now obvious: the spinner shows for at least a moment with a "Refreshing…" label (before, a fast refresh made it flash by invisibly), then confirms with a gold "✓ Library updated" tick before closing.
+
+--------------------------
 v1.0.2 - 2026-07-24 - Fix iOS layout shifted under the Dynamic Island; seamless splash art; cover titles no longer clip; playful loading messages
   • FIXED the big one: the app's layout ran up underneath the iPhone status bar / Dynamic Island. The library toolbar hid behind the clock and battery, and the reader sat too high (cover off-centre, top of the page cut off, dead space at the bottom). Cause was the "black-translucent" iOS status-bar setting added in v1.0.0 — now set to "black" so the app sits below the status bar again. Landscape was unaffected, which is why it only showed in portrait.
   • Splash screen: the app art is now a proper cut-out with a transparent background, much larger, floating in the night sky with a soft lamplight glow — instead of looking like the icon tile pasted on screen.
