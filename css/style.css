@@ -1491,27 +1491,20 @@ button:disabled {
    READING VIEW
    ============================================= */
 
+/* The book fills the viewport EDGE TO EDGE — full bleed, no safe-area padding.
+   v1.0.3 tried insetting this to the safe area and it wrecked the proportions
+   (pages no longer square, indigo bars all round). Don't reintroduce that: on iOS
+   the app is deliberately NOT standalone (no apple-mobile-web-app-capable), so the
+   browser chrome occupies the unsafe areas and the viewport IS the visible area. */
 .app-main-reading {
   width: 100%;
   max-width: none;
+  padding: 0;
   height: 100vh;
   height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* The viewport is `viewport-fit=cover`, so in an installed (standalone) PWA it
-     spans the WHOLE screen — including behind the status bar / Dynamic Island and
-     the home indicator. Inset the reader's content box to the SAFE area so the
-     book centres on what you can actually see. Without this the spread centred in
-     the full screen: the top of the image page hid under the status bar, the
-     gutter crease sat above the visual centre, and a band of indigo showed under
-     the bottom page. The floating reader controls below are positioned inside this
-     padded box, so they must NOT add env() insets again. */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  box-sizing: border-box;
 }
 
 body:has(.app-main-reading) {
@@ -1536,7 +1529,9 @@ body:has(.app-main-reading) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.35rem 0.55rem;   /* insets handled by .app-main-reading */
+  padding: 0.35rem 0.55rem;
+  padding-left: max(0.55rem, env(safe-area-inset-left));
+  padding-right: max(0.55rem, env(safe-area-inset-right));
   background: var(--bg-card);
   border-bottom: 1px solid var(--border-soft);
   z-index: 10;
@@ -2384,9 +2379,7 @@ body.reading-align-left .spread-text p { text-align: left; }
 /* No bottom padding: the shelf base is the last thing on screen, so scrolling
    hard-stops at the bottom of the bookcase (no empty/blue area below it). */
 .library-view { padding-bottom: 0; }
-/* margin-top guard: 0 on a normal (opaque) status bar, but if the page ever runs
-   full-bleed under the iOS Dynamic Island the toolbar still clears it. */
-.library-bar { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.9rem; margin-top: env(safe-area-inset-top, 0px); }
+.library-bar { display: flex; align-items: stretch; gap: 0.5rem; margin-bottom: 0.9rem; }
 .library-bar .library-search { flex: 1; margin-bottom: 0; }
 /* search + filter + settings all the same height */
 .library-bar .search-wrap .text-input,
@@ -2910,17 +2903,9 @@ body.reading-align-left .spread-text p { text-align: left; }
    z-index ABOVE the page-turn overlay (46) but below modals (900). It is the
    SAME element static and during a turn, so it can never change or pop in.
    Pages turn underneath it. Soft valley, no white ridges. ---- */
-/* The crease is position:FIXED, so it centres on the viewport — which spans the
-   whole screen under `viewport-fit=cover`. The page seam, however, centres on the
-   SAFE area (see .app-main-reading), so shift the crease by half the difference
-   between the two insets to keep it exactly on the seam. Resolves to plain 50%
-   when the insets are 0. */
 .book-crease {
   position: fixed; z-index: 50; pointer-events: none;
-  left: calc(50% + (env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2);
-  top: env(safe-area-inset-top, 0px);
-  bottom: env(safe-area-inset-bottom, 0px);
-  width: 60px; transform: translateX(-50%);
+  left: 50%; top: 0; bottom: 0; width: 60px; transform: translateX(-50%);
   background:
     linear-gradient(to right,
       rgba(74,54,24,0) 0%,
@@ -2932,9 +2917,7 @@ body.reading-align-left .spread-text p { text-align: left; }
       rgba(74,54,24,0) 100%);
 }
 .book-crease.portrait {
-  left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); width: auto;
-  top: calc(50% + (env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2);
-  bottom: auto; height: 60px;
+  left: 0; right: 0; width: auto; top: 50%; bottom: auto; height: 60px;
   transform: translateY(-50%);
   background:
     linear-gradient(to bottom,
@@ -3114,12 +3097,10 @@ body.reading-align-left .spread-text p { text-align: left; }
    v0.9.4 — Reading mode polish
    =================================================================== */
 /* Floating reader controls (replace the old top bar; no Settings here) */
-/* NOTE: offsets are plain px — .app-main-reading already insets this whole box
-   by the safe areas, so adding env() here again would double-inset the controls. */
 .reader-back {
   position: absolute; z-index: 30;
-  top: 8px;
-  left: 8px;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: calc(env(safe-area-inset-left) + 8px);
   width: 40px; height: 40px; border-radius: 50%;
   background: rgba(30,24,18,0.42); color: #fff; border: none;
   font-size: 1.7rem; line-height: 1; padding: 0 0 3px; cursor: pointer; font-family: inherit;
@@ -3130,8 +3111,8 @@ body.reading-align-left .spread-text p { text-align: left; }
 }
 .reader-pagenum {
   position: absolute; z-index: 30;
-  top: 10px;
-  right: 8px;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: calc(env(safe-area-inset-right) + 8px);
   padding: 4px 11px; border-radius: 999px; pointer-events: none;
   background: rgba(30,24,18,0.42); color: #fff; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
@@ -3141,8 +3122,8 @@ body.reading-align-left .spread-text p { text-align: left; }
 /* cover ⓘ — same chip as the back button, mirrored to the top-right */
 .reader-about {
   position: absolute; z-index: 30;
-  top: 8px;
-  right: 8px;
+  top: calc(env(safe-area-inset-top) + 8px);
+  right: calc(env(safe-area-inset-right) + 8px);
   width: 40px; height: 40px; border-radius: 50%;
   background: rgba(30,24,18,0.42); color: #fff; border: none;
   cursor: pointer; padding: 0;
@@ -3154,7 +3135,7 @@ body.reading-align-left .spread-text p { text-align: left; }
 .reader-about svg { width: 22px; height: 22px; }
 .reader-ui-hide { opacity: 0; pointer-events: none; }   /* fully fades + not tappable; tap the page to reveal */
 /* landscape: tuck the back button further toward the left edge */
-.reading-view:not(.portrait-mode) .reader-back { left: 2px; }
+.reading-view:not(.portrait-mode) .reader-back { left: calc(env(safe-area-inset-left) + 2px); }
 
 /* Picture pages: a blurred copy of the image fills the margins (no white) */
 .image-blur {

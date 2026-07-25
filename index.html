@@ -10,21 +10,24 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.3" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.3" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.3" />
-  <link rel="manifest" href="manifest.json?v=1.0.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.4" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.4" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.4" />
+  <link rel="manifest" href="manifest.json?v=1.0.4" />
   <meta name="theme-color" content="#1b1b3a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <!-- "black" (NOT black-translucent): keeps the page BELOW the iOS status bar.
-       black-translucent (v1.0.0–v1.0.1) let the layout run up under the Dynamic
-       Island/clock — the library toolbar hid behind it and the whole reader sat
-       too high with dead space at the bottom. Don't change this back. -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
+       Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
+       the viewport: it then spanned the whole screen including behind the Dynamic
+       Island and home indicator. That is what broke the reader — the book was sized
+       to a viewport taller than the visible area (cropped pages, off-centre crease,
+       indigo bars). Without these the home-screen icon opens in the normal browser
+       view, whose viewport IS the visible area, and the book fills it edge to edge
+       exactly as it did pre-v1. The manifest still covers Android/desktop install.
+       Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.3" />
-  <link rel="stylesheet" href="css/style.css?v=1.0.3" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.4" />
+  <link rel="stylesheet" href="css/style.css?v=1.0.4" />
 </head>
 <body>
 
@@ -34,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.0.3" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.0.4" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -219,7 +222,7 @@
              @touchstart.passive="handlePullStart" @touchmove.passive="handlePullMove" @touchend="handlePullEnd">
 
           <!-- Pull-to-refresh indicator -->
-          <div class="pull-refresh" :style="{ height: (pullRefreshed ? 52 : pullDistance) + 'px' }">
+          <div class="pull-refresh" :style="{ height: (pullRefreshed ? 44 : pullDistance) + 'px' }">
             <div v-if="pullRefreshing" class="pull-refresh-spin">
               <div class="loading-spinner small"></div>
               <span class="pull-refresh-text">Refreshing…</span>
@@ -1202,17 +1205,17 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.0.3"></script>
-  <script src="vendor/cropper.min.js?v=1.0.3"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.0.3"></script>
-  <script src="vendor/gsap.min.js?v=1.0.3"></script>
-  <script src="js/storage.js?v=1.0.3"></script>
-  <script src="js/imageStorage.js?v=1.0.3"></script>
-  <script src="js/api.js?v=1.0.3"></script>
-  <script src="js/sync.js?v=1.0.3"></script>
-  <script src="js/pageShadow.js?v=1.0.3"></script>
-  <script src="js/pageCurl.js?v=1.0.3"></script>
-  <script src="js/app.js?v=1.0.3"></script>
+  <script src="vendor/vue.global.js?v=1.0.4"></script>
+  <script src="vendor/cropper.min.js?v=1.0.4"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.0.4"></script>
+  <script src="vendor/gsap.min.js?v=1.0.4"></script>
+  <script src="js/storage.js?v=1.0.4"></script>
+  <script src="js/imageStorage.js?v=1.0.4"></script>
+  <script src="js/api.js?v=1.0.4"></script>
+  <script src="js/sync.js?v=1.0.4"></script>
+  <script src="js/pageShadow.js?v=1.0.4"></script>
+  <script src="js/pageCurl.js?v=1.0.4"></script>
+  <script src="js/app.js?v=1.0.4"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

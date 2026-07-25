@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.4 - 2026-07-25 - Restore the full-bleed book layout
+  • Reverted the reading view to exactly how it looked and behaved before v1.0.0. The book fills the screen edge to edge again — square-ish picture page above a square-ish text page in portrait, two full pages side by side in landscape, no indigo bars anywhere, crease dead centre.
+  • Root cause of the whole saga: v1.0.0 added the iOS "web app capable" setting, which made the home-screen icon launch as a standalone app. That silently changed the viewport to span the entire physical screen (including behind the Dynamic Island and home indicator), and the book had always been sized to fill the viewport. v1.0.2 and v1.0.3 tried to compensate inside that broken frame and made it worse. This release removes the setting instead, so the viewport is the visible area again — exactly the pre-v1 behaviour.
+  • Trade-off: on iPhone the home-screen icon opens with the normal browser bars again (as it did before v1.0.0). The app icon, install on Android/desktop, and offline support are all unaffected.
+  • Verified the reading CSS is byte-for-byte identical to the pre-v1 version, and measured in a browser: full bleed on every edge in both orientations, no gap between pages, crease centred, cover centred.
+  • Pull-to-refresh indicator tightened up so it sits closer to the search bar.
+
+--------------------------
 v1.0.3 - 2026-07-24 - Book reading view properly centred on iPhone (real fix); clearer pull-to-refresh
   • REAL FIX for the book layout. v1.0.2 only stopped the toolbar hiding behind the Dynamic Island; the reader was still wrong because the app's viewport is set to cover the WHOLE screen (edge to edge), so the book was centring itself on the full screen — including the parts hidden behind the status bar and the home indicator. Measured on an iPhone-sized screen: the top of the image page sat at 0 (under the status bar), the gutter crease landed 12.5px above the true visual centre, and the bottom page ran past the visible area leaving a band of indigo.
   • The reader now lays the book out inside the SAFE area instead: the image page starts exactly at the top of the visible screen, the bottom page ends exactly at the bottom, the crease sits dead-centre, and the closed cover is perfectly centred (verified: equal 179.8 / 179.7 gaps above and below).

@@ -52,8 +52,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.3',
-      buildDate: '2026-07-24',
+      version: 'v1.0.4',
+      buildDate: '2026-07-25',
 
       showSplash: true,
 
@@ -3019,7 +3019,7 @@ createApp({
       this._pullStartY = null;
       if (triggered) {
         this.pullRefreshing = true;
-        this.pullDistance = 52;
+        this.pullDistance = 44;   // keep the indicator tight to the search bar
         const startedAt = Date.now();
         try {
           await this.refreshLibrary();
