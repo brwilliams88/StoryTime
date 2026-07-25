@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.2 - 2026-07-24 - Fix iOS layout shifted under the Dynamic Island; seamless splash art; cover titles no longer clip; playful loading messages
+  • FIXED the big one: the app's layout ran up underneath the iPhone status bar / Dynamic Island. The library toolbar hid behind the clock and battery, and the reader sat too high (cover off-centre, top of the page cut off, dead space at the bottom). Cause was the "black-translucent" iOS status-bar setting added in v1.0.0 — now set to "black" so the app sits below the status bar again. Landscape was unaffected, which is why it only showed in portrait.
+  • Splash screen: the app art is now a proper cut-out with a transparent background, much larger, floating in the night sky with a soft lamplight glow — instead of looking like the icon tile pasted on screen.
+  • FIXED book titles clipping the tails of letters like g, y and Q — the title plate's line spacing was too tight for the storybook font (fixed on both the big cover and the shelf spines).
+  • Loading messages are now playful and vary each time — "Dreaming up the adventure…", "Waking up the characters…", "Sprinkling in some magic…", "Mixing the paint pots…" — cycling through the same rough arc with different wording. Replaces the literal "Drawing the first pages…".
+  • Loading screen polish: falling stars now drift the full height of the screen and pass BEHIND the book and text (so nothing is ever obscured), sparkles match the app icon, the "tap the falling stars" hint moved to the very bottom, and a caught star now pops where you tapped it instead of jumping.
+
+--------------------------
 v1.0.1 - 2026-07-23 - Critical deploy fix (blank app); on-brand splash; settings reorg; text-align toggle; origami background fix
   • CRITICAL FIX: the GitHub Pages deploy workflow wasn't copying the new vendor/ folder or manifest.json into the published site, so v1.0.0 shipped without Vue — the app showed a stuck screen with a literal "{{ version }}". The workflow now includes vendor and manifest.json.
   • Splash/loading title screen redesigned to the new brand: shows the actual app icon (open book + crescent moon, soft gold glow, gentle float) instead of the 📖 emoji.

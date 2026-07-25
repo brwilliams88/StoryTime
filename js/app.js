@@ -22,12 +22,38 @@ function defaultFormData() {
 const MAX_INGREDIENTS = 3;
 const MAX_SELECTED_CHARACTERS = 5;
 
+// ---------------------------------------------------------------------
+// Loading-screen messages. These are FLAVOUR, not progress reporting — they
+// follow the same rough arc every time (write → build the world → illustrate →
+// finish) but pick different wording, so the wait feels alive instead of
+// repetitive. buildLoadingMessages() returns one shuffled run.
+// ---------------------------------------------------------------------
+const LOADING_MSGS = {
+  start: ['Writing your story…', 'Dreaming up the adventure…', 'Putting pen to paper…', 'Opening a blank page…'],
+  world: ['Setting the scene…', 'Building the world…', 'Choosing the perfect words…', 'Deciding how it begins…'],
+  cast:  ['Waking up the characters…', 'Gathering everyone together…', 'Teaching the dragon its lines…', 'Giving everyone their voices…'],
+  magic: ['Sprinkling in some magic…', 'Tucking in a surprise…', 'Chasing down a plot twist…', 'Stirring in a little wonder…'],
+  art:   ['Mixing the paint pots…', 'Drawing the pictures…', 'Colouring everything in…', 'Sketching the first scene…'],
+  final: ['Adding the tiny details…', 'Polishing the pages…', 'Binding the book…', 'Almost ready…'],
+};
+function buildLoadingMessages() {
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  return [
+    pick(LOADING_MSGS.start),
+    pick(LOADING_MSGS.world),
+    pick(LOADING_MSGS.cast),
+    pick(LOADING_MSGS.magic),
+    pick(LOADING_MSGS.art),
+    pick(LOADING_MSGS.final),
+  ];
+}
+
 createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.1',
-      buildDate: '2026-07-23',
+      version: 'v1.0.2',
+      buildDate: '2026-07-24',
 
       showSplash: true,
 
@@ -706,32 +732,55 @@ createApp({
     startLoadingFx() {
       this.stopLoadingFx();
       this.loadingStarsCaught = 0;
+
+      // Cycle the flavour messages through the same arc, holding on the last one
+      // if generation runs long.
+      let mi = 0;
+      this._loadingMsgTimer = setInterval(() => {
+        if (!this.loading) return;
+        const msgs = this._loadingMsgs || [];
+        if (mi < msgs.length - 1) { mi++; this.loadingMessage = msgs[mi]; }
+      }, 4200);
+
       const layer = document.querySelector('.loading-stars');
       if (!layer) return;
-      const glyphs = ['⭐', '✦', '✧', '🌟'];
+      // ✦/✧ four-point sparkles match the app icon and the New Story book's
+      // shimmer; a couple of round stars keep it playful.
+      const glyphs = ['✦', '✧', '⭐', '✦', '✨'];
       this._loadingStarTimer = setInterval(() => {
         if (!this.loading) { this.stopLoadingFx(); return; }
         if (layer.childElementCount > 3) return;                 // keep it uncluttered
         const s = document.createElement('div');
         s.className = 'loading-star';
         s.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
-        s.style.left = (8 + Math.random() * 84) + '%';
-        s.style.fontSize = (1 + Math.random() * 0.5) + 'rem';
-        s.style.setProperty('--fall', (3.6 + Math.random() * 1.8) + 's');
+        s.style.left = (6 + Math.random() * 88) + '%';
+        s.style.fontSize = (0.95 + Math.random() * 0.65) + 'rem';
+        s.style.setProperty('--fall', (5 + Math.random() * 2.5) + 's');
+        s.style.setProperty('--drift', (Math.random() * 26 - 13) + 'px');
         s.addEventListener('pointerdown', (e) => {
           e.stopPropagation();
           if (s._caught) return;
           s._caught = true;
           this.loadingStarsCaught++;
+          // Freeze it where it currently is (killing the animation would snap it
+          // back to its start position), then pop + fade it out from there.
+          const m = getComputedStyle(s).transform;
+          s.style.animation = 'none';
+          s.style.transform = (m && m !== 'none') ? m : '';
           s.classList.add('caught');
-          setTimeout(() => s.remove(), 240);
+          requestAnimationFrame(() => {
+            s.style.transform = ((m && m !== 'none') ? m + ' ' : '') + 'scale(1.7)';
+            s.style.opacity = '0';
+          });
+          setTimeout(() => s.remove(), 260);
         });
         s.addEventListener('animationend', () => s.remove());
         layer.appendChild(s);
-      }, 1300);
+      }, 1500);
     },
     stopLoadingFx() {
       if (this._loadingStarTimer) { clearInterval(this._loadingStarTimer); this._loadingStarTimer = null; }
+      if (this._loadingMsgTimer) { clearInterval(this._loadingMsgTimer); this._loadingMsgTimer = null; }
       const layer = document.querySelector('.loading-stars');
       if (layer) layer.innerHTML = '';
     },
@@ -1103,7 +1152,8 @@ createApp({
         this.error = 'Please fill in "Created By" before generating.'; return;
       }
       this.loading = true;
-      this.loadingMessage = 'Writing your story…';
+      this._loadingMsgs = buildLoadingMessages();      // fresh flavour text each run
+      this.loadingMessage = this._loadingMsgs[0];
       // Estimate: prefer the measured median of past runs at this length; fall
       // back to the hardcoded guess until we have enough real samples.
       const genLen = this.formData.length;
@@ -1222,7 +1272,8 @@ createApp({
         } else {
           // Draw the COVER + PAGE 1 together, keeping the loading screen up
           // until both are ready, so the book opens with its first spreads drawn.
-          this.loadingMessage = 'Drawing the first pages…';
+          // (The loading text keeps cycling its own flavour messages — see
+          // startLoadingFx — so we deliberately don't overwrite it here.)
           const firstBatch = [this.generateOneImage('cover', storyData)];
           if (storyData.pages.length > 0) firstBatch.push(this.generateOneImage(0, storyData));
           await Promise.all(firstBatch);
