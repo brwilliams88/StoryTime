@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.5',
+      version: 'v1.0.6',
       buildDate: '2026-07-25',
 
       showSplash: true,
@@ -162,6 +162,7 @@ createApp({
       // Library (My Books) — cloud-backed list
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
+      libraryError: '',          // why the cloud library couldn't load (shown on the shelf)
       refreshingLibrary: false,
       pullDistance: 0,           // pull-to-refresh
       pullRefreshing: false,
@@ -2732,13 +2733,18 @@ createApp({
       catch (e) { console.warn('Character pull failed:', e); }
 
       try {
+        if (!getStoredPassword()) throw new Error('No password saved on this device yet.');
         const res = await fetchLibraryIndex({ sort: 'created', limit: 200 });
         this.libraryBooks = res.rows || [];
         setLibraryIndex(this.libraryBooks);
+        this.libraryError = '';
         const covers = await signCoverUrls(this.libraryBooks.map(b => b.cover_image_id));
         this.coverUrls = { ...this.coverUrls, ...covers };
       } catch (e) {
         this.libraryBooks = getLibraryIndex();   // offline fallback
+        // Surface it: an empty shelf with no explanation is indistinguishable
+        // from "you have no books", which sent us hunting the wrong problem.
+        this.libraryError = (e && e.message) ? e.message : 'Could not reach the cloud.';
         console.warn('Library index fetch failed; using cached:', e);
       } finally {
         this.libraryLoading = false;
@@ -3013,8 +3019,19 @@ createApp({
         const covers = await signCoverUrls(this.libraryBooks.map(b => b.cover_image_id));
         this.coverUrls = { ...this.coverUrls, ...covers };
         if (this.librarySearch.trim()) this.runLibrarySearch();
-      } catch (e) { console.warn('Refresh failed:', e); }
+        this.libraryError = '';
+      } catch (e) {
+        this.libraryError = (e && e.message) ? e.message : 'Could not reach the cloud.';
+        console.warn('Refresh failed:', e);
+      }
       finally { this.refreshingLibrary = false; }
+    },
+
+    // "Try again" on the library error banner — re-runs the full cloud pull so a
+    // missing password / sleeping backend / dropped connection can recover in place.
+    async retryLibrary() {
+      this.libraryError = '';
+      await this.initCloudData();
     },
 
     fmtBytes(bytes) { return formatStorageSize(bytes || 0); },

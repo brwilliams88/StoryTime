@@ -3567,4 +3567,18 @@ body.ios-standalone .book-crease:not(.portrait) {
   left: calc(50% + (env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2);
 }
 /* Library: push the pull-to-refresh AND the toolbar clear of the Dynamic Island */
-body.ios-standalone .library-view { padding-top: env(safe-area-inset-top, 0px); }
+body.ios-standalone .library-view {
+  /* Not the full inset: .app-main already adds 1rem, and the full 59px sat the
+     search bar lower than the user wants. This lands it just under the clock. */
+  padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 14px));
+}
+
+/* Library couldn't load — visible reason + retry, instead of a silent empty shelf */
+.library-error-banner {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  background: rgba(232,130,94,0.14); border: 1px solid var(--accent-warm);
+  border-radius: 10px; padding: 0.7rem 0.85rem; margin-bottom: 0.9rem;
+}
+.library-error-banner .leb-text { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 2px; }
+.library-error-banner strong { color: var(--text-main); font-size: 0.9rem; }
+.library-error-banner span { color: var(--text-dim); font-size: 0.8rem; line-height: 1.35; }
