@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.5 - 2026-07-25 - Fix the cropped book on Home Screen installs
+  • Found why the v1.0.4 revert seemed to change nothing: iOS locks the "full screen app" setting into the Home Screen icon at the moment you add it. v1.0.0–v1.0.3 shipped that setting, so any icon added back then KEEPS launching full-screen — behind the Dynamic Island and the home indicator — no matter what the app code says now. Removing the setting only affects icons added afterwards.
+  • The app now detects when it's running as a Home Screen app and lays the book out inside the visible part of the screen: nothing cropped at the top, the crease back on the centre line, no stray indigo band at the bottom, and the cover square again with all four corners visible in both orientations.
+  • The pull-to-refresh spinner and the search / filter / settings bar now sit clear of the Dynamic Island in that mode, so they're usable again.
+  • In the normal browser view — what you get after re-adding the icon — absolutely nothing changed: the book still fills the screen edge to edge exactly as it did before v1.0.0 (verified: identical page geometry and aspect).
+  • TIP: for the original edge-to-edge look, delete the StoryTime icon from your Home Screen and add it again from Safari. Your books are safe in the cloud.
+
+--------------------------
 v1.0.4 - 2026-07-25 - Restore the full-bleed book layout
   • Reverted the reading view to exactly how it looked and behaved before v1.0.0. The book fills the screen edge to edge again — square-ish picture page above a square-ish text page in portrait, two full pages side by side in landscape, no indigo bars anywhere, crease dead centre.
   • Root cause of the whole saga: v1.0.0 added the iOS "web app capable" setting, which made the home-screen icon launch as a standalone app. That silently changed the viewport to span the entire physical screen (including behind the Dynamic Island and home indicator), and the book had always been sized to fill the viewport. v1.0.2 and v1.0.3 tried to compensate inside that broken frame and made it worse. This release removes the setting instead, so the viewport is the visible area again — exactly the pre-v1 behaviour.

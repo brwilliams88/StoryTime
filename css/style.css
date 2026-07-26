@@ -3532,3 +3532,39 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .char-story-noimg { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--bg-input); color: var(--text-dim); font-size: 1.25rem; border-radius: 8px; }
 /* Transparent catcher that closes the character ⋯ menu on an outside tap */
 .char-menu-backdrop { position: fixed; inset: 0; z-index: 7; }
+
+/* =============================================================
+   iOS STANDALONE FALLBACK (v1.0.5)
+   =============================================================
+   Only applies when the app is launched from a Home Screen icon that was added
+   while `apple-mobile-web-app-capable` was present (v1.0.0–v1.0.3). iOS bakes
+   that setting into the icon, so those installs keep launching standalone even
+   though the meta is gone — and a standalone launch makes the viewport cover the
+   WHOLE screen, behind the Dynamic Island and the home indicator. Since the book
+   fills the viewport, it gets cropped and the toolbar hides under the island.
+
+   The body only gets `.ios-standalone` in that case (set in app.js `mounted`), so
+   in the normal browser view — the intended, full-bleed, pre-v1 experience — not
+   one of these rules applies. Re-adding the Home Screen icon returns you to that.
+   ============================================================= */
+
+/* Reader: lay the book out inside the visible area instead of the whole screen */
+body.ios-standalone .app-main-reading {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+/* the floating controls sit inside that padded box now, so drop their own insets */
+body.ios-standalone .reader-back { top: 8px; left: 8px; }
+body.ios-standalone .reading-view:not(.portrait-mode) .reader-back { left: 2px; }
+body.ios-standalone .reader-pagenum { top: 10px; right: 8px; }
+body.ios-standalone .reader-about { top: 8px; right: 8px; }
+/* the crease is position:fixed (viewport-relative), so nudge it onto the seam */
+body.ios-standalone .book-crease.portrait {
+  top: calc(50% + (env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2);
+}
+body.ios-standalone .book-crease:not(.portrait) {
+  left: calc(50% + (env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2);
+}
+/* Library: push the pull-to-refresh AND the toolbar clear of the Dynamic Island */
+body.ios-standalone .library-view { padding-top: env(safe-area-inset-top, 0px); }

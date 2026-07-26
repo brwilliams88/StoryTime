@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.4',
+      version: 'v1.0.5',
       buildDate: '2026-07-25',
 
       showSplash: true,
@@ -554,6 +554,22 @@ createApp({
   mounted() {
     console.log(`${this.appName} ${this.version} loaded ✓`);
     setTimeout(() => this.dismissSplash(), 1500);
+
+    // ---- iOS standalone detection -------------------------------------
+    // iOS locks in `apple-mobile-web-app-capable` at the moment you add the app
+    // to the Home Screen. We removed that meta in v1.0.4, but any icon added
+    // BEFORE that still launches standalone forever (until it's re-added), and a
+    // standalone launch makes the viewport span the whole physical screen —
+    // behind the Dynamic Island and the home indicator. The book fills the
+    // viewport, so standalone crops it. Tag the body so the (otherwise inert)
+    // safe-area rules in style.css kick in only for that case; in the normal
+    // browser view nothing below changes at all.
+    try {
+      const standalone = (window.navigator.standalone === true) ||
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      document.body.classList.toggle('ios-standalone', !!standalone);
+      if (standalone) console.log('Running standalone — safe-area layout enabled.');
+    } catch (e) { /* ignore */ }
 
     // Wire the finger-following page-curl to the reader (snapshots + nav).
     if (typeof window.PageCurl !== 'undefined') {
