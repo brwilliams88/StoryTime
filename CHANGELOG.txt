@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.1.1 - 2026-07-27 - Gallery keeps itself up to date; no more setup buttons
+  • FIXED the missing page thumbnails. "Prepare gallery" finished suspiciously fast because its "does this thumbnail already exist?" check was broken — the signing endpoint hands back a URL for ANY id without checking storage, so it concluded everything was already done and made almost nothing. It now tracks each thumbnail as it's genuinely written. (Covers looked fine because their thumbnails came from the older cover system.)
+  • The gallery now keeps ITSELF up to date. New stories index themselves and build their thumbnails quietly in the background while you're reading, and any device that opens the gallery quietly catches up on books it hasn't seen — so your phone, the laptop, and eventually Aya's phone all show the same gallery with nobody pressing a button. Books deleted elsewhere drop out too.
+  • If a thumbnail is ever missing, the grid now falls back to the full picture instead of showing a broken image.
+  • Loading screen is no longer selectable — Kai's enthusiastic star-catching kept highlighting the text and dragging the book around mid-game.
+  • Settings simplified: the Supabase/R2 split is gone now that everything lives in R2 (just "Images" and "Cloud storage"), and the gallery-setup and migration blurbs are gone. "Update All Summaries", "Rebuild gallery thumbnails" and "Copy stragglers to R2" now live under Developer as repair tools.
+  • The Picture Gallery button is calmer — a raised card with a gold icon instead of a full gold outline, which read as though it were selected.
+
+--------------------------
 v1.1.0 - 2026-07-27 - Picture Gallery - Worker REV v1.1.0
   • NEW: a Picture Gallery. Settings › Library & Storage has a big gold "🖼️ Picture Gallery" button that opens a full-screen wall of every picture you've ever made, grouped by story (newest first) with the date and a count on each heading, and a "Cover" badge on cover art.
   • Tap any picture to fill the screen: the book title (tap it to jump straight into that story), whether it's the Cover or "Page 3 of 6", the date it was made, and the art style + genre. Swipe left/right — or use the arrows — to move through the pictures without closing.

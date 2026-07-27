@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.1.0',
+      version: 'v1.1.1',
       buildDate: '2026-07-27',
 
       showSplash: true,
@@ -175,6 +175,9 @@ createApp({
       galleryVersion: 0,         // bump to recompute from the stored index
       galleryLightbox: null,     // { entry, idx } while an image is enlarged
       galleryFullUrl: '',        // signed FULL-size URL for the lightbox
+      gallerySyncing: false,     // quietly indexing books this device hasn't seen
+      gallerySyncDone: 0,
+      gallerySyncTotal: 0,
       // backfill (builds thumbnails + the searchable index, and migrates to R2)
       backfillRunning: false,
       backfillStop: false,
@@ -837,6 +840,73 @@ createApp({
       this.showSettings = false;
       this.galleryVersion++;
       await this.loadGalleryThumbs();
+      this.syncGalleryIndex();          // pick up anything this device hasn't indexed
+    },
+
+    // Add/refresh ONE story in the gallery index. Called automatically after a
+    // story finishes generating (with makeThumbs) and when a device meets a book
+    // it hasn't indexed yet (without — the thumbnails already exist in the cloud).
+    async indexStoryForGallery(story, makeThumbs) {
+      if (!story || !story.id) return;
+      try {
+        const entries = galleryEntriesForStory(story);
+        if (!entries.length) return;
+        if (makeThumbs) {
+          for (const e of entries) {
+            if (await ensureImageThumb(e.i)) e.k = 1;
+          }
+        }
+        const rest = getGalleryIndex().filter((e) => e.s !== story.id);
+        setGalleryIndex(rest.concat(entries));
+        this.galleryVersion++;
+      } catch (e) { console.warn('Gallery index failed for', story.id, e); }
+    },
+
+    // Keep the gallery in step with the library on THIS device — so a phone that
+    // never ran the repair tool still shows everything, and books deleted
+    // elsewhere drop out. Only fetches the stories it's missing (small JSON; the
+    // thumbnails are already in the cloud), so it's cheap and runs quietly.
+    async syncGalleryIndex() {
+      if (this.gallerySyncing) return;
+      const books = this.libraryBooks || [];
+      if (!books.length) return;
+      const known = getGalleryIndex();
+      const liveIds = new Set(books.map((b) => b.id));
+      // drop entries for books that no longer exist
+      let merged = known.filter((e) => liveIds.has(e.s));
+      const haveStories = new Set(merged.map((e) => e.s));
+      const missing = books.filter((b) => !haveStories.has(b.id));
+      if (merged.length !== known.length) { setGalleryIndex(merged); this.galleryVersion++; }
+      if (!missing.length) return;
+
+      this.gallerySyncing = true;
+      this.gallerySyncTotal = missing.length;
+      this.gallerySyncDone = 0;
+      try {
+        for (const b of missing) {
+          if (!this.showGallery) break;               // user left — stop quietly
+          try {
+            const story = getStoredStories().find((s) => s.id === b.id) || await fetchFullStory(b.id);
+            if (story) merged = merged.concat(galleryEntriesForStory(story));
+          } catch (e) { /* skip this book */ }
+          this.gallerySyncDone++;
+          setGalleryIndex(merged);
+          this.galleryVersion++;
+          await this.loadGalleryThumbs();
+        }
+      } finally { this.gallerySyncing = false; }
+    },
+
+    // A thumbnail 404'd (never generated, or cleaned up) — quietly fall back to
+    // the full-size image so the grid never shows a broken picture.
+    async onGalleryThumbError(entry, ev) {
+      const img = ev && ev.target;
+      if (!img || img.dataset.fellBack) return;
+      img.dataset.fellBack = '1';
+      try {
+        const urls = await signImageUrlsFor([entry.i]);
+        if (urls[entry.i]) img.src = urls[entry.i];
+      } catch (e) { /* leave the placeholder */ }
     },
     closeGallery() {
       this.showGallery = false;
@@ -946,13 +1016,13 @@ createApp({
           const story = cached || await fetchFullStory(b.id);
           if (story) {
             const entries = galleryEntriesForStory(story);
-            const ids = entries.map(e => e.i);
-            const have = await whichThumbsExist(ids);
+            // Carry over "thumbnail already made" marks from a previous run so
+            // this is genuinely resumable and never redoes finished work.
+            const prev = new Map((byStory.get(story.id) || []).map(e => [e.i, e.k]));
             for (const e of entries) {
               if (this.backfillStop) break;
-              if (!have.has(e.i)) {
-                if (await ensureImageThumb(e.i)) this.backfillImages++;
-              }
+              if (prev.get(e.i)) { e.k = 1; continue; }
+              if (await ensureImageThumb(e.i)) { e.k = 1; this.backfillImages++; }
             }
             byStory.set(story.id, entries);
           }
@@ -1561,6 +1631,12 @@ createApp({
           // Draw the remaining pages in the BACKGROUND, several at a time,
           // so they stream in while you start reading.
           await this.generateRemainingImages(storyData, mode);
+
+          // Gallery: index this story and build its thumbnails in the BACKGROUND
+          // while the book is being read, so new stories just show up in the
+          // gallery with no button to press. Deliberately not awaited.
+          this.indexStoryForGallery(storyData, true)
+            .catch(e => console.warn('Gallery index (new story) failed:', e));
         }
 
         // After all images: mark characters confirmed_safe if no fallback was triggered

@@ -385,18 +385,14 @@ const GALLERY_THUMB_PX = 384;
 
 function imageThumbId(imageId) { return imageId ? imageId + '_t' : null; }
 
-// Which of these images already have a cloud thumbnail? Cheap existence check:
-// /img/sign simply omits ids that don't exist in storage.
-async function whichThumbsExist(imageIds) {
-  const pw = getStoredPassword();
-  const have = new Set();
-  if (!pw || !imageIds || !imageIds.length) return have;
-  try {
-    const urls = (await imgSignUrls(imageIds.map(imageThumbId), pw)).urls || {};
-    imageIds.forEach((id) => { if (urls[imageThumbId(id)]) have.add(id); });
-  } catch (e) { /* treat as "none known" — worst case we regenerate */ }
-  return have;
-}
+// NOTE (v1.1.1): there is deliberately no "does this thumbnail exist?" call.
+// /img/sign is purely computational — it HMAC-signs whatever id you hand it and
+// never touches storage — so asking it about a missing thumbnail still returns a
+// URL. v1.1.0 used that as an existence check, concluded every thumbnail already
+// existed, and skipped generating all of them (the backfill "finished" in
+// seconds and the grid 404'd). Instead each index entry carries `k: 1` once its
+// thumbnail has actually been written, and the grid falls back to the full image
+// if a thumbnail is ever missing.
 
 // Make + upload one image's thumbnail. Uses the on-device copy when there is
 // one; otherwise streams the full image just long enough to downscale it (we

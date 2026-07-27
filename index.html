@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.0" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.0" />
-  <link rel="manifest" href="manifest.json?v=1.1.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.1" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.1" />
+  <link rel="manifest" href="manifest.json?v=1.1.1" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.0" />
-  <link rel="stylesheet" href="css/style.css?v=1.1.0" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.1" />
+  <link rel="stylesheet" href="css/style.css?v=1.1.1" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.0" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.1" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1028,38 +1028,15 @@
 
             <div class="settings-row"><span>Books</span><strong>{{ libraryBooks.length }}</strong></div>
             <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
-            <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? (cloudUsage.r2Count + ' (R2) / ' + cloudUsage.sbCount + ' (SB)') : '…' }}</strong></div>
-            <div v-if="cloudUsage.loaded && cloudUsage.unmigrated > 0" class="settings-row settings-subnote"><span>Still only in Supabase</span><strong>{{ cloudUsage.unmigrated }}</strong></div>
-            <div class="settings-row"><span>Cloud image storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
+            <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? cloudUsage.r2Count : '…' }}</strong></div>
+            <div class="settings-row"><span>Cloud storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: cloudUsagePercent + '%' }"></div></div>
             <div class="settings-row" style="margin-top: 0.7rem;"><span>Cached on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
             <p class="settings-fine-print">Clearing the device cache is safe — your books live in the cloud and re-download when opened.</p>
             <div class="settings-row-actions">
               <button @click="openManageBooks" class="btn-secondary btn-small">🗑 Manage / Delete Books</button>
               <button @click="handleClearImages" class="btn-secondary btn-small">Clear Offline Cache</button>
-              <button @click="handleUpdateSummaries" :disabled="summaryUpdating" class="btn-secondary btn-small">{{ summaryUpdating ? 'Updating…' : '✨ Update All Summaries' }}</button>
             </div>
-            <p v-if="summaryProgress" class="settings-fine-print" style="color: var(--accent);">{{ summaryProgress }}</p>
-            <p class="settings-fine-print">Deleting books lives here (not on the book page) so it can't happen by accident.</p>
-
-            <!-- One-time gallery setup: builds thumbnails + the search index, and
-                 pulls any stragglers out of Supabase into R2 as a side effect. -->
-            <div class="settings-sub">Gallery setup</div>
-            <p class="settings-fine-print">Makes a small thumbnail for every picture so the gallery loads fast, and indexes them so you can search by what's in the picture. Downloads each image once — best run on wifi. You can stop and continue any time.</p>
-            <div class="settings-row-actions">
-              <button v-if="!backfillRunning" @click="runGalleryBackfill" class="btn-secondary btn-small">🖼️ Prepare gallery</button>
-              <button v-else @click="stopGalleryBackfill" class="btn-secondary btn-small">■ Stop</button>
-            </div>
-            <p v-if="backfillRunning || backfillDone" class="settings-fine-print" style="color: var(--accent);">
-              {{ backfillRunning ? 'Preparing' : 'Done' }} — book {{ backfillDone }} / {{ backfillTotal }}<template v-if="backfillImages"> · {{ backfillImages }} thumbnails made</template><template v-if="backfillLabel"> · {{ backfillLabel }}</template>
-            </p>
-
-            <div class="settings-sub">Move remaining images to R2</div>
-            <p class="settings-fine-print">Copies any pictures still living only in Supabase over to R2. Copy only — nothing is deleted, so the originals stay as a backup.</p>
-            <div class="settings-row-actions">
-              <button @click="runR2Migration" :disabled="migrateRunning" class="btn-secondary btn-small">{{ migrateRunning ? 'Copying…' : '☁️ Copy to R2' }}</button>
-            </div>
-            <p v-if="migrateMsg" class="settings-fine-print" style="color: var(--accent);">{{ migrateMsg }}</p>
           </div>
 
           <div class="settings-section" v-if="libraryBooks.length">
@@ -1168,6 +1145,20 @@
             <div class="settings-row-actions">
               <button @click="resetGenTimings" class="btn-secondary btn-tiny">Reset timing data</button>
             </div>
+
+            <div class="settings-sub">Maintenance</div>
+            <div class="settings-row-actions">
+              <button v-if="!backfillRunning" @click="runGalleryBackfill" class="btn-secondary btn-small">🖼️ Rebuild gallery thumbnails</button>
+              <button v-else @click="stopGalleryBackfill" class="btn-secondary btn-small">■ Stop</button>
+              <button @click="runR2Migration" :disabled="migrateRunning" class="btn-secondary btn-small">{{ migrateRunning ? 'Copying…' : '☁️ Copy stragglers to R2' }}</button>
+              <button @click="handleUpdateSummaries" :disabled="summaryUpdating" class="btn-secondary btn-small">{{ summaryUpdating ? 'Updating…' : '✨ Update All Summaries' }}</button>
+            </div>
+            <p v-if="backfillRunning || backfillDone" class="settings-fine-print" style="color: var(--accent);">
+              {{ backfillRunning ? 'Rebuilding' : 'Done' }} — book {{ backfillDone }} / {{ backfillTotal }}<template v-if="backfillImages"> · {{ backfillImages }} thumbnails</template>
+            </p>
+            <p v-if="migrateMsg" class="settings-fine-print" style="color: var(--accent);">{{ migrateMsg }}</p>
+            <p v-if="summaryProgress" class="settings-fine-print" style="color: var(--accent);">{{ summaryProgress }}</p>
+            <p class="settings-fine-print">New stories index themselves automatically — these are only for repairs.</p>
 
             <div class="settings-row-actions" style="margin-top: 0.8rem;">
               <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
@@ -1312,7 +1303,10 @@
         </div>
 
         <div v-else class="gallery-scroll">
-          <p class="gallery-count">{{ galleryCount }} picture{{ galleryCount === 1 ? '' : 's' }}</p>
+          <p class="gallery-count">
+            {{ galleryCount }} picture{{ galleryCount === 1 ? '' : 's' }}
+            <span v-if="gallerySyncing" class="gallery-syncing">· adding {{ gallerySyncDone }}/{{ gallerySyncTotal }} more books…</span>
+          </p>
           <div v-for="g in galleryGroups" :key="'gg-'+g.key" class="gallery-group">
             <div class="gallery-group-head">
               <span class="ggh-title">{{ g.label }}</span>
@@ -1321,7 +1315,7 @@
             </div>
             <div class="gallery-grid">
               <button v-for="e in g.items" :key="g.key + '-' + e.i" class="gallery-cell" @click="openGalleryImage(e)">
-                <img v-if="galleryThumb(e)" :src="galleryThumb(e)" :alt="e.t" loading="lazy" draggable="false" />
+                <img v-if="galleryThumb(e)" :src="galleryThumb(e)" :alt="e.t" loading="lazy" draggable="false" @error="onGalleryThumbError(e, $event)" />
                 <span v-else class="gallery-cell-ph">🖼️</span>
                 <span v-if="e.p === 0" class="gallery-cell-badge">Cover</span>
               </button>
@@ -1364,17 +1358,17 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.1.0"></script>
-  <script src="vendor/cropper.min.js?v=1.1.0"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.1.0"></script>
-  <script src="vendor/gsap.min.js?v=1.1.0"></script>
-  <script src="js/storage.js?v=1.1.0"></script>
-  <script src="js/imageStorage.js?v=1.1.0"></script>
-  <script src="js/api.js?v=1.1.0"></script>
-  <script src="js/sync.js?v=1.1.0"></script>
-  <script src="js/pageShadow.js?v=1.1.0"></script>
-  <script src="js/pageCurl.js?v=1.1.0"></script>
-  <script src="js/app.js?v=1.1.0"></script>
+  <script src="vendor/vue.global.js?v=1.1.1"></script>
+  <script src="vendor/cropper.min.js?v=1.1.1"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.1.1"></script>
+  <script src="vendor/gsap.min.js?v=1.1.1"></script>
+  <script src="js/storage.js?v=1.1.1"></script>
+  <script src="js/imageStorage.js?v=1.1.1"></script>
+  <script src="js/api.js?v=1.1.1"></script>
+  <script src="js/sync.js?v=1.1.1"></script>
+  <script src="js/pageShadow.js?v=1.1.1"></script>
+  <script src="js/pageCurl.js?v=1.1.1"></script>
+  <script src="js/app.js?v=1.1.1"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
