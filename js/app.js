@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.8',
+      version: 'v1.1.0',
       buildDate: '2026-07-27',
 
       showSplash: true,
@@ -163,6 +163,30 @@ createApp({
       libraryBooks: [],          // metadata rows from the cloud
       libraryLoading: false,
       libraryError: '',          // why the cloud library couldn't load (shown on the shelf)
+
+      // ---- Picture Gallery (v1.1) ----
+      showGallery: false,
+      gallerySearch: '',
+      galleryShowFilters: false,
+      gallerySort: 'story',      // 'story' | 'style' | 'character'
+      galleryCharFilter: '',     // character name to narrow to ('' = all)
+      galleryStyleFilter: '',    // art-style value to narrow to ('' = all)
+      galleryUrls: {},           // imageId -> signed thumbnail URL
+      galleryVersion: 0,         // bump to recompute from the stored index
+      galleryLightbox: null,     // { entry, idx } while an image is enlarged
+      galleryFullUrl: '',        // signed FULL-size URL for the lightbox
+      // backfill (builds thumbnails + the searchable index, and migrates to R2)
+      backfillRunning: false,
+      backfillStop: false,
+      backfillDone: 0,
+      backfillTotal: 0,
+      backfillLabel: '',
+      backfillImages: 0,
+      // Supabase -> R2 sweep
+      migrateRunning: false,
+      migrateCopied: 0,
+      migrateRemaining: null,
+      migrateMsg: '',
       isStandalone: false,       // launched from a Home Screen icon (full-screen viewport)
       refreshingLibrary: false,
       pullDistance: 0,           // pull-to-refresh
@@ -430,6 +454,67 @@ createApp({
     // Story-breakdown bar rows (Settings), sorted by count desc
     genreBreakdown() { return this._breakdownRows(this._genreCounts, this.genresRaw); },
     artBreakdown()   { return this._breakdownRows(this._artCounts, this.artStylesRaw); },
+    // ---- Picture Gallery ------------------------------------------------
+    // Every indexed image, newest story first. The index is built by the
+    // Settings backfill (see runGalleryBackfill).
+    galleryAll() {
+      this.galleryVersion;   // reactive dependency
+      const rows = getGalleryIndex();
+      return rows.slice().sort((a, b) => {
+        const d = String(b.d || '').localeCompare(String(a.d || ''));
+        return d !== 0 ? d : (a.p || 0) - (b.p || 0);
+      });
+    },
+    // Search matches title, characters, art style, genre AND the image's own
+    // scene prompt — so "volcano", "pizza" or "Nozomi" all find pictures.
+    galleryFiltered() {
+      const q = this.gallerySearch.trim().toLowerCase();
+      const styleLabel = (v) => { const s = this.artStylesRaw.find(x => x.value === v); return s ? s.label : v; };
+      const genreLabel = (v) => { const g = this.genresRaw.find(x => x.value === v); return g ? g.label : v; };
+      return this.galleryAll.filter((e) => {
+        if (this.galleryStyleFilter && e.a !== this.galleryStyleFilter) return false;
+        if (this.galleryCharFilter && !String(e.c || '').toLowerCase().includes(this.galleryCharFilter.toLowerCase())) return false;
+        if (!q) return true;
+        const hay = [e.t, e.c, e.q, styleLabel(e.a), genreLabel(e.g)].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    },
+    // Grouped for display. 'story' = one section per book (newest first);
+    // 'style' / 'character' regroup the same pictures under those headings.
+    galleryGroups() {
+      const groups = new Map();
+      const push = (key, label, sub, entry) => {
+        if (!groups.has(key)) groups.set(key, { key, label, sub, items: [] });
+        groups.get(key).items.push(entry);
+      };
+      const styleLabel = (v) => { const s = this.artStylesRaw.find(x => x.value === v); return s ? (s.emoji + ' ' + s.label) : (v || 'Unknown style'); };
+      for (const e of this.galleryFiltered) {
+        if (this.gallerySort === 'style') push(e.a || 'unknown', styleLabel(e.a), '', e);
+        else if (this.gallerySort === 'character') {
+          const names = String(e.c || '').split(',').map(s => s.trim()).filter(Boolean);
+          if (!names.length) push('_none', 'No characters', '', e);
+          else names.forEach(n => push('c:' + n, n, '', e));
+        } else push(e.s, e.t, this.formatGalleryDate(e.d), e);
+      }
+      return [...groups.values()];
+    },
+    galleryCount() { return this.galleryFiltered.length; },
+    galleryStyleOptions() {
+      const seen = new Map();
+      this.galleryAll.forEach(e => { if (e.a) seen.set(e.a, (seen.get(e.a) || 0) + 1); });
+      return [...seen.entries()].map(([value, count]) => {
+        const s = this.artStylesRaw.find(x => x.value === value);
+        return { value, count, label: s ? s.label : value, emoji: s ? s.emoji : '🎨' };
+      }).sort((a, b) => b.count - a.count);
+    },
+    galleryCharOptions() {
+      const seen = new Map();
+      this.galleryAll.forEach(e => String(e.c || '').split(',').map(s => s.trim()).filter(Boolean)
+        .forEach(n => seen.set(n, (seen.get(n) || 0) + 1)));
+      return [...seen.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+    },
+    galleryAnyFilter() { return !!(this.galleryStyleFilter || this.galleryCharFilter || this.gallerySort !== 'story'); },
+
     // Measured generation times per length (Developer readout for the estimate calibrator)
     genTimingRows() {
       this.genTimingVersion;   // reactive dependency (bumped on record/reset)
@@ -745,6 +830,171 @@ createApp({
       this.showSettings = false;
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
+
+    // ================= PICTURE GALLERY (v1.1) =================
+    async openGallery() {
+      this.showGallery = true;
+      this.showSettings = false;
+      this.galleryVersion++;
+      await this.loadGalleryThumbs();
+    },
+    closeGallery() {
+      this.showGallery = false;
+      this.galleryLightbox = null;
+      this.showSettings = true;   // came from Settings — go back there
+    },
+    // Sign thumbnail URLs for what's on screen (batched; R2 egress is free, so
+    // this is about speed, not cost). Skips ones we already have.
+    async loadGalleryThumbs() {
+      const need = this.galleryFiltered.map(e => e.i).filter(id => id && !this.galleryUrls[id]);
+      if (!need.length) return;
+      for (let i = 0; i < need.length; i += 200) {
+        const urls = await signThumbUrls(need.slice(i, i + 200));
+        this.galleryUrls = Object.assign({}, this.galleryUrls, urls);
+      }
+    },
+    galleryThumb(entry) { return this.galleryUrls[entry.i] || ''; },
+    formatGalleryDate(d) {
+      if (!d) return '';
+      const dt = new Date(d);
+      if (isNaN(dt)) return '';
+      return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+    galleryPageLabel(e) { return (e.p === 0) ? 'Cover' : ('Page ' + e.p + (e.n ? ' of ' + e.n : '')); },
+    galleryStyleLabel(v) { const s = this.artStylesRaw.find(x => x.value === v); return s ? (s.emoji + ' ' + s.label) : (v || '—'); },
+    galleryGenreLabel(v) { const g = this.genresRaw.find(x => x.value === v); return g ? (g.emoji + ' ' + g.label) : (v || '—'); },
+    clearGalleryFilters() {
+      this.gallerySort = 'story'; this.galleryStyleFilter = ''; this.galleryCharFilter = '';
+    },
+
+    // ---- lightbox ----
+    async openGalleryImage(entry) {
+      const flat = this.galleryFiltered;
+      const idx = flat.findIndex(e => e.i === entry.i);
+      this.galleryLightbox = { entry, idx: idx < 0 ? 0 : idx };
+      this.galleryFullUrl = this.galleryUrls[entry.i] || '';   // show the thumb instantly
+      await this.loadGalleryFull(entry);
+    },
+    async loadGalleryFull(entry) {
+      // Prefer an on-device copy; otherwise sign the full-size image.
+      try {
+        const local = this.getImageURL(entry.i);
+        if (local) { this.galleryFullUrl = local; return; }
+      } catch (e) { /* fall through */ }
+      try {
+        const urls = await signImageUrlsFor([entry.i]);
+        if (urls[entry.i] && this.galleryLightbox && this.galleryLightbox.entry.i === entry.i) {
+          this.galleryFullUrl = urls[entry.i];
+        }
+      } catch (e) { /* keep the thumbnail */ }
+    },
+    closeGalleryImage() { this.galleryLightbox = null; this.galleryFullUrl = ''; },
+    async stepGalleryImage(delta) {
+      if (!this.galleryLightbox) return;
+      const flat = this.galleryFiltered;
+      let i = this.galleryLightbox.idx + delta;
+      if (i < 0) i = flat.length - 1;
+      if (i >= flat.length) i = 0;
+      const entry = flat[i];
+      if (!entry) return;
+      this.galleryLightbox = { entry, idx: i };
+      this.galleryFullUrl = this.galleryUrls[entry.i] || '';
+      await this.loadGalleryFull(entry);
+    },
+    galleryTouchStart(e) {
+      const t = e.touches && e.touches[0];
+      this._glx = t ? t.clientX : 0; this._gly = t ? t.clientY : 0; this._glMoved = false;
+    },
+    galleryTouchEnd(e) {
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - (this._glx || 0), dy = t.clientY - (this._gly || 0);
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) this.stepGalleryImage(dx < 0 ? 1 : -1);
+    },
+    // Jump from a picture into its story (same path the "appears in" popup uses)
+    openGalleryStory(entry) {
+      const book = (this.libraryBooks || []).find(b => b.id === entry.s);
+      this.closeGalleryImage();
+      this.showGallery = false;
+      this.showSettings = false;
+      if (book) this.openBookMorph(book, null);
+      else this.error = 'That story is no longer in your library.';
+    },
+
+    // ---- one-time backfill: thumbnails + search index (+ R2 migration) ----
+    async runGalleryBackfill() {
+      if (this.backfillRunning) return;
+      this.backfillRunning = true;
+      this.backfillStop = false;
+      this.backfillImages = 0;
+      const books = this.libraryBooks.slice();
+      this.backfillTotal = books.length;
+      this.backfillDone = 0;
+
+      // Keep whatever's already indexed so a re-run resumes rather than restarts
+      const byStory = new Map();
+      getGalleryIndex().forEach((e) => {
+        if (!byStory.has(e.s)) byStory.set(e.s, []);
+        byStory.get(e.s).push(e);
+      });
+
+      for (const b of books) {
+        if (this.backfillStop) break;
+        this.backfillLabel = b.title || '';
+        try {
+          const cached = getStoredStories().find(s => s.id === b.id);
+          const story = cached || await fetchFullStory(b.id);
+          if (story) {
+            const entries = galleryEntriesForStory(story);
+            const ids = entries.map(e => e.i);
+            const have = await whichThumbsExist(ids);
+            for (const e of entries) {
+              if (this.backfillStop) break;
+              if (!have.has(e.i)) {
+                if (await ensureImageThumb(e.i)) this.backfillImages++;
+              }
+            }
+            byStory.set(story.id, entries);
+          }
+        } catch (err) { console.warn('Backfill failed for', b.id, err); }
+        this.backfillDone++;
+        // persist after every book so stopping loses nothing
+        const merged = [];
+        byStory.forEach(v => merged.push(...v));
+        setGalleryIndex(merged);
+        this.galleryVersion++;
+      }
+      this.backfillRunning = false;
+      this.backfillLabel = '';
+      this.refreshImageStats();
+      this.fetchCloudUsage();
+    },
+    stopGalleryBackfill() { this.backfillStop = true; },
+
+    // ---- Supabase -> R2 sweep (copy only; nothing is deleted) ----
+    async runR2Migration() {
+      if (this.migrateRunning) return;
+      this.migrateRunning = true;
+      this.migrateCopied = 0;
+      this.migrateMsg = 'Starting…';
+      try {
+        for (let pass = 0; pass < 500; pass++) {
+          const res = await imgMigrateBatch(30, getStoredPassword());
+          this.migrateCopied += (res.copied || 0);
+          this.migrateRemaining = res.remaining;
+          this.migrateMsg = res.done
+            ? 'All images are in R2 ✓'
+            : `Copied ${this.migrateCopied}… ${res.remaining} to go`;
+          if (res.done || (!res.copied && !res.remaining)) break;
+          if (!res.copied) { this.migrateMsg = `Stopped — ${res.failed || 0} could not be copied.`; break; }
+        }
+      } catch (e) {
+        this.migrateMsg = (e && e.message) ? e.message : 'Migration failed.';
+      } finally {
+        this.migrateRunning = false;
+        this.fetchCloudUsage();
+      }
+    },
 
     // ---- Loading-screen catch-the-stars game ----
     // Sparse, calm: at most a few stars falling at once, spawned into the
@@ -3843,7 +4093,7 @@ createApp({
     updateBodyScroll() {
       const anyOpen = this.showSettings || this.showCharactersModal ||
         this.copyrightModal || this.warningModal || this.inspectingImage ||
-        this.showQuiz || this.bookDetail;
+        this.showQuiz || this.bookDetail || this.showGallery || this.galleryLightbox;
       document.body.style.overflow = anyOpen ? 'hidden' : '';
     },
 
@@ -3871,6 +4121,8 @@ createApp({
     warningModal() { this.updateBodyScroll(); },
     inspectingImage() { this.updateBodyScroll(); },
     showQuiz() { this.updateBodyScroll(); },
+    showGallery() { this.updateBodyScroll(); },
+    galleryLightbox() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },
     view(v) {

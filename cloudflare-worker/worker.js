@@ -1,6 +1,12 @@
 // =====================================================================
-//  ███  WORKER REV: v0.12.7  (2026-07-10)  ███  (added character_ids to the library select)
-//  Changes since last deploy: SHARE-A-STORY + dual (R2/Supabase) usage count.
+//  ███  WORKER REV: v1.1.0  (2026-07-27)  ███  (adds /img/migrate for the Supabase→R2 sweep)
+//  Changes since last deploy: NEW POST /img/migrate — copies images that still
+//    live only in Supabase Storage into R2, a BATCH at a time (Workers cap how
+//    many subrequests one request may make, so the client calls this in a loop
+//    and shows progress). Body: { limit? } → { ok, copied, failed, remaining,
+//    done }. It only ever COPIES — nothing is deleted from Supabase, so the
+//    originals stay as a backup until a separate, deliberate sweep later.
+//  Previously: SHARE-A-STORY + dual (R2/Supabase) usage count.
 //    - NEW public GET /share/<slug>-<token>  → serves the reader in "share mode"
 //      (a standalone, password-free reading page with OG link-preview tags).
 //    - NEW public GET /share-data/<token>    → story JSON + freshly signed image
@@ -113,6 +119,7 @@ export default {
       if (path === '/img/sign')   return await imgSign(env, body, reqUrl);
       if (path === '/img/delete') return await imgDelete(env, body);
       if (path === '/img/usage')  return await imgUsage(env);
+      if (path === '/img/migrate') return await imgMigrate(env, body);
 
       // ---- Supabase: API-spend ledger (cross-device) ----
       if (path === '/spend/add')  return await spendAdd(env, body);
@@ -362,6 +369,76 @@ async function imgUsage(env) {
     r2Count: r2Ids.size,
     sbCount: sbIds.size,
     unmigrated,
+  });
+}
+
+// ---------------------------------------------------------------------
+// POST /img/migrate — finish the Supabase → R2 move, a batch at a time.
+// ---------------------------------------------------------------------
+// Images normally migrate lazily: /img/get pulls from Supabase on an R2 miss and
+// write-throughs the copy. That only ever reaches pictures somebody actually
+// looks at, so books nobody has opened in months never move. This copies the
+// stragglers deliberately.
+//
+// Batched on purpose: a Worker request may only make so many subrequests, and
+// each image costs a GET (Supabase) + a PUT (R2). The client calls this in a
+// loop with the returned `remaining` until `done` is true.
+//
+// COPY ONLY — nothing is removed from Supabase here. Deleting is a separate,
+// later decision once the count has read zero for a while.
+async function imgMigrate(env, body) {
+  const limit = Math.min(Math.max(parseInt((body && body.limit) || 20, 10) || 20, 1), 40);
+
+  // Everything already in R2 (so we can skip it)
+  const r2Ids = new Set();
+  let cursor;
+  for (let i = 0; i < 100; i++) {
+    const list = await env.IMAGES.list({ limit: 1000, cursor });
+    for (const o of list.objects) r2Ids.add(o.key);
+    if (!list.truncated) break;
+    cursor = list.cursor;
+  }
+
+  // Walk Supabase Storage and collect the ones R2 doesn't have yet
+  const pending = [];
+  for (let offset = 0; offset < 100000; offset += 100) {
+    let page = [];
+    try {
+      const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/list/${IMAGE_BUCKET}`, {
+        method: 'POST',
+        headers: sbHeaders(env),
+        body: JSON.stringify({ limit: 100, offset, prefix: '', sortBy: { column: 'name', order: 'asc' } }),
+      });
+      if (res.ok) page = await res.json();
+    } catch (e) { /* best-effort */ }
+    if (!Array.isArray(page) || !page.length) break;
+    for (const o of page) { if (o && o.name && !r2Ids.has(o.name)) pending.push(o.name); }
+    if (page.length < 100) break;
+  }
+
+  // Copy this batch
+  const batch = pending.slice(0, limit);
+  let copied = 0, failed = 0;
+  for (const id of batch) {
+    try {
+      const res = await fetch(
+        `${env.SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${encodeURIComponent(id)}`,
+        { headers: sbHeaders(env) }
+      );
+      if (!res.ok) { failed++; continue; }
+      const ct = res.headers.get('content-type') || 'image/png';
+      const buf = await res.arrayBuffer();
+      await env.IMAGES.put(id, buf, { httpMetadata: { contentType: ct } });
+      copied++;
+    } catch (e) { failed++; }
+  }
+
+  const remaining = Math.max(0, pending.length - copied);
+  return jsonResponse({
+    ok: true,
+    copied, failed, remaining,
+    total: pending.length,
+    done: remaining === 0,
   });
 }
 

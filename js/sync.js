@@ -370,3 +370,106 @@ async function syncStampLastRead(story) {
   try { await dbUpsertStory(storyToRow(story), pw); }
   catch (e) { console.warn('last_read sync failed', e); }
 }
+
+// =====================================================================
+// GALLERY (v1.1) — thumbnails for EVERY image + a searchable index
+// =====================================================================
+// Covers already had thumbnails (<id>_t). The gallery needs the same for page
+// images, so a grid of hundreds of pictures stays fast and light. 384px keeps
+// them crisp on a Retina phone grid at ~15-25KB each.
+//
+// Generating a thumbnail downloads the full image once if it isn't on this
+// device — and that download goes through /img/get, which write-throughs the
+// image from Supabase into R2. So the backfill also finishes the migration.
+const GALLERY_THUMB_PX = 384;
+
+function imageThumbId(imageId) { return imageId ? imageId + '_t' : null; }
+
+// Which of these images already have a cloud thumbnail? Cheap existence check:
+// /img/sign simply omits ids that don't exist in storage.
+async function whichThumbsExist(imageIds) {
+  const pw = getStoredPassword();
+  const have = new Set();
+  if (!pw || !imageIds || !imageIds.length) return have;
+  try {
+    const urls = (await imgSignUrls(imageIds.map(imageThumbId), pw)).urls || {};
+    imageIds.forEach((id) => { if (urls[imageThumbId(id)]) have.add(id); });
+  } catch (e) { /* treat as "none known" — worst case we regenerate */ }
+  return have;
+}
+
+// Make + upload one image's thumbnail. Uses the on-device copy when there is
+// one; otherwise streams the full image just long enough to downscale it (we
+// deliberately DON'T cache the full blob — a whole-library backfill would
+// swamp the device cache).
+async function ensureImageThumb(imageId) {
+  const pw = getStoredPassword();
+  if (!imageId || !pw) return false;
+  try {
+    let blob = await getImageBlob(imageId);
+    if (!blob) {
+      const urls = (await imgSignUrls([imageId], pw)).urls || {};
+      if (!urls[imageId]) return false;
+      const res = await fetch(urls[imageId]);
+      if (!res.ok) return false;
+      blob = await res.blob();
+    }
+    const thumb = await downscaleToThumb(blob, GALLERY_THUMB_PX, 0.72);
+    await uploadImageBlob(imageThumbId(imageId), thumb);
+    return true;
+  } catch (e) { console.warn('Gallery thumb failed', imageId, e); return false; }
+}
+
+// Flatten one story into gallery index entries (one per image). Short keys —
+// this lives in localStorage and there can be hundreds of them.
+//   i image id · s story id · t title · p page (0 = cover) · n page count
+//   d created · a art style · g genre · c character names · q prompt (scene text)
+function galleryEntriesForStory(story) {
+  if (!story) return [];
+  const pages = story.pages || [];
+  const base = {
+    s: story.id,
+    t: story.title || 'Untitled',
+    d: story.createdAt || story.created_at || '',
+    a: story.art_style || '',
+    g: (story.formData && story.formData.genre) || '',
+    c: (story.selected_characters || []).map((c) => c && c.name).filter(Boolean).join(', '),
+  };
+  const out = [];
+  if (story.cover && story.cover.image_id) {
+    out.push(Object.assign({}, base, {
+      i: story.cover.image_id, p: 0, n: pages.length,
+      q: (story.cover.image_prompt || '').slice(0, 300),
+    }));
+  }
+  pages.forEach((pg) => {
+    if (pg && pg.image_id) {
+      out.push(Object.assign({}, base, {
+        i: pg.image_id, p: pg.page_number || 0, n: pages.length,
+        q: (pg.image_prompt || '').slice(0, 300),
+      }));
+    }
+  });
+  return out;
+}
+
+// Sign thumbnail URLs for a batch of image ids -> { imageId: url }
+async function signThumbUrls(imageIds) {
+  const pw = getStoredPassword();
+  const out = {};
+  if (!pw || !imageIds || !imageIds.length) return out;
+  const ids = imageIds.slice(0, 400);
+  let urls = {};
+  try { urls = (await imgSignUrls(ids.map(imageThumbId), pw)).urls || {}; }
+  catch (e) { return out; }
+  ids.forEach((id) => { const u = urls[imageThumbId(id)]; if (u) out[id] = u; });
+  return out;
+}
+
+// Sign FULL-size image URLs (used by the gallery lightbox) -> { id: url }
+async function signImageUrlsFor(imageIds) {
+  const pw = getStoredPassword();
+  if (!pw || !imageIds || !imageIds.length) return {};
+  try { return (await imgSignUrls(imageIds, pw)).urls || {}; }
+  catch (e) { return {}; }
+}

@@ -433,3 +433,19 @@ function getProblematicMatches(text) {
   const lower = text.toLowerCase();
   return POSSIBLY_PROBLEMATIC_KEYWORDS.filter(ip => lower.includes(ip));
 }
+
+// ---- Gallery index (v1.1) -------------------------------------------------
+// One compact entry per image (see galleryEntriesForStory in sync.js). Built by
+// the Settings backfill so the gallery can show and SEARCH the whole library —
+// including scene text from each image's prompt — without refetching stories.
+const GALLERY_INDEX_KEY = 'storytime_gallery_index';
+
+function getGalleryIndex() {
+  try { const a = JSON.parse(localStorage.getItem(GALLERY_INDEX_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch (e) { return []; }
+}
+function setGalleryIndex(entries) {
+  try { safeSetItem(GALLERY_INDEX_KEY, JSON.stringify(entries || [])); return true; }
+  catch (e) { console.warn('Gallery index too big to store', e); return false; }
+}
+function clearGalleryIndex() { try { localStorage.removeItem(GALLERY_INDEX_KEY); } catch (e) {} }

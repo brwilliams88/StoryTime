@@ -9,6 +9,16 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.1.0 - 2026-07-27 - Picture Gallery - Worker REV v1.1.0
+  • NEW: a Picture Gallery. Settings › Library & Storage has a big gold "🖼️ Picture Gallery" button that opens a full-screen wall of every picture you've ever made, grouped by story (newest first) with the date and a count on each heading, and a "Cover" badge on cover art.
+  • Tap any picture to fill the screen: the book title (tap it to jump straight into that story), whether it's the Cover or "Page 3 of 6", the date it was made, and the art style + genre. Swipe left/right — or use the arrows — to move through the pictures without closing.
+  • SEARCH FINDS WHAT'S IN THE PICTURE. Type "volcano", "pizza" or "unicorn" and it finds those images, because every picture is indexed by the scene description used to draw it — as well as by story title, character name, art style and genre.
+  • Filter and sort just like the library, using the same search bar and funnel button: group by Story, Art style, or Character, and narrow to one style or one character.
+  • NEW in Settings › Library & Storage: "🖼️ Prepare gallery" — a one-time, stoppable, resumable pass that makes a small thumbnail for every picture (so the gallery loads fast) and builds the search index. Best run on wifi. It shows live progress and you can stop and continue any time.
+  • NEW: "☁️ Copy to R2" finishes moving any pictures that still live only in Supabase. It COPIES only — nothing is deleted, so your originals stay put as a backup until you decide otherwise.
+  • REQUIRES the new worker.js (REV v1.1.0) — paste/deploy it in Cloudflare, otherwise "Copy to R2" won't work (everything else will).
+
+--------------------------
 v1.0.8 - 2026-07-27 - Lock in the book layout; tidy the end-page summary
   • Book layout settled. Mode 2 from the Layout Lab is now the permanent layout: in portrait the only blue band is behind the clock, the text page runs flush to the bottom edge, and landscape is fully edge to edge with the crease dead centre. The 📐 picker has been removed now that it's chosen.
   • FIXED the end-of-book page in landscape: the Dynamic Island was clipping the first characters of the story summary. That column now insets by the island's width on BOTH sides (whichever way you rotate), so the text clears it and stays balanced on the page.
