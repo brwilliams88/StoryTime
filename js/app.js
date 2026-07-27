@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.0.7',
+      version: 'v1.0.8',
       buildDate: '2026-07-27',
 
       showSplash: true,
@@ -164,8 +164,6 @@ createApp({
       libraryLoading: false,
       libraryError: '',          // why the cloud library couldn't load (shown on the shelf)
       isStandalone: false,       // launched from a Home Screen icon (full-screen viewport)
-      readerLab: '2',            // Layout Lab mode 1-5 (standalone book insets; persisted)
-      rlabOpen: false,           // 📐 picker panel expanded
       refreshingLibrary: false,
       pullDistance: 0,           // pull-to-refresh
       pullRefreshing: false,
@@ -573,11 +571,7 @@ createApp({
         (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
       this.isStandalone = !!standalone;
       document.body.classList.toggle('ios-standalone', this.isStandalone);
-      // Layout Lab: restore the picked book-inset mode (default 2 = clear the
-      // clock in portrait, full bleed everywhere else — the closest to pre-v1).
-      try { this.readerLab = localStorage.getItem('storytime_reader_lab') || '2'; } catch (e) {}
-      document.body.dataset.rlab = this.readerLab;
-      if (standalone) console.log('Running standalone — Layout Lab mode ' + this.readerLab);
+      if (standalone) console.log('Running standalone — safe-area reader layout enabled.');
     } catch (e) { /* ignore */ }
 
     // Wire the finger-following page-curl to the reader (snapshots + nav).
@@ -751,12 +745,6 @@ createApp({
       this.showSettings = false;
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
-    // Layout Lab: switch the standalone book-inset mode live (persisted per device)
-    setReaderLab(n) {
-      this.readerLab = String(n);
-      try { localStorage.setItem('storytime_reader_lab', this.readerLab); } catch (e) {}
-      document.body.dataset.rlab = this.readerLab;
-    },
 
     // ---- Loading-screen catch-the-stars game ----
     // Sparse, calm: at most a few stars falling at once, spawned into the

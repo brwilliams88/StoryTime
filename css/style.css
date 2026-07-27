@@ -1989,6 +1989,10 @@ body.reading-align-left .spread-text p { text-align: left; }
 .tb-summary {
   font-size: clamp(0.9rem, 2.4vmin, 1.06rem); line-height: 1.5; color: var(--ink);
   font-style: italic; margin: 0; max-width: 42ch;
+  /* justified (flush both edges) reads cleaner than centred here; the last line
+     stays left so it isn't stretched. .tb-info centres its children, so this
+     overrides that inheritance. */
+  text-align: justify; text-align-last: left;
   display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* labeled facts with small-caps labels (book-colophon feel) */
@@ -3534,38 +3538,25 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .char-menu-backdrop { position: fixed; inset: 0; z-index: 7; }
 
 /* =============================================================
-   READER LAYOUT LAB (v1.0.7) — standalone (Home Screen) launches only
+   STANDALONE (Home Screen) READER LAYOUT — locked in v1.0.8
    =============================================================
-   Standalone launches span the WHOLE physical screen (behind the Dynamic Island
-   and home indicator) — and note it's `manifest.json "display": "standalone"`
-   that causes this on modern iOS, not just the old apple-capable meta, so even
-   freshly re-added icons launch this way.
+   A Home Screen launch spans the WHOLE physical screen (manifest
+   `"display": "standalone"` — that's what does it on modern iOS, not the old
+   apple-capable meta), so the book would otherwise run under the Dynamic Island
+   and the home indicator.
 
-   Rather than guess the right inset treatment again, FIVE switchable modes are
-   driven by four CSS variables — how far the reader pulls in from each screen
-   edge. The page box, the floating controls, and the fixed crease all read the
-   SAME variables, so whichever mode is active, everything moves together:
-     --rt / --rb / --rl / --rr
-   The active mode is body[data-rlab], picked live in the reader via the 📐 chip
-   (persisted per device). Desktop / Safari-browser launches never get the
-   `.ios-standalone` class, so none of this applies there.
+   Chosen on-device from the v1.0.7 Layout Lab: PORTRAIT clears the clock at the
+   top only — bottom stays flush to the screen edge — and LANDSCAPE is fully edge
+   to edge with the crease dead centre.
 
-   Modes: 1 full bleed (pre-v1 exact, under the clock) · 2 clear the clock in
-   portrait only (bottom + landscape full bleed) · 3 clear clock + notch sides in
-   landscape · 4 portrait top+bottom bands · 5 all edges (the v1.0.5 fix).
+   Everything geometric reads these four variables (how far the reader pulls in
+   from each screen edge), so the page box, the fixed crease and the floating
+   controls can never drift apart:  --rt / --rb / --rl / --rr
+   Browser/desktop launches never get `.ios-standalone`, so none of this applies.
    ============================================================= */
-body.ios-standalone { --rt: 0px; --rb: 0px; --rl: 0px; --rr: 0px; }   /* mode 1 */
+body.ios-standalone { --rt: 0px; --rb: 0px; --rl: 0px; --rr: 0px; }
 @media (orientation: portrait) {
-  body.ios-standalone[data-rlab="2"],
-  body.ios-standalone[data-rlab="3"] { --rt: env(safe-area-inset-top, 0px); }
-  body.ios-standalone[data-rlab="4"],
-  body.ios-standalone[data-rlab="5"] { --rt: env(safe-area-inset-top, 0px); --rb: env(safe-area-inset-bottom, 0px); }
-  body.ios-standalone[data-rlab="5"] { --rl: env(safe-area-inset-left, 0px); --rr: env(safe-area-inset-right, 0px); }
-}
-@media (orientation: landscape) {
-  body.ios-standalone[data-rlab="3"],
-  body.ios-standalone[data-rlab="5"] { --rl: env(safe-area-inset-left, 0px); --rr: env(safe-area-inset-right, 0px); }
-  body.ios-standalone[data-rlab="5"] { --rt: env(safe-area-inset-top, 0px); --rb: env(safe-area-inset-bottom, 0px); }
+  body.ios-standalone { --rt: env(safe-area-inset-top, 0px); }
 }
 
 body.ios-standalone .app-main-reading {
@@ -3573,7 +3564,7 @@ body.ios-standalone .app-main-reading {
   box-sizing: border-box;
 }
 /* Floating controls: offset by (real inset − reader inset), so they clear the
-   island in full-bleed modes and don't double-shift in padded ones. */
+   island on full-bleed edges and don't double-shift on padded ones. */
 body.ios-standalone .reader-back {
   top: calc(env(safe-area-inset-top, 0px) - var(--rt) + 8px);
   left: calc(env(safe-area-inset-left, 0px) - var(--rl) + 8px);
@@ -3593,39 +3584,22 @@ body.ios-standalone .reader-about {
 body.ios-standalone .book-crease.portrait { top: calc(50% + (var(--rt) - var(--rb)) / 2); }
 body.ios-standalone .book-crease:not(.portrait) { left: calc(50% + (var(--rl) - var(--rr)) / 2); }
 
-/* The 📐 picker itself */
-.rlab {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 300;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
+/* End-of-book toolbox page, LANDSCAPE: the page runs edge to edge, so the
+   Dynamic Island sits over the outer edge of the colophon column and clipped the
+   first characters of the summary. Inset that column by the island width on BOTH
+   sides (whichever side iOS reports it on, so it's symmetric either rotation). */
+body.ios-standalone .toolbox-spread:not(.portrait) .tb-info {
+  --tb-island: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  padding-left: calc(clamp(0.9rem, 3vmin, 1.8rem) + var(--tb-island));
+  padding-right: calc(clamp(0.9rem, 3vmin, 1.8rem) + var(--tb-island));
 }
-.rlab-chip {
-  background: rgba(30,24,18,0.55); color: #fff; border: none; border-radius: 999px;
-  padding: 7px 14px; font-size: 0.82rem; font-weight: 700; font-family: inherit; cursor: pointer;
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-}
-.rlab-panel {
-  background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 14px;
-  padding: 10px; width: min(92vw, 340px); box-shadow: 0 12px 40px rgba(0,0,0,0.55);
-  display: flex; flex-direction: column; gap: 6px;
-}
-.rlab-title { font-size: 0.78rem; color: var(--text-dim); text-align: center; padding: 2px 0 4px; }
-.rlab-opt {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); color: var(--text-main);
-  font-family: inherit; padding: 8px 11px; border-radius: 10px; cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.rlab-opt strong { font-size: 0.88rem; }
-.rlab-opt span { font-size: 0.74rem; color: var(--text-dim); }
-.rlab-opt.on { border-color: var(--accent); background: rgba(234,169,63,0.15); }
-.rlab-opt.on strong { color: var(--accent); }
-/* Library: push the pull-to-refresh AND the toolbar clear of the Dynamic Island */
+
+/* Library: lift the search / filter / settings row clear of the Dynamic Island.
+   NOT the full inset — .app-main already adds 1rem on top of this, and trimming
+   26px sits the row just under the island (which ends ~48px down) rather than
+   well below it, so more of the shelf shows. */
 body.ios-standalone .library-view {
-  /* Not the full inset: .app-main already adds 1rem, and the full 59px sat the
-     search bar lower than the user wants. This lands it just under the clock. */
-  padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 14px));
+  padding-top: max(0px, calc(env(safe-area-inset-top, 0px) - 26px));
 }
 
 /* Library couldn't load — visible reason + retry, instead of a silent empty shelf */

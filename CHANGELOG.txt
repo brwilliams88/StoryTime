@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.8 - 2026-07-27 - Lock in the book layout; tidy the end-page summary
+  • Book layout settled. Mode 2 from the Layout Lab is now the permanent layout: in portrait the only blue band is behind the clock, the text page runs flush to the bottom edge, and landscape is fully edge to edge with the crease dead centre. The 📐 picker has been removed now that it's chosen.
+  • FIXED the end-of-book page in landscape: the Dynamic Island was clipping the first characters of the story summary. That column now insets by the island's width on BOTH sides (whichever way you rotate), so the text clears it and stays balanced on the page.
+  • The end-page summary is now justified — flush down both edges with the last line left — instead of centred, which reads much cleaner.
+  • Raised the library search / filter / settings row another 12px so it tucks just under the Dynamic Island, showing a bit more of the bookshelf.
+  • Desktop and browser launches remain untouched full-bleed (verified).
+
+--------------------------
 v1.0.7 - 2026-07-27 - Layout Lab: pick the book layout live on your phone
   • Found the last missing piece of the layout saga: manifest.json says "display": "standalone", and modern iOS honours that — so even a freshly re-added Home Screen icon STILL launches full-screen. That's why removing the old Apple meta (v1.0.4) changed nothing, and why your laptop looks perfect (desktop Chrome isn't standalone, so none of the standalone CSS applies there).
   • Instead of another single guess, the reader now has a 📐 Layout Lab: a small chip in the bottom corner of the book view (Home Screen launches only) opens five live-switchable layout modes — 1 Full screen (edge to edge, the pre-v1 look) · 2 Clear the clock (top band in portrait only; bottom and landscape full) · 3 Clear clock + notch sides · 4 Portrait bands both ends · 5 All edges (the previous fix). Tap through them mid-book until it looks right; your pick is remembered on the device.
