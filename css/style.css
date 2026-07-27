@@ -1198,7 +1198,9 @@ button:disabled {
 .btn-secondary {
   background: var(--bg-input);
   color: var(--text-main);
-  border: 1px solid var(--border-soft);
+  /* var(--border-soft) was almost invisible on the dark cards — these buttons
+     read as floating text. A gold-tinted edge keeps them clearly tappable. */
+  border: 1px solid rgba(234,169,63,0.34);
 }
 
 .btn-secondary:hover {
@@ -3732,3 +3734,14 @@ body.ios-standalone .gallery-view { padding-top: max(0.8rem, calc(env(safe-area-
   -webkit-touch-callout: none;
 }
 .loading-screen img { -webkit-user-drag: none; user-drag: none; }
+
+/* Settings buttons: uniform size + a readable edge, so a row of them looks like
+   one set of controls rather than assorted links. */
+.settings-row-actions .btn-secondary {
+  min-height: 40px; display: inline-flex; align-items: center; gap: 0.35rem;
+  border-color: rgba(234,169,63,0.38);
+}
+.settings-row-actions .btn-secondary:hover { border-color: var(--accent); background: #35356b; }
+
+/* Gallery: back arrow matches the search bar's height exactly */
+.gallery-bar .header-back-btn { width: 44px; height: 44px; }

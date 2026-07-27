@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.1" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.1" />
-  <link rel="manifest" href="manifest.json?v=1.1.1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.2" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.2" />
+  <link rel="manifest" href="manifest.json?v=1.1.2" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.1" />
-  <link rel="stylesheet" href="css/style.css?v=1.1.1" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.2" />
+  <link rel="stylesheet" href="css/style.css?v=1.1.2" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.1" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.2" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1002,18 +1002,6 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">Reading</div>
-            <label class="toggle-line">
-              <input type="checkbox" :checked="textAlignLeft" @change="toggleTextAlign" />
-              <span>Left-align story text <em class="toggle-note">(off = justified)</em></span>
-            </label>
-            <label class="toggle-line">
-              <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
-              <span>Show the ⓘ info button on pictures</span>
-            </label>
-          </div>
-
-          <div class="settings-section">
             <div class="settings-section-title">Library &amp; Storage</div>
 
             <!-- Picture Gallery: the headline action of this section -->
@@ -1035,7 +1023,7 @@
             <p class="settings-fine-print">Clearing the device cache is safe — your books live in the cloud and re-download when opened.</p>
             <div class="settings-row-actions">
               <button @click="openManageBooks" class="btn-secondary btn-small">🗑 Manage / Delete Books</button>
-              <button @click="handleClearImages" class="btn-secondary btn-small">Clear Offline Cache</button>
+              <button @click="handleClearImages" class="btn-secondary btn-small">🧹 Clear Offline Cache</button>
             </div>
           </div>
 
@@ -1107,87 +1095,79 @@
           </div>
 
           <div class="settings-section">
-            <div class="settings-section-title">Account</div>
+            <div class="settings-section-title">Account &amp; Services</div>
+            <div class="settings-row"><span>Sign-in</span><strong>{{ password ? 'Saved on this device' : 'Not saved' }}</strong></div>
+            <div class="settings-row"><span>Stories &amp; pictures</span><strong>OpenAI</strong></div>
+            <div class="settings-row"><span>Books &amp; characters</span><strong>Supabase</strong></div>
+            <div class="settings-row"><span>Images</span><strong>Cloudflare R2</strong></div>
+            <div class="settings-row settings-subnote"><span>API</span><strong>{{ workerHost }}</strong></div>
             <div class="settings-row-actions">
-              <button @click="resetPassword" class="btn-secondary btn-small">Reset Password</button>
+              <button @click="resetPassword" class="btn-secondary btn-small">🔑 Reset Password</button>
             </div>
           </div>
 
           <details class="settings-section settings-collapsible">
             <summary>Developer</summary>
 
-            <div class="settings-sub">Pictures for the next story</div>
+            <!-- Reading prefs live here: set once, rarely touched again -->
+            <div class="settings-sub">Reading</div>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="textAlignLeft" @change="toggleTextAlign" />
+              <span>Left-align story text <em class="toggle-note">(off = justified)</em></span>
+            </label>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="showInspect" @change="toggleShowInspect" />
+              <span>Show the ⓘ info button on pictures</span>
+            </label>
+            <label class="toggle-line">
+              <input type="checkbox" :checked="diagMode" @change="toggleDiagMode" />
+              <span>Diagnostics mode <em class="toggle-note">(in-app tuning panels)</em></span>
+            </label>
+
+            <div class="settings-sub">Next story</div>
             <div class="settings-segment settings-segment-stacked">
               <button :class="{ active: imageGenMode === 'all' }" @click="setImageGenMode('all')">Draw all the pictures</button>
               <button :class="{ active: imageGenMode === 'first-two' }" @click="setImageGenMode('first-two')">Just the cover + first page</button>
               <button :class="{ active: imageGenMode === 'skip' }" @click="setImageGenMode('skip')">No pictures (text only)</button>
             </div>
-            <p class="settings-fine-print">Fewer pictures means a faster, cheaper story. Resets to "Draw all" after one story.</p>
-
-            <label class="toggle-line">
-              <input type="checkbox" :checked="diagMode" @change="toggleDiagMode" />
-              <span>🧪 Diagnostics mode (in-app tuning tools)</span>
-            </label>
-            <p class="settings-fine-print">Surfaces build-time tuning panels — currently the cover-edge 🧪 panel in the reader.</p>
+            <p class="settings-fine-print">Resets to "Draw all" after one story.</p>
 
             <div class="settings-sub">Last generation</div>
-            <div class="settings-row"><span>Text cost</span><strong>{{ formatCostFriendly(currentTextCost) }}</strong></div>
-            <div class="settings-row"><span>Images cost</span><strong>{{ formatCostFriendly(currentImagesCost) }}</strong></div>
+            <div class="settings-row"><span>Text</span><strong>{{ formatCostFriendly(currentTextCost) }}</strong></div>
+            <div class="settings-row"><span>Images</span><strong>{{ formatCostFriendly(currentImagesCost) }}</strong></div>
             <div class="settings-row"><span>Total</span><strong>{{ formatCostFriendly(currentStoryCost) }}</strong></div>
             <div v-if="lastTokens" class="settings-row"><span>Tokens</span><strong>{{ lastTokens.prompt_tokens }} in + {{ lastTokens.completion_tokens }} out</strong></div>
 
-            <div class="settings-sub">Generation time (measured — calibrates the loading estimate)</div>
+            <div class="settings-sub">Generation time <em class="toggle-note">(calibrates the loading estimate)</em></div>
             <div v-for="r in genTimingRows" :key="'gt-'+r.key" class="settings-row">
               <span>{{ r.label }}</span>
-              <strong>{{ r.median ? '~' + r.median + 's' : '—' }} <span style="color: var(--text-dim); font-weight: 400;">({{ r.n }} sample{{ r.n === 1 ? '' : 's' }})</span></strong>
-            </div>
-            <p class="settings-fine-print">Shows the guessed estimate until 3+ real stories are timed at that length, then switches to the measured median. Skip-images stories aren't counted.</p>
-            <div class="settings-row-actions">
-              <button @click="resetGenTimings" class="btn-secondary btn-tiny">Reset timing data</button>
+              <strong>{{ r.median ? '~' + r.median + 's' : '—' }} <span style="color: var(--text-dim); font-weight: 400;">({{ r.n }})</span></strong>
             </div>
 
-            <div class="settings-sub">Maintenance</div>
+            <div class="settings-sub">Tools</div>
             <div class="settings-row-actions">
-              <button v-if="!backfillRunning" @click="runGalleryBackfill" class="btn-secondary btn-small">🖼️ Rebuild gallery thumbnails</button>
-              <button v-else @click="stopGalleryBackfill" class="btn-secondary btn-small">■ Stop</button>
-              <button @click="runR2Migration" :disabled="migrateRunning" class="btn-secondary btn-small">{{ migrateRunning ? 'Copying…' : '☁️ Copy stragglers to R2' }}</button>
-              <button @click="handleUpdateSummaries" :disabled="summaryUpdating" class="btn-secondary btn-small">{{ summaryUpdating ? 'Updating…' : '✨ Update All Summaries' }}</button>
+              <button @click="handleFakeStory" class="btn-secondary btn-small">🧪 Generate Fake Story</button>
+              <button @click="handleForceUpdate" class="btn-secondary btn-small">🔄 Refresh from Server</button>
+              <button v-if="!backfillRunning" @click="runGalleryBackfill" class="btn-secondary btn-small">🖼️ Rebuild Gallery Thumbnails</button>
+              <button v-else @click="stopGalleryBackfill" class="btn-secondary btn-small">■ Stop Rebuild</button>
+              <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused Images</button>
+              <button @click="resetGenTimings" class="btn-secondary btn-small">⏱ Reset Timing Data</button>
             </div>
             <p v-if="backfillRunning || backfillDone" class="settings-fine-print" style="color: var(--accent);">
               {{ backfillRunning ? 'Rebuilding' : 'Done' }} — book {{ backfillDone }} / {{ backfillTotal }}<template v-if="backfillImages"> · {{ backfillImages }} thumbnails</template>
             </p>
-            <p v-if="migrateMsg" class="settings-fine-print" style="color: var(--accent);">{{ migrateMsg }}</p>
-            <p v-if="summaryProgress" class="settings-fine-print" style="color: var(--accent);">{{ summaryProgress }}</p>
-            <p class="settings-fine-print">New stories index themselves automatically — these are only for repairs.</p>
 
-            <div class="settings-row-actions" style="margin-top: 0.8rem;">
-              <button @click="handleFakeStory" class="btn-secondary btn-small">Generate Fake Story</button>
-              <button @click="handleForceUpdate" class="btn-secondary btn-small">Refresh from Server</button>
-              <button @click="handleMigrateToCloud" :disabled="migrating" class="btn-secondary btn-small">{{ migrating ? 'Backing up…' : '☁️ Back Up Existing Data' }}</button>
-              <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused Images</button>
-            </div>
-            <p v-if="migrateProgress" class="settings-fine-print" style="color: var(--accent);">{{ migrateProgress }}</p>
-
-            <details v-if="selectedCharacters.length > 0" class="settings-sub-collapse">
-              <summary>Selected characters (for next story)</summary>
-              <div v-for="c in selectedCharacters" :key="c.id" class="debug-character">
-                <div><strong>{{ c.name }}</strong> — {{ roleLabel(getCharacterRole(c.id)) || 'no role' }}{{ c.tagline ? ' · ' + c.tagline : '' }}</div>
-                <pre class="debug-code">{{ c.visual_description }}</pre>
-              </div>
-            </details>
-
+            <div class="settings-sub">Debug output</div>
             <details v-if="lastPrompt" class="settings-sub-collapse">
               <summary>Prompt sent to GPT-4o</summary>
               <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
               <pre class="debug-code">{{ lastPrompt }}</pre>
             </details>
-
             <details v-if="lastRawResponse" class="settings-sub-collapse">
               <summary>Raw text response</summary>
               <button @click="copyToClipboard(JSON.stringify(lastRawResponse, null, 2))" class="btn-secondary btn-tiny">Copy</button>
               <pre class="debug-code">{{ JSON.stringify(lastRawResponse, null, 2) }}</pre>
             </details>
-
             <details v-if="currentStory && currentStory.style_anchor" class="settings-sub-collapse">
               <summary>Style anchor</summary>
               <pre class="debug-code">{{ currentStory.style_anchor }}</pre>
@@ -1358,17 +1338,17 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.1.1"></script>
-  <script src="vendor/cropper.min.js?v=1.1.1"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.1.1"></script>
-  <script src="vendor/gsap.min.js?v=1.1.1"></script>
-  <script src="js/storage.js?v=1.1.1"></script>
-  <script src="js/imageStorage.js?v=1.1.1"></script>
-  <script src="js/api.js?v=1.1.1"></script>
-  <script src="js/sync.js?v=1.1.1"></script>
-  <script src="js/pageShadow.js?v=1.1.1"></script>
-  <script src="js/pageCurl.js?v=1.1.1"></script>
-  <script src="js/app.js?v=1.1.1"></script>
+  <script src="vendor/vue.global.js?v=1.1.2"></script>
+  <script src="vendor/cropper.min.js?v=1.1.2"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.1.2"></script>
+  <script src="vendor/gsap.min.js?v=1.1.2"></script>
+  <script src="js/storage.js?v=1.1.2"></script>
+  <script src="js/imageStorage.js?v=1.1.2"></script>
+  <script src="js/api.js?v=1.1.2"></script>
+  <script src="js/sync.js?v=1.1.2"></script>
+  <script src="js/pageShadow.js?v=1.1.2"></script>
+  <script src="js/pageCurl.js?v=1.1.2"></script>
+  <script src="js/app.js?v=1.1.2"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

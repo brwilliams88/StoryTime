@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.1.2 - 2026-07-27 - Settings tidy-up
+  • Buttons are consistent everywhere — every action button now has an icon, they're all the same height, and their outlines are actually visible (the old borders were so faint the buttons read as plain text).
+  • Developer is reorganised into clear groups: Reading · Next story · Last generation · Generation time · Tools · Debug output. The two Reading toggles (left-align story text, show the ⓘ button on pictures) moved in here since they're set once and forgotten.
+  • Removed three buttons that had done their job and will never be needed again: "Back Up Existing Data" (the original one-time move to the cloud), "Update All Summaries" (a one-time backfill), and "Copy stragglers to R2" (the migration is finished). Also dropped the redundant selected-characters debug dump.
+  • Story Breakdown now labels retired art styles properly — old Pencil Sketch books show "✏️ Pencil Sketch (B&W) (retired)" instead of a generic book icon and a raw code word. Same in the gallery's style headings and filters.
+  • Account is now "Account & Services" and actually tells you something: whether your sign-in is saved, and which service does what (OpenAI for stories and pictures, Supabase for books and characters, Cloudflare R2 for images) plus the API address.
+  • Gallery: the back arrow is now exactly the same height as the search bar.
+
+--------------------------
 v1.1.1 - 2026-07-27 - Gallery keeps itself up to date; no more setup buttons
   • FIXED the missing page thumbnails. "Prepare gallery" finished suspiciously fast because its "does this thumbnail already exist?" check was broken — the signing endpoint hands back a URL for ANY id without checking storage, so it concluded everything was already done and made almost nothing. It now tracks each thumbnail as it's genuinely written. (Covers looked fine because their thumbnails came from the older cover system.)
   • The gallery now keeps ITSELF up to date. New stories index themselves and build their thumbnails quietly in the background while you're reading, and any device that opens the gallery quietly catches up on books it hasn't seen — so your phone, the laptop, and eventually Aya's phone all show the same gallery with nobody pressing a button. Books deleted elsewhere drop out too.

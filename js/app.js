@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.1.1',
+      version: 'v1.1.2',
       buildDate: '2026-07-27',
 
       showSplash: true,
@@ -301,6 +301,12 @@ createApp({
         { value: 'origami',          emoji: '🦢', label: 'Origami' },
         { value: 'candy-world',      emoji: '🍬', label: 'Candy World' },
       ],
+      // Styles that have been RETIRED from the picker. Old books still reference
+      // them, so keep their emoji + name here to label history correctly rather
+      // than falling back to a generic book icon and a raw slug.
+      retiredArtStyles: [
+        { value: 'pencil', emoji: '✏️', label: 'Pencil Sketch (B&W)' },
+      ],
       ingredientsRaw: [
         { value: 'funny',          emoji: '😄', label: 'Funny Moments' },
         { value: 'surprise',       emoji: '🎁', label: 'Surprise Twist' },
@@ -490,7 +496,7 @@ createApp({
         if (!groups.has(key)) groups.set(key, { key, label, sub, items: [] });
         groups.get(key).items.push(entry);
       };
-      const styleLabel = (v) => { const s = this.artStylesRaw.find(x => x.value === v); return s ? (s.emoji + ' ' + s.label) : (v || 'Unknown style'); };
+      const styleLabel = (v) => this.galleryStyleLabel(v);
       for (const e of this.galleryFiltered) {
         if (this.gallerySort === 'style') push(e.a || 'unknown', styleLabel(e.a), '', e);
         else if (this.gallerySort === 'character') {
@@ -502,12 +508,17 @@ createApp({
       return [...groups.values()];
     },
     galleryCount() { return this.galleryFiltered.length; },
+    // Which Cloudflare Worker this app talks to (shown under Account)
+    workerHost() { try { return new URL(getWorkerUrl()).host; } catch (e) { return '—'; } },
     galleryStyleOptions() {
       const seen = new Map();
       this.galleryAll.forEach(e => { if (e.a) seen.set(e.a, (seen.get(e.a) || 0) + 1); });
       return [...seen.entries()].map(([value, count]) => {
         const s = this.artStylesRaw.find(x => x.value === value);
-        return { value, count, label: s ? s.label : value, emoji: s ? s.emoji : '🎨' };
+        const gone = !s && (this.retiredArtStyles || []).find(x => x.value === value);
+        return { value, count,
+          label: s ? s.label : (gone ? gone.label + ' (retired)' : value),
+          emoji: s ? s.emoji : (gone ? gone.emoji : '🎨') };
       }).sort((a, b) => b.count - a.count);
     },
     galleryCharOptions() {
@@ -931,7 +942,13 @@ createApp({
       return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     },
     galleryPageLabel(e) { return (e.p === 0) ? 'Cover' : ('Page ' + e.p + (e.n ? ' of ' + e.n : '')); },
-    galleryStyleLabel(v) { const s = this.artStylesRaw.find(x => x.value === v); return s ? (s.emoji + ' ' + s.label) : (v || '—'); },
+    galleryStyleLabel(v) {
+      const s = this.artStylesRaw.find(x => x.value === v);
+      if (s) return s.emoji + ' ' + s.label;
+      const gone = (this.retiredArtStyles || []).find(x => x.value === v);
+      if (gone) return gone.emoji + ' ' + gone.label + ' (retired)';
+      return v || '—';
+    },
     galleryGenreLabel(v) { const g = this.genresRaw.find(x => x.value === v); return g ? (g.emoji + ' ' + g.label) : (v || '—'); },
     clearGalleryFilters() {
       this.gallerySort = 'story'; this.galleryStyleFilter = ''; this.galleryCharFilter = '';
@@ -3429,7 +3446,10 @@ createApp({
       const max = Math.max(...entries.map(([, n]) => n));
       return entries.map(([value, count]) => {
         const opt = (options || []).find(o => o.value === value);
-        return { value, count, pct: Math.round((count / max) * 100), emoji: opt ? opt.emoji : '📖', label: opt ? opt.label : value };
+        const gone = !opt && (this.retiredArtStyles || []).find(o => o.value === value);
+        const emoji = opt ? opt.emoji : (gone ? gone.emoji : '📖');
+        const label = opt ? opt.label : (gone ? gone.label + ' (retired)' : value);
+        return { value, count, pct: Math.round((count / max) * 100), emoji, label };
       }).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     },
     _countField(field) {
