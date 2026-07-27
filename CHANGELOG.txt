@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.0.7 - 2026-07-27 - Layout Lab: pick the book layout live on your phone
+  • Found the last missing piece of the layout saga: manifest.json says "display": "standalone", and modern iOS honours that — so even a freshly re-added Home Screen icon STILL launches full-screen. That's why removing the old Apple meta (v1.0.4) changed nothing, and why your laptop looks perfect (desktop Chrome isn't standalone, so none of the standalone CSS applies there).
+  • Instead of another single guess, the reader now has a 📐 Layout Lab: a small chip in the bottom corner of the book view (Home Screen launches only) opens five live-switchable layout modes — 1 Full screen (edge to edge, the pre-v1 look) · 2 Clear the clock (top band in portrait only; bottom and landscape full) · 3 Clear clock + notch sides · 4 Portrait bands both ends · 5 All edges (the previous fix). Tap through them mid-book until it looks right; your pick is remembered on the device.
+  • All five modes drive the pages, the centre crease, and the floating buttons from the same numbers, so nothing can drift apart between them again.
+  • Default is mode 2, which matches what you described: blue only behind the clock in portrait, text page to the bottom edge, landscape fully edge to edge.
+  • Desktop and Safari-browser launches are untouched (verified byte-identical full-bleed geometry, and the chip never appears there).
+  • Once you've picked the winner, tell Claude the number — it gets locked in as the only layout and the chip goes away.
+
+--------------------------
 v1.0.6 - 2026-07-25 - Show why the library won't load; raise the search bar
   • The library no longer fails silently. If your books can't be fetched, the shelf now shows a clear banner with the actual reason ("Wrong password…", "No password saved on this device yet.", a connection error, etc.) plus a "Try again" button — and a "Re-enter password" button when it's a password problem. Previously any failure looked identical to simply having no books, which made it impossible to tell what was wrong.
   • Raised the default resting position of the search / filter / settings bar on Home Screen installs by about 14px, so it sits just under the clock instead of lower down.

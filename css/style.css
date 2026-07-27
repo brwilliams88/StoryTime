@@ -3534,38 +3534,93 @@ body.share-page .story-spread:not(.portrait) > .spread-text {
 .char-menu-backdrop { position: fixed; inset: 0; z-index: 7; }
 
 /* =============================================================
-   iOS STANDALONE FALLBACK (v1.0.5)
+   READER LAYOUT LAB (v1.0.7) — standalone (Home Screen) launches only
    =============================================================
-   Only applies when the app is launched from a Home Screen icon that was added
-   while `apple-mobile-web-app-capable` was present (v1.0.0–v1.0.3). iOS bakes
-   that setting into the icon, so those installs keep launching standalone even
-   though the meta is gone — and a standalone launch makes the viewport cover the
-   WHOLE screen, behind the Dynamic Island and the home indicator. Since the book
-   fills the viewport, it gets cropped and the toolbar hides under the island.
+   Standalone launches span the WHOLE physical screen (behind the Dynamic Island
+   and home indicator) — and note it's `manifest.json "display": "standalone"`
+   that causes this on modern iOS, not just the old apple-capable meta, so even
+   freshly re-added icons launch this way.
 
-   The body only gets `.ios-standalone` in that case (set in app.js `mounted`), so
-   in the normal browser view — the intended, full-bleed, pre-v1 experience — not
-   one of these rules applies. Re-adding the Home Screen icon returns you to that.
+   Rather than guess the right inset treatment again, FIVE switchable modes are
+   driven by four CSS variables — how far the reader pulls in from each screen
+   edge. The page box, the floating controls, and the fixed crease all read the
+   SAME variables, so whichever mode is active, everything moves together:
+     --rt / --rb / --rl / --rr
+   The active mode is body[data-rlab], picked live in the reader via the 📐 chip
+   (persisted per device). Desktop / Safari-browser launches never get the
+   `.ios-standalone` class, so none of this applies there.
+
+   Modes: 1 full bleed (pre-v1 exact, under the clock) · 2 clear the clock in
+   portrait only (bottom + landscape full bleed) · 3 clear clock + notch sides in
+   landscape · 4 portrait top+bottom bands · 5 all edges (the v1.0.5 fix).
    ============================================================= */
+body.ios-standalone { --rt: 0px; --rb: 0px; --rl: 0px; --rr: 0px; }   /* mode 1 */
+@media (orientation: portrait) {
+  body.ios-standalone[data-rlab="2"],
+  body.ios-standalone[data-rlab="3"] { --rt: env(safe-area-inset-top, 0px); }
+  body.ios-standalone[data-rlab="4"],
+  body.ios-standalone[data-rlab="5"] { --rt: env(safe-area-inset-top, 0px); --rb: env(safe-area-inset-bottom, 0px); }
+  body.ios-standalone[data-rlab="5"] { --rl: env(safe-area-inset-left, 0px); --rr: env(safe-area-inset-right, 0px); }
+}
+@media (orientation: landscape) {
+  body.ios-standalone[data-rlab="3"],
+  body.ios-standalone[data-rlab="5"] { --rl: env(safe-area-inset-left, 0px); --rr: env(safe-area-inset-right, 0px); }
+  body.ios-standalone[data-rlab="5"] { --rt: env(safe-area-inset-top, 0px); --rb: env(safe-area-inset-bottom, 0px); }
+}
 
-/* Reader: lay the book out inside the visible area instead of the whole screen */
 body.ios-standalone .app-main-reading {
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  padding: var(--rt) var(--rr) var(--rb) var(--rl);
   box-sizing: border-box;
 }
-/* the floating controls sit inside that padded box now, so drop their own insets */
-body.ios-standalone .reader-back { top: 8px; left: 8px; }
-body.ios-standalone .reading-view:not(.portrait-mode) .reader-back { left: 2px; }
-body.ios-standalone .reader-pagenum { top: 10px; right: 8px; }
-body.ios-standalone .reader-about { top: 8px; right: 8px; }
-/* the crease is position:fixed (viewport-relative), so nudge it onto the seam */
-body.ios-standalone .book-crease.portrait {
-  top: calc(50% + (env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2);
+/* Floating controls: offset by (real inset − reader inset), so they clear the
+   island in full-bleed modes and don't double-shift in padded ones. */
+body.ios-standalone .reader-back {
+  top: calc(env(safe-area-inset-top, 0px) - var(--rt) + 8px);
+  left: calc(env(safe-area-inset-left, 0px) - var(--rl) + 8px);
 }
-body.ios-standalone .book-crease:not(.portrait) {
-  left: calc(50% + (env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2);
+body.ios-standalone .reading-view:not(.portrait-mode) .reader-back {
+  left: calc(env(safe-area-inset-left, 0px) - var(--rl) + 2px);
 }
+body.ios-standalone .reader-pagenum {
+  top: calc(env(safe-area-inset-top, 0px) - var(--rt) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) - var(--rr) + 8px);
+}
+body.ios-standalone .reader-about {
+  top: calc(env(safe-area-inset-top, 0px) - var(--rt) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) - var(--rr) + 8px);
+}
+/* The fixed crease centres on the reader's padded box, not the raw viewport */
+body.ios-standalone .book-crease.portrait { top: calc(50% + (var(--rt) - var(--rb)) / 2); }
+body.ios-standalone .book-crease:not(.portrait) { left: calc(50% + (var(--rl) - var(--rr)) / 2); }
+
+/* The 📐 picker itself */
+.rlab {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 300;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.rlab-chip {
+  background: rgba(30,24,18,0.55); color: #fff; border: none; border-radius: 999px;
+  padding: 7px 14px; font-size: 0.82rem; font-weight: 700; font-family: inherit; cursor: pointer;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+.rlab-panel {
+  background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 14px;
+  padding: 10px; width: min(92vw, 340px); box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.rlab-title { font-size: 0.78rem; color: var(--text-dim); text-align: center; padding: 2px 0 4px; }
+.rlab-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border-soft); color: var(--text-main);
+  font-family: inherit; padding: 8px 11px; border-radius: 10px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rlab-opt strong { font-size: 0.88rem; }
+.rlab-opt span { font-size: 0.74rem; color: var(--text-dim); }
+.rlab-opt.on { border-color: var(--accent); background: rgba(234,169,63,0.15); }
+.rlab-opt.on strong { color: var(--accent); }
 /* Library: push the pull-to-refresh AND the toolbar clear of the Dynamic Island */
 body.ios-standalone .library-view {
   /* Not the full inset: .app-main already adds 1rem, and the full 59px sat the

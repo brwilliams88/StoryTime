@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.6" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.6" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.6" />
-  <link rel="manifest" href="manifest.json?v=1.0.6" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.0.7" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.0.7" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.0.7" />
+  <link rel="manifest" href="manifest.json?v=1.0.7" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.6" />
-  <link rel="stylesheet" href="css/style.css?v=1.0.6" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.0.7" />
+  <link rel="stylesheet" href="css/style.css?v=1.0.7" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.0.6" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.0.7" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1211,23 +1211,48 @@
         </div>
       </div>
 
+      <!-- 📐 Layout Lab: only on Home Screen (standalone) launches, only in the
+           reader. Tap options until the book sits right, then tell Claude the
+           winning number so it can be locked in. -->
+      <div v-if="view === 'story' && isStandalone" class="rlab">
+        <div v-if="rlabOpen" class="rlab-panel">
+          <div class="rlab-title">Book layout — tap options until it looks right</div>
+          <button :class="['rlab-opt', { on: readerLab === '1' }]" @click="setReaderLab(1)">
+            <strong>1 · Full screen</strong><span>edge to edge everywhere, even under the clock</span>
+          </button>
+          <button :class="['rlab-opt', { on: readerLab === '2' }]" @click="setReaderLab(2)">
+            <strong>2 · Clear the clock</strong><span>band at the top in portrait only; bottom &amp; landscape full</span>
+          </button>
+          <button :class="['rlab-opt', { on: readerLab === '3' }]" @click="setReaderLab(3)">
+            <strong>3 · Clear clock + notch sides</strong><span>top band in portrait; side bands in landscape</span>
+          </button>
+          <button :class="['rlab-opt', { on: readerLab === '4' }]" @click="setReaderLab(4)">
+            <strong>4 · Top &amp; bottom bands</strong><span>portrait bands both ends; landscape full</span>
+          </button>
+          <button :class="['rlab-opt', { on: readerLab === '5' }]" @click="setReaderLab(5)">
+            <strong>5 · All edges</strong><span>bands on every side (the previous fix)</span>
+          </button>
+        </div>
+        <button class="rlab-chip" @click="rlabOpen = !rlabOpen">📐 Layout {{ readerLab }}</button>
+      </div>
+
     </template>
   </div>
 
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.0.6"></script>
-  <script src="vendor/cropper.min.js?v=1.0.6"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.0.6"></script>
-  <script src="vendor/gsap.min.js?v=1.0.6"></script>
-  <script src="js/storage.js?v=1.0.6"></script>
-  <script src="js/imageStorage.js?v=1.0.6"></script>
-  <script src="js/api.js?v=1.0.6"></script>
-  <script src="js/sync.js?v=1.0.6"></script>
-  <script src="js/pageShadow.js?v=1.0.6"></script>
-  <script src="js/pageCurl.js?v=1.0.6"></script>
-  <script src="js/app.js?v=1.0.6"></script>
+  <script src="vendor/vue.global.js?v=1.0.7"></script>
+  <script src="vendor/cropper.min.js?v=1.0.7"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.0.7"></script>
+  <script src="vendor/gsap.min.js?v=1.0.7"></script>
+  <script src="js/storage.js?v=1.0.7"></script>
+  <script src="js/imageStorage.js?v=1.0.7"></script>
+  <script src="js/api.js?v=1.0.7"></script>
+  <script src="js/sync.js?v=1.0.7"></script>
+  <script src="js/pageShadow.js?v=1.0.7"></script>
+  <script src="js/pageCurl.js?v=1.0.7"></script>
+  <script src="js/app.js?v=1.0.7"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
