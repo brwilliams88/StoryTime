@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.1.2',
+      version: 'v1.1.3',
       buildDate: '2026-07-27',
 
       showSplash: true,
@@ -175,6 +175,7 @@ createApp({
       galleryVersion: 0,         // bump to recompute from the stored index
       galleryLightbox: null,     // { entry, idx } while an image is enlarged
       galleryFullUrl: '',        // signed FULL-size URL for the lightbox
+      breakdownFor: null,        // { kind, value, label } -> stories in that category
       gallerySyncing: false,     // quietly indexing books this device hasn't seen
       gallerySyncDone: 0,
       gallerySyncTotal: 0,
@@ -845,6 +846,24 @@ createApp({
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
 
+    // ---- Story Breakdown drill-down: tap a count to see those books ----
+    openBreakdownStories(kind, row) {
+      this.breakdownFor = { kind, value: row.value, label: row.label, emoji: row.emoji };
+    },
+    closeBreakdownStories() { this.breakdownFor = null; },
+    breakdownStoryList() {
+      if (!this.breakdownFor) return [];
+      const field = this.breakdownFor.kind === 'genre' ? 'genre' : 'art_style';
+      return (this.libraryBooks || [])
+        .filter(b => (b[field] || '') === this.breakdownFor.value)
+        .map(b => ({ id: b.id, title: b.title || 'Untitled', cover: this.libraryCover(b) }));
+    },
+    openBreakdownStory(id) {
+      const b = (this.libraryBooks || []).find(x => x.id === id);
+      this.breakdownFor = null;
+      if (b) { this.showSettings = false; this.openBookMorph(b, null); }
+    },
+
     // ================= PICTURE GALLERY (v1.1) =================
     async openGallery() {
       this.showGallery = true;
@@ -942,12 +961,19 @@ createApp({
       return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     },
     galleryPageLabel(e) { return (e.p === 0) ? 'Cover' : ('Page ' + e.p + (e.n ? ' of ' + e.n : '')); },
+    // Turn an unrecognised slug into something readable: "storybook-ink" ->
+    // "Storybook Ink". These come from "Surprise me" stories where the model
+    // answered with a style of its own invention rather than one from our list.
+    prettySlug(v) {
+      return String(v || '').split('-').filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    },
     galleryStyleLabel(v) {
       const s = this.artStylesRaw.find(x => x.value === v);
       if (s) return s.emoji + ' ' + s.label;
       const gone = (this.retiredArtStyles || []).find(x => x.value === v);
       if (gone) return gone.emoji + ' ' + gone.label + ' (retired)';
-      return v || '—';
+      return v ? ('🎨 ' + this.prettySlug(v)) : '—';
     },
     galleryGenreLabel(v) { const g = this.genresRaw.find(x => x.value === v); return g ? (g.emoji + ' ' + g.label) : (v || '—'); },
     clearGalleryFilters() {
@@ -1601,6 +1627,17 @@ createApp({
           rating: 0,
           createdAt: new Date().toISOString(),
         };
+
+        // "Surprise me" genre: record the genre the model ACTUALLY wrote (it now
+        // reports chosen_genre), so the library and Story Breakdown show a real
+        // genre instead of a permanent "Surprise me" bucket — same treatment
+        // art_style already got.
+        if ((storyData.formData.genre || 'surprise-me') === 'surprise-me') {
+          const picked = (story.chosen_genre || '').trim();
+          if (picked && this.genresRaw.some(g => g.value === picked)) {
+            storyData.formData.genre = picked;
+          }
+        }
 
         this.lastFormData = JSON.parse(JSON.stringify(this.formData));
         this.lastPrompt = textResult.prompt;
@@ -3447,8 +3484,8 @@ createApp({
       return entries.map(([value, count]) => {
         const opt = (options || []).find(o => o.value === value);
         const gone = !opt && (this.retiredArtStyles || []).find(o => o.value === value);
-        const emoji = opt ? opt.emoji : (gone ? gone.emoji : '📖');
-        const label = opt ? opt.label : (gone ? gone.label + ' (retired)' : value);
+        const emoji = opt ? opt.emoji : (gone ? gone.emoji : '🎨');
+        const label = opt ? opt.label : (gone ? gone.label + ' (retired)' : this.prettySlug(value));
         return { value, count, pct: Math.round((count / max) * 100), emoji, label };
       }).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     },
@@ -4189,7 +4226,8 @@ createApp({
     updateBodyScroll() {
       const anyOpen = this.showSettings || this.showCharactersModal ||
         this.copyrightModal || this.warningModal || this.inspectingImage ||
-        this.showQuiz || this.bookDetail || this.showGallery || this.galleryLightbox;
+        this.showQuiz || this.bookDetail || this.showGallery || this.galleryLightbox ||
+        this.loading || this.breakdownFor;
       document.body.style.overflow = anyOpen ? 'hidden' : '';
     },
 
@@ -4210,7 +4248,7 @@ createApp({
   },
 
   watch: {
-    loading(v) { if (!v) { this.stopLoadingFx(); this.loadingGameOn = false; } },
+    loading(v) { this.updateBodyScroll(); if (!v) { this.stopLoadingFx(); this.loadingGameOn = false; } },
     showSettings() { this.updateBodyScroll(); },
     showCharactersModal() { this.updateBodyScroll(); },
     copyrightModal() { this.updateBodyScroll(); },
@@ -4218,6 +4256,7 @@ createApp({
     inspectingImage() { this.updateBodyScroll(); },
     showQuiz() { this.updateBodyScroll(); },
     showGallery() { this.updateBodyScroll(); },
+    breakdownFor() { this.updateBodyScroll(); },
     galleryLightbox() { this.updateBodyScroll(); },
     bookDetail() { this.updateBodyScroll(); },
     librarySearch() { this.runLibrarySearch(); },

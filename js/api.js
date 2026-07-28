@@ -167,6 +167,10 @@ function buildStoryPrompt(formData, selectedCharacters) {
     lines.push(`- ALSO output "chosen_art_style": the single closest match from this exact list for the style you chose — one of: watercolor, crayon, comic-book, anime, pixel-art, 3d-animation, claymation, building-blocks, stuffies, paper-cutouts, chalkboard, 3d-printed, photorealistic, stained-glass, colored-pencil, oil-painting, ukiyo-e, origami, candy-world. Choose a COLORFUL style — never a plain black-and-white or monochrome pencil look. Output the value verbatim (e.g. "watercolor").`);
   }
 
+  if ((formData.genre || 'surprise-me') === 'surprise-me') {
+    lines.push(`- ALSO output "chosen_genre": the single closest match from this exact list for the genre you actually wrote — one of: adventure, fairy-tale, heartfelt, fantasy, sci-fi, pirates, superhero, mystery, spooky, animal-tales, dinosaurs, underwater, western. Output the value verbatim (e.g. "pirates").`);
+  }
+
   lines.push(
     `- Plus a separate "cover_image_prompt" for the book cover — describe the SCENE only. Do NOT mention "book cover" or include the story title in the image_prompt. The title is shown separately above the image.`,
     `- Each image_prompt MUST include a specific ACTION VERB — show what characters are DOING, not just standing. Specify the moment.`,
@@ -222,6 +226,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `  "summary": "a brief 2-sentence back-cover blurb (~30-45 words), inviting, names the main character(s), no spoilers. VARY the opening — do NOT start with 'Join'; use a different style each time (a question, a vivid setting, a character moment, or the stakes)",`,
     `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
     `  "chosen_art_style": "(only if you chose the style yourself) the closest match from the provided list, verbatim",`,
+    `  "chosen_genre": "(only if the genre was left to you) the closest match from the provided genre list, verbatim",`,
     `  "cover_image_prompt": "vivid scene for the cover — describe characters and setting only, no mention of 'book cover' or text",`,
     `  "pages": [`,
     `    { "page_number": 1, "text": "...", "image_prompt": "scene description with action verb and composition" },`,

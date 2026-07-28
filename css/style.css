@@ -3009,6 +3009,7 @@ body.reading-align-left .spread-text p { text-align: left; }
 .loading-stars { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .loading-star {
   position: absolute; top: -40px; color: var(--accent); pointer-events: auto; cursor: pointer;
+  touch-action: manipulation;   /* no double-tap zoom when tapping fast */
   text-shadow: 0 0 10px rgba(244,183,64,.95), 0 0 22px rgba(255,224,138,.55);
   will-change: transform, opacity;
   animation: loadFall var(--fall, 5s) linear forwards;
@@ -3745,3 +3746,30 @@ body.ios-standalone .gallery-view { padding-top: max(0.8rem, calc(env(safe-area-
 
 /* Gallery: back arrow matches the search bar's height exactly */
 .gallery-bar .header-back-btn { width: 44px; height: 44px; }
+
+/* Loading screen, round 2 (v1.1.3) — Kai's play-testing notes:
+   • fast repeated taps were double-tap-zooming the page  -> touch-action
+   • some stars were genuinely hard to hit                -> invisible padded
+     hit area around each glyph (about a fingertip wider on every side)
+   • a scrollbar could appear behind the fixed overlay    -> lock the body */
+.loading-screen { touch-action: manipulation; overscroll-behavior: none; }
+.loading-star::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 66px; height: 66px; transform: translate(-50%, -50%);
+  border-radius: 50%;           /* generous circular catch zone, invisible */
+}
+
+/* Story Breakdown: give the label room before it ellipses, and make the count
+   a tappable link into the stories in that category. */
+.breakdown-name { flex: 1 1 auto; min-width: 0; }
+.breakdown-bar { flex: 0 0 26%; }
+.breakdown-count {
+  background: none; border: none; font-family: inherit; font-size: inherit;
+  color: var(--accent); cursor: pointer; padding: 0 0 0 0.15rem; text-decoration: underline;
+  text-underline-offset: 2px; min-width: 1.6rem; text-align: right;
+}
+.breakdown-count:hover { color: var(--text-main); }
+
+/* Gallery + library filter lists must scroll when they outgrow the screen */
+.facc-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.gallery-view .filter-panel { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }

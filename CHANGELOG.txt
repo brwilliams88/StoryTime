@@ -9,6 +9,18 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.1.3 - 2026-07-28 - Breakdown drill-down; kinder star game; settings polish
+  • Story Breakdown counts are now tappable — tap the number next to a genre or art style and a popup lists those books, with covers, and you can jump straight into one to read (same as the character screen).
+  • "Surprise me" no longer becomes its own genre. The storyteller now reports which genre it actually wrote, so new surprise stories file themselves under Pirates, Fantasy, etc. (Existing surprise-me books keep their old label — there's no record of what was chosen.)
+  • FIXED the loading-screen star game for Kai: fast tapping can no longer zoom the screen, the stars have a much bigger invisible catch area (about three times wider) so near-misses count, and the page can't scroll behind it.
+  • FIXED the gallery's art-style and character filters not scrolling — options below the fold were unreachable.
+  • Art styles the AI invented on its own (like "storybook-ink") now display as readable names — "🎨 Storybook Ink" — instead of a raw code word. Retired styles still say "(retired)".
+  • Story Breakdown labels no longer truncate early — long names like "Pencil Sketch (B&W) (retired)" now fit.
+  • Settings › Library & Storage now shows "Pictures" (what's in your gallery) and, separately, "Stored files (incl. thumbnails)" — which is why the file count is roughly double the picture count, plus character avatars.
+  • "For Parents · Spend" is now "Usage & Costs"; "Reset Password" is now "Log Out of StoryTime"; the API address was removed from Account & Services; and Clear Offline Cache moved to Developer (it's a rare-use repair tool).
+  • Developer's Debug output now explains itself when empty — it only fills in after you generate a story in that session.
+
+--------------------------
 v1.1.2 - 2026-07-27 - Settings tidy-up
   • Buttons are consistent everywhere — every action button now has an icon, they're all the same height, and their outlines are actually visible (the old borders were so faint the buttons read as plain text).
   • Developer is reorganised into clear groups: Reading · Next story · Last generation · Generation time · Tools · Debug output. The two Reading toggles (left-align story text, show the ⓘ button on pictures) moved in here since they're set once and forgotten.

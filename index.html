@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.2" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.2" />
-  <link rel="manifest" href="manifest.json?v=1.1.2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.3" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.3" />
+  <link rel="manifest" href="manifest.json?v=1.1.3" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.2" />
-  <link rel="stylesheet" href="css/style.css?v=1.1.2" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.3" />
+  <link rel="stylesheet" href="css/style.css?v=1.1.3" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.2" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.3" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1016,14 +1016,14 @@
 
             <div class="settings-row"><span>Books</span><strong>{{ libraryBooks.length }}</strong></div>
             <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
-            <div class="settings-row"><span>Images</span><strong>{{ cloudUsage.loaded ? cloudUsage.r2Count : '…' }}</strong></div>
+            <div class="settings-row"><span>Pictures</span><strong>{{ galleryAll.length || '…' }}</strong></div>
+            <div class="settings-row settings-subnote"><span>Stored files <em class="toggle-note">(incl. thumbnails)</em></span><strong>{{ cloudUsage.loaded ? cloudUsage.r2Count : '…' }}</strong></div>
             <div class="settings-row"><span>Cloud storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: cloudUsagePercent + '%' }"></div></div>
             <div class="settings-row" style="margin-top: 0.7rem;"><span>Cached on this device</span><strong>{{ imageStats.count }} files, {{ formattedImageStorageSize }}</strong></div>
             <p class="settings-fine-print">Clearing the device cache is safe — your books live in the cloud and re-download when opened.</p>
             <div class="settings-row-actions">
               <button @click="openManageBooks" class="btn-secondary btn-small">🗑 Manage / Delete Books</button>
-              <button @click="handleClearImages" class="btn-secondary btn-small">🧹 Clear Offline Cache</button>
             </div>
           </div>
 
@@ -1035,7 +1035,7 @@
                 <span class="breakdown-emoji">{{ row.emoji }}</span>
                 <span class="breakdown-name">{{ row.label }}</span>
                 <span class="breakdown-bar"><span class="breakdown-fill" :style="{ width: Math.max(row.pct, 6) + '%' }"></span></span>
-                <span class="breakdown-count">{{ row.count }}</span>
+                <button class="breakdown-count" @click="openBreakdownStories('genre', row)" :title="'See the ' + row.count + ' ' + row.label + ' stories'">{{ row.count }}</button>
               </div>
               <button v-if="genreBreakdown.length > 3" @click="showAllGenres = !showAllGenres" class="breakdown-showall">
                 {{ showAllGenres ? 'Show fewer ▴' : 'Show all ' + genreBreakdown.length + ' ▾' }}
@@ -1047,7 +1047,7 @@
                 <span class="breakdown-emoji">{{ row.emoji }}</span>
                 <span class="breakdown-name">{{ row.label }}</span>
                 <span class="breakdown-bar"><span class="breakdown-fill" :style="{ width: Math.max(row.pct, 6) + '%' }"></span></span>
-                <span class="breakdown-count">{{ row.count }}</span>
+                <button class="breakdown-count" @click="openBreakdownStories('style', row)" :title="'See the ' + row.count + ' ' + row.label + ' stories'">{{ row.count }}</button>
               </div>
               <button v-if="artBreakdown.length > 3" @click="showAllArt = !showAllArt" class="breakdown-showall">
                 {{ showAllArt ? 'Show fewer ▴' : 'Show all ' + artBreakdown.length + ' ▾' }}
@@ -1056,7 +1056,7 @@
           </div>
 
           <div class="settings-section" v-if="spend">
-            <div class="settings-section-title">For Parents · Spend</div>
+            <div class="settings-section-title">Usage &amp; Costs</div>
 
             <div class="spend-cards">
               <div class="spend-card">
@@ -1100,9 +1100,8 @@
             <div class="settings-row"><span>Stories &amp; pictures</span><strong>OpenAI</strong></div>
             <div class="settings-row"><span>Books &amp; characters</span><strong>Supabase</strong></div>
             <div class="settings-row"><span>Images</span><strong>Cloudflare R2</strong></div>
-            <div class="settings-row settings-subnote"><span>API</span><strong>{{ workerHost }}</strong></div>
             <div class="settings-row-actions">
-              <button @click="resetPassword" class="btn-secondary btn-small">🔑 Reset Password</button>
+              <button @click="resetPassword" class="btn-secondary btn-small">🚪 Log Out of StoryTime</button>
             </div>
           </div>
 
@@ -1151,6 +1150,7 @@
               <button v-if="!backfillRunning" @click="runGalleryBackfill" class="btn-secondary btn-small">🖼️ Rebuild Gallery Thumbnails</button>
               <button v-else @click="stopGalleryBackfill" class="btn-secondary btn-small">■ Stop Rebuild</button>
               <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused Images</button>
+              <button @click="handleClearImages" class="btn-secondary btn-small">📥 Clear Offline Cache</button>
               <button @click="resetGenTimings" class="btn-secondary btn-small">⏱ Reset Timing Data</button>
             </div>
             <p v-if="backfillRunning || backfillDone" class="settings-fine-print" style="color: var(--accent);">
@@ -1158,6 +1158,7 @@
             </p>
 
             <div class="settings-sub">Debug output</div>
+            <p v-if="!lastPrompt && !lastRawResponse" class="settings-fine-print">Empty until you generate a story in this session — then the exact prompt and the raw model reply show up here.</p>
             <details v-if="lastPrompt" class="settings-sub-collapse">
               <summary>Prompt sent to GPT-4o</summary>
               <button @click="copyToClipboard(lastPrompt)" class="btn-secondary btn-tiny">Copy</button>
@@ -1209,6 +1210,24 @@
             <span class="char-story-title">{{ s.title }}</span>
           </button>
           <p v-if="!characterStoryTitles(charStoriesFor).length" class="char-stories-empty">Not used in any stories yet.</p>
+        </div>
+      </div>
+
+      <!-- Story Breakdown drill-down: the books in one genre / art style -->
+      <div v-if="breakdownFor" class="char-stories-overlay" @click.self="closeBreakdownStories">
+        <div class="char-stories-card">
+          <div class="char-stories-head">
+            <h3>{{ breakdownFor.emoji }} {{ breakdownFor.label }}</h3>
+            <button class="char-stories-close" @click="closeBreakdownStories" aria-label="Close">✕</button>
+          </div>
+          <button v-for="s in breakdownStoryList()" :key="'bd-'+s.id" class="char-story-item" @click="openBreakdownStory(s.id)">
+            <span class="char-story-thumb">
+              <img v-if="s.cover" :src="s.cover" :alt="s.title" />
+              <span v-else class="char-story-noimg">📖</span>
+            </span>
+            <span class="char-story-title">{{ s.title }}</span>
+          </button>
+          <p v-if="!breakdownStoryList().length" class="char-stories-empty">No stories found in this category.</p>
         </div>
       </div>
 
@@ -1338,17 +1357,17 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.1.2"></script>
-  <script src="vendor/cropper.min.js?v=1.1.2"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.1.2"></script>
-  <script src="vendor/gsap.min.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=1.1.2"></script>
-  <script src="js/imageStorage.js?v=1.1.2"></script>
-  <script src="js/api.js?v=1.1.2"></script>
-  <script src="js/sync.js?v=1.1.2"></script>
-  <script src="js/pageShadow.js?v=1.1.2"></script>
-  <script src="js/pageCurl.js?v=1.1.2"></script>
-  <script src="js/app.js?v=1.1.2"></script>
+  <script src="vendor/vue.global.js?v=1.1.3"></script>
+  <script src="vendor/cropper.min.js?v=1.1.3"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.1.3"></script>
+  <script src="vendor/gsap.min.js?v=1.1.3"></script>
+  <script src="js/storage.js?v=1.1.3"></script>
+  <script src="js/imageStorage.js?v=1.1.3"></script>
+  <script src="js/api.js?v=1.1.3"></script>
+  <script src="js/sync.js?v=1.1.3"></script>
+  <script src="js/pageShadow.js?v=1.1.3"></script>
+  <script src="js/pageCurl.js?v=1.1.3"></script>
+  <script src="js/app.js?v=1.1.3"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
