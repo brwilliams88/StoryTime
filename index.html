@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.1.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.1.4" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.1.4" />
-  <link rel="manifest" href="manifest.json?v=1.1.4" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.0" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.0" />
+  <link rel="manifest" href="manifest.json?v=1.2.0" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.1.4" />
-  <link rel="stylesheet" href="css/style.css?v=1.1.4" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.2.0" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.1.4" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.0" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -583,7 +583,7 @@
                   <button @click="handleContinueStory" class="btn-secondary" disabled title="Coming soon — sequels with the same characters">
                     <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Continue
                   </button>
-                  <button class="btn-secondary" disabled title="Coming soon — PDF export & printable foldable books">
+                  <button @click="openExportSheet" class="btn-secondary" title="Print this story — a cut-and-staple Mini-Book or a one-page-per-spread Storyboard">
                     <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export
                   </button>
                   <button @click="closeBook" class="btn-secondary tb-full">
@@ -1233,6 +1233,81 @@
         </div>
       </div>
 
+      <!-- ============== EXPORT & PRINT (v1.2.0) ============== -->
+      <div v-if="exportSheet" class="exp-overlay" @click.self="closeExportSheet">
+        <div class="exp-card">
+          <div class="exp-head">
+            <button v-if="exportSheet.stage === 'preview'" class="exp-back" @click="exportBack" aria-label="Back">‹</button>
+            <h3>{{ exportSheet.stage === 'pick' ? 'Export & Print' : exportFormatLabel + ' · preview' }}</h3>
+            <button class="exp-close" @click="closeExportSheet" aria-label="Close">✕</button>
+          </div>
+
+          <!-- Stage 1: pick a format -->
+          <template v-if="exportSheet.stage === 'pick'">
+            <button class="exp-opt" :disabled="!exportHasImages" @click="chooseExportFormat('minibook')">
+              <svg class="exp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              <span class="exp-opt-text">
+                <strong>Mini-Book</strong>
+                <small v-if="exportHasImages">Print 2-sided, then cut &amp; staple a real 3½-inch book. {{ exportMiniSheets }} sheet{{ exportMiniSheets === 1 ? '' : 's' }} of paper.</small>
+                <small v-else>Needs pictures — this story was made without them.</small>
+              </span>
+            </button>
+            <button class="exp-opt" @click="chooseExportFormat('storyboard')">
+              <svg class="exp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span class="exp-opt-text">
+                <strong>Storyboard</strong>
+                <small>One-sided handout — pictures beside words. No assembly.</small>
+              </span>
+            </button>
+            <div class="exp-note">Made right on your device — free, and works offline for books you've read.</div>
+          </template>
+
+          <!-- Stage 2: live preview of every sheet -->
+          <template v-else>
+            <div v-if="exportSheet.busy" class="exp-busy">
+              <div class="loading-spinner small"></div>
+              <div class="exp-busy-text">{{ exportSheet.progressText }}</div>
+            </div>
+            <template v-else-if="exportSheet.error">
+              <div class="exp-error">{{ exportSheet.error }}</div>
+            </template>
+            <template v-else>
+              <div class="exp-stage">
+                <div class="exp-strip" ref="expStrip" @scroll.passive="onExportScroll">
+                  <canvas v-for="i in exportSheet.sheetCount" :key="'xc' + i" :ref="el => setExportCanvas(i - 1, el)" class="exp-canvas" width="612" height="792"></canvas>
+                </div>
+                <div class="exp-dots"><i v-for="i in exportSheet.sheetCount" :key="'xd' + i" :class="{ on: i - 1 === exportSheet.current }"></i></div>
+                <div class="exp-cap">{{ exportSheetCaption }}</div>
+              </div>
+              <div class="exp-btnrow">
+                <button class="exp-btn gold" @click="printExport">
+                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print
+                </button>
+                <button class="exp-btn ghost" @click="shareExport">
+                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share / Save
+                </button>
+              </div>
+              <button v-if="exportSheet.format === 'minibook'" class="exp-howto-link" @click="showHowTo = true">ⓘ &nbsp;How to build it</button>
+            </template>
+          </template>
+        </div>
+      </div>
+
+      <!-- How to build the Mini-Book (never printed — lives here) -->
+      <div v-if="showHowTo" class="exp-overlay" @click.self="showHowTo = false">
+        <div class="exp-card exp-howto-card">
+          <div class="exp-head">
+            <h3>How to build your Mini-Book</h3>
+            <button class="exp-close" @click="showHowTo = false" aria-label="Close">✕</button>
+          </div>
+          <div class="hw-step"><span class="hw-n">1</span><div><strong>Print 2-sided</strong><p>Choose two-sided, <b>flip on long edge</b>, at <b>100% scale</b> ("Actual size"). Plain paper is fine — card stock makes a sturdier cover.</p></div></div>
+          <div class="hw-step"><span class="hw-n">2</span><div><strong>Cut the grid</strong><p>Cut with the lined side up: trim the thin border, then cut the six squares apart. Little wobbles disappear into the pictures.</p></div></div>
+          <div class="hw-step"><span class="hw-n">3</span><div><strong>Stack by the numbers</strong><p>Cover on top, then follow the small numbers in the margin — 2, 3, 4… in order, numbers on the left, facing up.</p></div></div>
+          <div class="hw-step"><span class="hw-n">4</span><div><strong>Staple the spine</strong><p>Two staples through the <b>gold marks</b> on the cover's dark spine band. Any desk stapler reaches. That's it — a real little book!</p></div></div>
+          <button class="exp-btn gold hw-done" @click="showHowTo = false">Got it</button>
+        </div>
+      </div>
+
       <!-- ============== PICTURE GALLERY ============== -->
       <div v-if="showGallery" class="gallery-view">
         <div class="gallery-bar">
@@ -1359,17 +1434,18 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.1.4"></script>
-  <script src="vendor/cropper.min.js?v=1.1.4"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.1.4"></script>
-  <script src="vendor/gsap.min.js?v=1.1.4"></script>
-  <script src="js/storage.js?v=1.1.4"></script>
-  <script src="js/imageStorage.js?v=1.1.4"></script>
-  <script src="js/api.js?v=1.1.4"></script>
-  <script src="js/sync.js?v=1.1.4"></script>
-  <script src="js/pageShadow.js?v=1.1.4"></script>
-  <script src="js/pageCurl.js?v=1.1.4"></script>
-  <script src="js/app.js?v=1.1.4"></script>
+  <script src="vendor/vue.global.js?v=1.2.0"></script>
+  <script src="vendor/cropper.min.js?v=1.2.0"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.2.0"></script>
+  <script src="vendor/gsap.min.js?v=1.2.0"></script>
+  <script src="js/storage.js?v=1.2.0"></script>
+  <script src="js/imageStorage.js?v=1.2.0"></script>
+  <script src="js/api.js?v=1.2.0"></script>
+  <script src="js/sync.js?v=1.2.0"></script>
+  <script src="js/pageShadow.js?v=1.2.0"></script>
+  <script src="js/pageCurl.js?v=1.2.0"></script>
+  <script src="js/export.js?v=1.2.0"></script>
+  <script src="js/app.js?v=1.2.0"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

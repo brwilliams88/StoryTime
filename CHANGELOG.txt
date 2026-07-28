@@ -9,6 +9,16 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.2.0 - 2026-07-28 - Print your stories: Mini-Book & Storyboard PDF export
+  • NEW: the Export button on the end-of-book page works! Two ways to put a story on paper, both built entirely on your device — free, no internet needed for books you've already read.
+  • MINI-BOOK: prints 2-sided, then cut along the dotted lines, stack by the little margin numbers, and staple — a real 4 × 3½ inch book with square pages, full-bleed pictures on every left page and the words on the right, just like the reader. The cover and back cover get a deep-indigo "spine" band with gold marks showing exactly where the staples go.
+  • The back cover looks like a real book jacket: a softly blurred echo of the cover art with the story's summary, "Created by … on …", and "Made with ♥ and StoryTime".
+  • STORYBOARD: a one-sided handout — each row is a picture beside its words (justified, with The End on the last box), with the cover and title in a banner up top. No scissors required.
+  • LIVE PREVIEW before you commit: every printed sheet is rendered in the app first — swipe through fronts and backs, then Print (native dialog / AirPrint) or Share / Save. What you preview is exactly what prints.
+  • A 4-step "How to build it" card pops up after a Mini-Book export (and lives behind ⓘ in the export screen) — print settings, cutting, stacking, stapling. Nothing about assembly is wasted on paper.
+  • Under the hood: pdf-lib + fontkit now self-hosted in vendor/ (offline-friendly, like Vue), Fraunces embedded & subset into the PDFs, images pulled from the on-device cache first (R2 only as fallback). Zero API cost per export. No worker change.
+
+--------------------------
 v1.1.4 - 2026-07-28 - Recover missing genres; fix filter scrolling; storage meter
   • NEW in Developer: "🏷 Fix Surprise me Genres" — reads each old Surprise-me book and works out the genre it actually is, then saves it. That's how the 10 stuck books get sorted into Pirates, Fantasy, Dinosaurs and so on. Costs a fraction of a cent per book.
   • FIXED the gallery filter list: the last option could only be glimpsed mid-drag and sprang back out of reach on release. The panel now scrolls properly with room to spare at the bottom.

@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.1.4',
+      version: 'v1.2.0',
       buildDate: '2026-07-28',
 
       showSplash: true,
@@ -204,6 +204,12 @@ createApp({
       shareLoadError: false,     // shared story genuinely not found (bad/removed link → 404)
       shareNetworkError: false,  // couldn't reach the server (flaky signal/offline → offer retry)
       shareCopied: false,        // brief "Link copied" confirmation (desktop share fallback)
+
+      // ---- Export & Print (v1.2.0) ----
+      // exportSheet: null | { stage:'pick'|'preview', format, busy, progressText,
+      //                       sheetCount, current, error }
+      exportSheet: null,
+      showHowTo: false,          // "How to build it" popup (Mini-Book)
       spend: null,               // API-spend summary (populated when Settings opens)
       readerUiShow: true,        // floating reader controls visible (auto-fade while reading)
       librarySearch: '',         // full-text search (server-side over story body)
@@ -652,6 +658,32 @@ createApp({
       const date = d.toLocaleString('en-US', { month: 'long', day: 'numeric' });
       const time = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '');
       return `${who} on ${date} at ${time}`;
+    },
+
+    // ---- Export & Print (v1.2.0) ----
+    exportHasImages() {
+      const s = this.currentStory;
+      if (!s) return false;
+      const coverOk = s.cover && s.cover.image_status === 'ready' && s.cover.image_id;
+      const anyPage = (s.pages || []).some((p) => p.image_status === 'ready' && p.image_id);
+      return !!(coverOk || anyPage);
+    },
+    exportMiniSheets() {
+      const n = this.currentStory ? (this.currentStory.pages || []).length : 0;
+      return Math.ceil(Math.ceil((2 * n + 2) / 2) / 6);   // pages → leaves → sheets
+    },
+    exportFormatLabel() {
+      return this.exportSheet && this.exportSheet.format === 'minibook' ? 'Mini-Book' : 'Storyboard';
+    },
+    exportSheetCaption() {
+      const x = this.exportSheet;
+      if (!x || x.stage !== 'preview') return '';
+      if (x.format === 'minibook') {
+        const paper = Math.floor(x.current / 2) + 1;
+        const side = x.current % 2 === 0 ? 'front' : 'back';
+        return `Sheet ${paper} of ${x.sheetCount / 2} · ${side} — swipe to check every side`;
+      }
+      return `Page ${x.current + 1} of ${x.sheetCount}`;
     },
   },
 
@@ -2937,6 +2969,185 @@ createApp({
       this.shareCopied = true;
       clearTimeout(this._shareCopiedT);
       this._shareCopiedT = setTimeout(() => { this.shareCopied = false; }, 1800);
+    },
+
+    // =====================================================================
+    // EXPORT & PRINT (v1.2.0) — printable PDFs, built on-device
+    // =====================================================================
+    openExportSheet() {
+      if (!this.currentStory) return;
+      this._exportCache = {};                       // per-open: spec/pdf per format
+      this.exportSheet = { stage: 'pick' };
+    },
+    closeExportSheet() {
+      this.exportSheet = null;
+      this.showHowTo = false;
+      this._exportCache = null;
+      this._exportCanvases = null;
+    },
+    exportBack() {
+      if (this.exportSheet) this.exportSheet = { stage: 'pick' };
+    },
+    setExportCanvas(i, el) {
+      if (!this._exportCanvases) this._exportCanvases = [];
+      if (el) this._exportCanvases[i] = el;
+    },
+    onExportScroll() {
+      const strip = this.$refs.expStrip;
+      if (!strip || !this.exportSheet) return;
+      const kids = strip.querySelectorAll('canvas');
+      if (!kids.length) return;
+      const step = kids[0].offsetWidth + 14;        // canvas width + gap
+      this.exportSheet.current = Math.max(0, Math.min(this.exportSheet.sheetCount - 1, Math.round(strip.scrollLeft / step)));
+    },
+
+    // Lazy-load the PDF libraries (vendored; the SW caches them after the
+    // first use, so exports keep working offline).
+    _exportScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `${src}?v=${encodeURIComponent(this.version)}`;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error(`Could not load ${src}`));
+        document.head.appendChild(s);
+      });
+    },
+    async _ensureExportLibs() {
+      if (!window.PDFLib) await this._exportScript('vendor/pdf-lib.min.js');
+      if (!window.fontkit) await this._exportScript('vendor/fontkit.umd.min.js');
+    },
+
+    // Plain-text labels for print (the on-screen ones carry emoji, which
+    // PDFs' Helvetica can't draw).
+    _plainGenreLabel() {
+      const v = (this.currentStory && this.currentStory.formData || {}).genre;
+      if (!v || v === 'surprise-me') return '';
+      const g = this.genresRaw.find((x) => x.value === v);
+      return g ? g.label : '';
+    },
+    _plainStyleLabel() {
+      const v = this.currentStory && (this.currentStory.art_style || (this.currentStory.formData || {}).artStyle);
+      if (!v || v === 'surprise-me') return '';
+      const a = this.artStylesRaw.find((x) => x.value === v);
+      return a ? a.label : '';
+    },
+    _exportMeta() {
+      const s = this.currentStory;
+      const d = s.createdAt ? new Date(s.createdAt) : null;
+      const dateStr = d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+      const genre = this._plainGenreLabel(), style = this._plainStyleLabel();
+      const bylineBits = [];
+      if (s.created_by) bylineBits.push(`Created by ${s.created_by}`);
+      if (genre) bylineBits.push(genre);
+      if (style) bylineBits.push(style);
+      if (dateStr) bylineBits.push(dateStr);
+      bylineBits.push(`${(s.pages || []).length} pages`);
+      const credits = [];
+      if (s.created_by && dateStr) credits.push(`Created by ${s.created_by} on ${dateStr}`);
+      else if (s.created_by) credits.push(`Created by ${s.created_by}`);
+      const gs = [genre, style].filter(Boolean).join(' · ');
+      if (gs) credits.push(gs);
+      return {
+        title: s.title || 'A StoryTime story',
+        summary: s.summary || '',
+        byline: bylineBits.join(' · '),
+        credits,
+        hasImages: this.exportHasImages,
+        pageHasImage: (s.pages || []).map((p) => p.image_status === 'ready' && !!p.image_id),
+      };
+    },
+
+    async chooseExportFormat(format) {
+      if (!this.currentStory) return;
+      const cached = this._exportCache && this._exportCache[format];
+      this.exportSheet = { stage: 'preview', format, busy: !cached, progressText: 'Getting the pictures ready…', sheetCount: 0, current: 0, error: '' };
+      if (cached) { this._showExportPreview(cached); return; }
+      try {
+        await this._ensureExportLibs();
+        const story = this.currentStory;
+        const assets = await STExport.gatherAssets(story, (done, total) => {
+          if (this.exportSheet) this.exportSheet.progressText = `Getting the pictures ready… ${Math.min(done, total)}/${total}`;
+        });
+        if (!this.exportSheet) return;              // closed mid-build
+        this.exportSheet.progressText = 'Laying out the pages…';
+        const spec = await STExport.buildSpec(format, story, this._exportMeta(), this.version);
+        this.exportSheet.progressText = 'Building the PDF…';
+        const pdfBytes = await STExport.renderSpecToPdf(spec, assets.bytes, this.version);
+        const built = { spec, assets, pdfBytes };
+        this._exportCache[format] = built;
+        if (this.exportSheet && this.exportSheet.format === format) this._showExportPreview(built);
+      } catch (e) {
+        console.warn('Export failed:', e);
+        if (this.exportSheet) {
+          this.exportSheet.busy = false;
+          this.exportSheet.error = 'Sorry — the export hit a snag. Check your connection and try again.';
+        }
+      }
+    },
+    _showExportPreview(built) {
+      this.exportSheet.sheetCount = built.spec.sheets.length;
+      this.exportSheet.current = 0;
+      this.exportSheet.busy = false;
+      this._exportCanvases = [];
+      this.$nextTick(() => {
+        (built.spec.sheets || []).forEach((sheet, i) => {
+          const canvas = this._exportCanvases && this._exportCanvases[i];
+          if (canvas) STExport.renderSheetToCanvas(canvas, sheet, built.assets.elements);
+        });
+        const strip = this.$refs.expStrip;
+        if (strip) strip.scrollLeft = 0;
+      });
+    },
+
+    _exportFileName() {
+      const clean = (this.currentStory.title || 'StoryTime story').replace(/[\\/:*?"<>|]+/g, '').trim();
+      return `${clean} — ${this.exportFormatLabel}.pdf`;
+    },
+    _exportFile() {
+      const built = this._exportCache && this._exportCache[this.exportSheet.format];
+      if (!built) return null;
+      return new File([built.pdfBytes], this._exportFileName(), { type: 'application/pdf' });
+    },
+
+    async printExport() {
+      const file = this._exportFile();
+      if (!file) return;
+      // Phones/tablets: the OS share sheet carries Print/AirPrint. Desktop:
+      // native print dialog via a hidden iframe (fallback: open the PDF).
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: file.name }); } catch (e) { /* cancelled */ }
+        this._afterExportAction();
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+      try {
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;';
+        frame.src = url;
+        frame.onload = () => { try { frame.contentWindow.print(); } catch (e) { window.open(url, '_blank'); } };
+        document.body.appendChild(frame);
+        this._exportFrame && this._exportFrame.remove();
+        this._exportFrame = frame;                  // keep alive while the dialog is up
+      } catch (e) { window.open(url, '_blank'); }
+      this._afterExportAction();
+    },
+    async shareExport() {
+      const file = this._exportFile();
+      if (!file) return;
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: file.name }); } catch (e) { /* cancelled */ }
+      } else {
+        const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }
+      this._afterExportAction();
+    },
+    _afterExportAction() {
+      // The build instructions matter right when the paper comes out.
+      if (this.exportSheet && this.exportSheet.format === 'minibook') this.showHowTo = true;
     },
 
     openImageInspection(target) {
