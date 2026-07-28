@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.1.4 - 2026-07-28 - Recover missing genres; fix filter scrolling; storage meter
+  • NEW in Developer: "🏷 Fix Surprise me Genres" — reads each old Surprise-me book and works out the genre it actually is, then saves it. That's how the 10 stuck books get sorted into Pirates, Fantasy, Dinosaurs and so on. Costs a fraction of a cent per book.
+  • FIXED the gallery filter list: the last option could only be glimpsed mid-drag and sprang back out of reach on release. The panel now scrolls properly with room to spare at the bottom.
+  • FIXED art-style names still truncating — "Pencil Sketch (B&W) (retired)" now wraps onto a second line and shows in full instead of ending in "…".
+  • The cloud-storage meter is now an actual meter: a clearly drawn empty track with an outline, a glowing fill that's always visible even at 1%, and a "2% of 10 GB used" caption underneath.
+  • Settings: "Built" is now "Build Date" (and the date is correct), and the "Clearing the device cache is safe…" line is gone.
+
+--------------------------
 v1.1.3 - 2026-07-28 - Breakdown drill-down; kinder star game; settings polish
   • Story Breakdown counts are now tappable — tap the number next to a genre or art style and a popup lists those books, with covers, and you can jump straight into one to read (same as the character screen).
   • "Surprise me" no longer becomes its own genre. The storyteller now reports which genre it actually wrote, so new surprise stories file themselves under Pirates, Fantasy, etc. (Existing surprise-me books keep their old label — there's no record of what was chosen.)

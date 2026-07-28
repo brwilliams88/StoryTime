@@ -52,8 +52,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.1.3',
-      buildDate: '2026-07-27',
+      version: 'v1.1.4',
+      buildDate: '2026-07-28',
 
       showSplash: true,
 
@@ -176,6 +176,8 @@ createApp({
       galleryLightbox: null,     // { entry, idx } while an image is enlarged
       galleryFullUrl: '',        // signed FULL-size URL for the lightbox
       breakdownFor: null,        // { kind, value, label } -> stories in that category
+      classifyRunning: false,    // recovering genres for old "Surprise me" books
+      classifyMsg: '',
       gallerySyncing: false,     // quietly indexing books this device hasn't seen
       gallerySyncDone: 0,
       gallerySyncTotal: 0,
@@ -845,6 +847,45 @@ createApp({
       this.showSettings = false;
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
+
+    // One-off repair: books created before v1.1.3 with genre "surprise-me" never
+    // recorded what the storyteller actually picked. The genre is obvious from
+    // the story text, so classify each with a cheap gpt-4o-mini call and save it.
+    async classifySurpriseGenres() {
+      if (this.classifyRunning) return;
+      const targets = (this.libraryBooks || []).filter(
+        (b) => !b.genre || b.genre === 'surprise-me'
+      );
+      if (!targets.length) { this.classifyMsg = 'Nothing to classify — no "Surprise me" books left.'; return; }
+      this.classifyRunning = true;
+      let done = 0, fixed = 0;
+      try {
+        for (const b of targets) {
+          this.classifyMsg = `Reading ${++done} of ${targets.length}…`;
+          try {
+            const story = getStoredStories().find((x) => x.id === b.id) || await fetchFullStory(b.id);
+            if (!story) continue;
+            const res = await classifyStoryGenre(story, this.password);
+            recordSpend('text', res.cost);
+            if (!res.genre) continue;
+            story.formData = story.formData || {};
+            story.formData.genre = res.genre;
+            await syncPushStory(story);            // persist to the cloud
+            try { saveStoryToStorage(story); } catch (e) { /* quota */ }
+            b.genre = res.genre;                   // update the in-memory library row
+            fixed++;
+            // keep the gallery index in step so its genre tags match
+            const idx = getGalleryIndex();
+            let touched = false;
+            idx.forEach((e) => { if (e.s === story.id) { e.g = res.genre; touched = true; } });
+            if (touched) { setGalleryIndex(idx); this.galleryVersion++; }
+          } catch (e) { console.warn('Classify failed for', b.id, e); }
+        }
+        setLibraryIndex(this.libraryBooks);
+        this.mruVersion++;                          // refresh the breakdown computeds
+        this.classifyMsg = `Done — ${fixed} of ${targets.length} book${targets.length === 1 ? '' : 's'} given a genre.`;
+      } finally { this.classifyRunning = false; }
+    },
 
     // ---- Story Breakdown drill-down: tap a count to see those books ----
     openBreakdownStories(kind, row) {

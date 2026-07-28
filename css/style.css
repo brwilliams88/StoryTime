@@ -2789,8 +2789,20 @@ body.reading-align-left .spread-text p { text-align: left; }
 @keyframes lib-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* Settings: cloud storage usage bar */
-.usage-bar { height: 8px; border-radius: 5px; background: var(--bg-input); overflow: hidden; margin-top: 0.4rem; }
-.usage-fill { height: 100%; background: var(--accent); border-radius: 5px; transition: width 0.3s ease; }
+/* Cloud-storage meter. At a few percent the fill was a lone orange dot, so the
+   empty track is now clearly drawn (inset well + outline) and the fill always
+   shows at least a sliver. */
+.usage-bar {
+  position: relative; height: 14px; border-radius: 8px; margin-top: 0.5rem;
+  background: rgba(0,0,0,0.28); border: 1px solid rgba(234,169,63,0.32);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); overflow: hidden;
+}
+.usage-fill {
+  height: 100%; min-width: 6px; border-radius: 7px 4px 4px 7px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+  box-shadow: 0 0 8px rgba(234,169,63,0.45); transition: width 0.3s ease;
+}
+.usage-caption { font-size: 0.72rem; color: var(--text-dim); margin: 0.3rem 0 0; }
 
 /* Story Details: draggable resize handle */
 .textarea-resize { resize: vertical; }
@@ -3761,8 +3773,14 @@ body.ios-standalone .gallery-view { padding-top: max(0.8rem, calc(env(safe-area-
 
 /* Story Breakdown: give the label room before it ellipses, and make the count
    a tappable link into the stories in that category. */
-.breakdown-name { flex: 1 1 auto; min-width: 0; }
-.breakdown-bar { flex: 0 0 26%; }
+/* Long labels ("Pencil Sketch (B&W) (retired)") wrap onto a second line rather
+   than ellipsing — the original nowrap/ellipsis is explicitly undone here. */
+.breakdown-name {
+  flex: 1 1 auto; min-width: 0;
+  white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25;
+}
+.breakdown-row { align-items: center; }
+.breakdown-bar { flex: 0 0 22%; }
 .breakdown-count {
   background: none; border: none; font-family: inherit; font-size: inherit;
   color: var(--accent); cursor: pointer; padding: 0 0 0 0.15rem; text-decoration: underline;
@@ -3770,6 +3788,19 @@ body.ios-standalone .gallery-view { padding-top: max(0.8rem, calc(env(safe-area-
 }
 .breakdown-count:hover { color: var(--text-main); }
 
-/* Gallery + library filter lists must scroll when they outgrow the screen */
-.facc-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-.gallery-view .filter-panel { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* Filter panel scrolling. The option list must NOT be its own scroller — nesting
+   one inside the panel meant the last row could only be seen mid-drag and sprang
+   back under the fold on release. The panel is the single scroller, it shrinks to
+   whatever space is left in the gallery column, and it carries bottom padding so
+   the final option always clears the edge. */
+.gallery-view .filter-panel {
+  flex: 0 1 auto; min-height: 0; max-height: 55vh;   /* vh, not % — a percentage cap didn't resolve here and the panel overflowed the screen */
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  padding-bottom: 1.1rem;
+}
+.facc-list { padding-bottom: 0.2rem; }
+/* .filter-panel is a column flexbox: without this its children get SHRUNK to fit
+   the capped height and their rows spill out visually, so the panel's scrollHeight
+   never grows and it refuses to scroll. Keeping natural heights makes it a real
+   scroller — which is what put the last option out of reach. */
+.gallery-view .filter-panel > * { flex-shrink: 0; }

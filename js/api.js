@@ -745,6 +745,38 @@ ${text}`;
 
 
 // =====================================================================
+// GENRE CLASSIFIER — recover the genre of an old "Surprise me" story
+// =====================================================================
+// Before v1.1.3 the storyteller was never asked WHICH genre it chose for a
+// "Surprise me" story, so those books are stuck labelled "surprise-me". The
+// genre is still plainly readable in the story itself, so a cheap gpt-4o-mini
+// pass can recover it. Returns a value from GENRE_GUIDANCE, or '' if unsure.
+async function classifyStoryGenre(story, password) {
+  const valid = Object.keys(GENRE_GUIDANCE).filter((g) => g !== 'surprise-me');
+  const text = (story.pages || []).map((p) => p.text || '').join('\n').slice(0, 4000);
+  const prompt = `Classify this children's story into exactly ONE genre.
+
+Allowed genres (reply with the value verbatim, nothing else):
+${valid.join(', ')}
+
+If two fit, choose the one the story spends the most time in. Reply with ONLY the genre value — no punctuation, no explanation.
+
+Title: ${story.title || '(untitled)'}
+
+Story:
+${text}`;
+
+  const result = await callOpenAIChatRaw({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0,
+  }, password);
+  const guess = (result.text || '').trim().toLowerCase().replace(/[^a-z-]/g, '');
+  return { genre: valid.includes(guess) ? guess : '', cost: result.cost };
+}
+
+
+// =====================================================================
 // CHARACTER THUMBNAIL — cartoon portrait headshot (low quality, cheap)
 // =====================================================================
 async function generateCharacterThumbnail(visualDescription, password) {
