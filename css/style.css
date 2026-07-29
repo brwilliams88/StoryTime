@@ -3891,3 +3891,48 @@ body.ios-standalone .gallery-view { padding-top: max(0.8rem, calc(env(safe-area-
 .hw-step p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; }
 .hw-step b { color: var(--accent); font-weight: 700; }
 .hw-done { margin-top: 6px; width: 100%; }
+
+/* ---- Coloring Page picker (v1.2.4) ---- */
+.exp-cgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+.exp-cthumb {
+  position: relative; border: 1.5px solid #3a3a6e; border-radius: 12px; overflow: hidden;
+  background: var(--bg-input); padding: 0; cursor: pointer; aspect-ratio: 1;
+}
+.exp-cthumb:hover { border-color: var(--accent); }
+.exp-cthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.exp-cthumb-label {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 4px;
+  background: rgba(16, 16, 40, 0.72); color: var(--text-main); font-size: 0.66rem; font-weight: 700;
+}
+.exp-cthumb-made {
+  position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent); font-size: 0.72rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+.exp-cconfirm { text-align: center; margin-bottom: 13px; }
+.exp-cconfirm img { width: min(230px, 70%); border-radius: 12px; box-shadow: 0 8px 22px rgba(0,0,0,.5); margin-bottom: 10px; }
+
+/* ---- Print Alignment popup ---- */
+.exp-align-text { font-size: 0.82rem; color: var(--text-dim); line-height: 1.55; margin-bottom: 11px; }
+.exp-align-text b { color: var(--accent); }
+.exp-align-print { width: 100%; margin-bottom: 13px; }
+.exp-align-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 10px; }
+.exp-align-chip {
+  min-width: 44px; padding: 8px 6px; border-radius: 9px; font-size: 0.78rem; font-weight: 700;
+  background: var(--bg-input); color: var(--text-main); border: 1.5px solid #3a3a6e; cursor: pointer;
+  font-family: var(--font-ui);
+}
+.exp-align-chip:hover { border-color: var(--accent); }
+.exp-align-chip.sel { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.exp-align-current { text-align: center; font-size: 0.78rem; color: var(--text-dim); }
+
+/* ---- preview strip: mouse drag + taller pages on phones ---- */
+.exp-strip { cursor: grab; }
+.exp-strip:active { cursor: grabbing; }
+.exp-canvas { -webkit-user-drag: none; user-select: none; }
+@media (max-width: 480px) {
+  .exp-overlay { padding: 8px; }
+  .exp-card { max-height: 97vh; width: 97vw; }
+  .exp-strip { padding: 0 14px; gap: 12px; }
+  .exp-canvas { width: 95%; }
+}

@@ -777,6 +777,100 @@ ${text}`;
 
 
 // =====================================================================
+// QUIZ RETROFIT — generate a quiz for a story that predates quizzes
+// (same JSON shape the story-creation prompt produces)
+// =====================================================================
+async function generateQuizForStory(story, password) {
+  const text = (story.pages || []).map((p) => p.text || '').join('\n').slice(0, 6000);
+  const age = (story.formData && story.formData.ageRange) || '';
+  const prompt = `Write a quiz for this children's story. Reply with ONLY this JSON — no markdown fences, no commentary:
+
+{
+  "comprehension": [
+    { "question": "...", "options": ["A","B","C","D"], "correct": 0 },
+    { "question": "...", "options": ["A","B","C","D"], "correct": 2 },
+    { "question": "...", "options": ["A","B","C","D"], "correct": 1 }
+  ],
+  "reflection": [
+    "open-ended reflection question 1",
+    "open-ended reflection question 2"
+  ]
+}
+
+Quiz rules:
+- 3 comprehension multiple-choice questions about specific story details. Options must all be plausible. "correct" is the index (0-3) of the right answer.
+- 2 reflection questions that connect the story to the reader's own life — age-appropriate.
+- Quiz language matches the age range of the reader${age ? ` (ages ${age})` : ''}.
+
+Title: ${story.title || '(untitled)'}
+
+Story:
+${text}`;
+
+  const result = await callOpenAIChatRaw({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.4,
+  }, password);
+  let quiz = null;
+  try {
+    const raw = (result.text || '').replace(/^```(json)?/m, '').replace(/```\s*$/m, '').trim();
+    quiz = JSON.parse(raw);
+  } catch (e) { /* fall through */ }
+  const valid = quiz && Array.isArray(quiz.comprehension) && quiz.comprehension.length >= 3 &&
+    quiz.comprehension.every((q) => q.question && Array.isArray(q.options) && q.options.length === 4 && Number.isInteger(q.correct)) &&
+    Array.isArray(quiz.reflection) && quiz.reflection.length >= 2;
+  return { quiz: valid ? quiz : null, cost: result.cost };
+}
+
+
+// =====================================================================
+// COLORING PAGE — redraw one of the story's real pictures as line art
+// (true image-to-image via /v1/images/edits; needs Worker REV v1.2.4+,
+// which forwards multipart bodies)
+// =====================================================================
+async function generateColoringImage(imageBlob, password) {
+  const prompt = [
+    'Redraw this exact scene as a black-and-white COLORING BOOK page for children.',
+    'Keep the same composition, characters, poses and objects, in the same positions.',
+    'Style: clean black outlines on a pure white background. NO shading, NO gray tones,',
+    'NO color, NO cross-hatching, NO filled black areas — just crisp closed line work',
+    'with regions a child can color in. Medium level of detail: bold main outlines,',
+    'simple interior lines. The entire background must be white.',
+  ].join(' ');
+
+  const form = new FormData();
+  form.append('model', 'gpt-image-1');
+  form.append('image', imageBlob, imageBlob.type === 'image/png' ? 'page.png' : 'page.jpg');
+  form.append('prompt', prompt);
+  form.append('n', '1');
+  form.append('size', '1024x1024');
+  form.append('quality', 'medium');
+
+  // NOTE: no Content-Type header — the browser sets the multipart boundary.
+  const response = await fetch(`${WORKER_URL}/v1/images/edits`, {
+    method: 'POST',
+    headers: { 'X-App-Password': password },
+    body: form,
+  });
+  if (response.status === 401) throw new Error('Wrong password. Open Settings to reset.');
+  if (!response.ok) {
+    const errText = await response.text();
+    const err = new Error(`Coloring page failed (HTTP ${response.status}): ${errText}`);
+    if (response.status === 400 && /content_policy|policy_violation|safety/i.test(errText)) err.isContentPolicy = true;
+    // an OLD worker mangles multipart bodies (it re-labels them as JSON),
+    // so OpenAI rejects the request before doing any work
+    if (response.status === 400 && /image|multipart|form|json|parse|body/i.test(errText)) err.maybeOldWorker = true;
+    throw err;
+  }
+  const data = await response.json();
+  const b64 = data.data && data.data[0] && data.data[0].b64_json;
+  if (!b64) throw new Error('No image data in response');
+  return { b64, cost: costForImage('medium', '1024x1024') };
+}
+
+
+// =====================================================================
 // CHARACTER THUMBNAIL — cartoon portrait headshot (low quality, cheap)
 // =====================================================================
 async function generateCharacterThumbnail(visualDescription, password) {

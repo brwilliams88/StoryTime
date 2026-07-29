@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.2.3',
+      version: 'v1.2.4',
       buildDate: '2026-07-28',
 
       showSplash: true,
@@ -205,11 +205,18 @@ createApp({
       shareNetworkError: false,  // couldn't reach the server (flaky signal/offline → offer retry)
       shareCopied: false,        // brief "Link copied" confirmation (desktop share fallback)
 
+      // ---- Quiz retrofit (v1.2.4, Developer tool) ----
+      quizFixRunning: false,
+      quizFixMsg: '',
+
       // ---- Export & Print (v1.2.0) ----
       // exportSheet: null | { stage:'pick'|'preview', format, busy, progressText,
       //                       sheetCount, current, error }
       exportSheet: null,
       showHowTo: false,          // "How to build it" popup (Mini-Book)
+      showAlign: false,          // Print Alignment popup (duplex calibration)
+      alignVersion: 0,           // bump to re-read the stored offset
+      alignBusy: false,
       spend: null,               // API-spend summary (populated when Settings opens)
       readerUiShow: true,        // floating reader controls visible (auto-fade while reading)
       librarySearch: '',         // full-text search (server-side over story body)
@@ -673,17 +680,51 @@ createApp({
       return Math.ceil(Math.ceil((2 * n + 2) / 2) / 6);   // pages → leaves → sheets
     },
     exportFormatLabel() {
-      return this.exportSheet && this.exportSheet.format === 'minibook' ? 'Mini-Book' : 'Storyboard';
+      const f = this.exportSheet && this.exportSheet.format;
+      return f === 'minibook' ? 'Mini-Book' : f === 'coloring' ? 'Coloring Page' : 'Storyboard';
+    },
+    exportSheetTitle() {
+      const x = this.exportSheet;
+      if (!x || x.stage === 'pick') return 'Export & Print';
+      if (x.stage === 'coloring-pick') return 'Coloring Page · pick a picture';
+      if (x.stage === 'coloring-confirm') return 'Coloring Page';
+      return this.exportFormatLabel + ' · preview';
     },
     exportSheetCaption() {
       const x = this.exportSheet;
       if (!x || x.stage !== 'preview') return '';
+      if (x.format === 'coloring') return 'Ready to print';
       if (x.format === 'minibook') {
         const paper = Math.floor(x.current / 2) + 1;
         const side = x.current % 2 === 0 ? 'front' : 'back';
-        return `Sheet ${paper} of ${x.sheetCount / 2} · ${side}`;
+        const aligned = this.alignOffsetMm !== 0 && side === 'back' ? ' · print-aligned' : '';
+        return `Sheet ${paper} of ${x.sheetCount / 2} · ${side}${aligned}`;
       }
       return `Page ${x.current + 1} of ${x.sheetCount}`;
+    },
+    // The book's pictures, for the Coloring Page picker (✓ = already made,
+    // stored in R2 — opens instantly and free).
+    exportColoringEntries() {
+      const s = this.currentStory;
+      if (!s) return [];
+      const made = s.coloring || {};
+      const out = [];
+      if (s.cover && s.cover.image_status === 'ready' && s.cover.image_id) {
+        out.push({ imageId: s.cover.image_id, label: 'Cover', made: !!made[s.cover.image_id] });
+      }
+      (s.pages || []).forEach((p, i) => {
+        if (p.image_status === 'ready' && p.image_id) {
+          out.push({ imageId: p.image_id, label: `Page ${i + 1}`, made: !!made[p.image_id] });
+        }
+      });
+      return out;
+    },
+    // Per-printer duplex correction (mm, + = shift backs down), saved from
+    // the Print Alignment test. alignVersion just makes this reactive.
+    alignOffsetMm() {
+      this.alignVersion;
+      const v = parseFloat(localStorage.getItem('storytime_print_back_offset_mm'));
+      return Number.isFinite(v) ? v : 0;
     },
     // On phones/tablets the OS share sheet IS print + save + share in one,
     // so the UI shows a single button there and Print + Save on desktop.
@@ -925,6 +966,35 @@ createApp({
         this.mruVersion++;                          // refresh the breakdown computeds
         this.classifyMsg = `Done — ${fixed} of ${targets.length} book${targets.length === 1 ? '' : 's'} given a genre.`;
       } finally { this.classifyRunning = false; }
+    },
+
+    // One-off repair: books created before quizzes existed have no Quiz Me
+    // on the toolbox page. Write one for each (gpt-4o-mini, ~½¢/book) and
+    // save it to the cloud so every device gets it.
+    async retrofitQuizzes() {
+      if (this.quizFixRunning) return;
+      this.quizFixRunning = true;
+      let checked = 0, added = 0, skipped = 0;
+      const books = this.libraryBooks || [];
+      try {
+        for (const b of books) {
+          this.quizFixMsg = `Checking ${++checked} of ${books.length}…`;
+          try {
+            const story = getStoredStories().find((x) => x.id === b.id) || await fetchFullStory(b.id);
+            if (!story) continue;
+            if (story.quiz && story.quiz.comprehension && story.quiz.comprehension.length) { skipped++; continue; }
+            this.quizFixMsg = `Writing a quiz for "${b.title}"… (${checked}/${books.length})`;
+            const res = await generateQuizForStory(story, this.password);
+            recordSpend('text', res.cost);
+            if (!res.quiz) continue;
+            story.quiz = res.quiz;
+            await syncPushStory(story);              // persist to the cloud
+            try { saveStoryToStorage(story); } catch (e) { /* quota */ }
+            added++;
+          } catch (e) { console.warn('Quiz retrofit failed for', b.id, e); }
+        }
+        this.quizFixMsg = `Done — ${added} quiz${added === 1 ? '' : 'zes'} added, ${skipped} book${skipped === 1 ? '' : 's'} already had one.`;
+      } finally { this.quizFixRunning = false; }
     },
 
     // ---- Story Breakdown drill-down: tap a count to see those books ----
@@ -2994,7 +3064,13 @@ createApp({
       this._exportCanvases = null;
     },
     exportBack() {
-      if (this.exportSheet) this.exportSheet = { stage: 'pick' };
+      const x = this.exportSheet;
+      if (!x) return;
+      if (x.format === 'coloring' && (x.stage === 'preview' || x.stage === 'coloring-confirm')) {
+        this.exportSheet = { stage: 'coloring-pick', format: 'coloring' };
+      } else {
+        this.exportSheet = { stage: 'pick' };
+      }
     },
     setExportCanvas(i, el) {
       if (!this._exportCanvases) this._exportCanvases = [];
@@ -3067,6 +3143,10 @@ createApp({
 
     async chooseExportFormat(format) {
       if (!this.currentStory) return;
+      if (format === 'coloring') {
+        this.exportSheet = { stage: 'coloring-pick', format: 'coloring' };
+        return;
+      }
       const cached = this._exportCache && this._exportCache[format];
       this.exportSheet = { stage: 'preview', format, busy: !cached, progressText: 'Getting the pictures ready…', sheetCount: 0, current: 0, error: '' };
       if (cached) { this._showExportPreview(cached); return; }
@@ -3080,7 +3160,7 @@ createApp({
         this.exportSheet.progressText = 'Laying out the pages…';
         const spec = await STExport.buildSpec(format, story, this._exportMeta(), this.version);
         this.exportSheet.progressText = 'Building the PDF…';
-        const pdfBytes = await STExport.renderSpecToPdf(spec, assets.bytes, this.version);
+        const pdfBytes = await STExport.renderSpecToPdf(spec, assets.bytes, this.version, { backOffsetMm: this.alignOffsetMm });
         const built = { spec, assets, pdfBytes };
         this._exportCache[format] = built;
         if (this.exportSheet && this.exportSheet.format === format) this._showExportPreview(built);
@@ -3091,6 +3171,149 @@ createApp({
           this.exportSheet.error = 'Sorry — the export hit a snag. Check your connection and try again.';
         }
       }
+    },
+
+    // ---- Coloring Page (v1.2.4) ---------------------------------------
+    // Grid → tap a picture. Already made (✓): opens instantly from R2/cache.
+    // New: confirm, then gpt-image-1 redraws the real picture as line art.
+    async selectColoringPage(entry) {
+      if (!this.exportSheet) return;
+      if (entry.made) {
+        this.exportSheet = { stage: 'preview', format: 'coloring', busy: true, progressText: 'Fetching your coloring page…', sheetCount: 0, current: 0, error: '' };
+        try {
+          const cid = entry.imageId + '_c';
+          let blob = null;
+          try { blob = await getImageBlob(cid); } catch (e) { /* fall through */ }
+          if (!blob) {
+            const urls = await signImageUrlsFor([cid]);
+            if (!urls[cid]) throw new Error('coloring image missing');
+            const r = await fetch(urls[cid]);
+            if (!r.ok) throw new Error('coloring image fetch failed');
+            blob = await r.blob();
+            try { await saveImageBlob(cid, blob); } catch (e) { /* cache is best-effort */ }
+          }
+          await this._showColoringSheet(entry.imageId, blob);
+        } catch (e) {
+          console.warn('Coloring load failed:', e);
+          if (this.exportSheet) { this.exportSheet.busy = false; this.exportSheet.error = 'Could not fetch that coloring page — check your connection and try again.'; }
+        }
+        return;
+      }
+      this.exportSheet = { stage: 'coloring-confirm', format: 'coloring', entry };
+    },
+    async confirmColoringPage() {
+      const entry = this.exportSheet && this.exportSheet.entry;
+      if (!entry) return;
+      await this._generateColoring(entry.imageId);
+    },
+    async remakeColoring() {
+      const built = this._exportCache && this._exportCache.coloring;
+      if (built && built.imageId) await this._generateColoring(built.imageId);
+    },
+    async _generateColoring(imageId) {
+      this.exportSheet = { stage: 'preview', format: 'coloring', busy: true, progressText: 'Redrawing your picture as line art… (~20s)', sheetCount: 0, current: 0, error: '' };
+      try {
+        await this._ensureExportLibs();
+        // source picture: local cache first, signed URL as fallback
+        let src = null;
+        try { src = await getImageBlob(imageId); } catch (e) { /* fall through */ }
+        if (!src) {
+          const urls = await signImageUrlsFor([imageId]);
+          if (!urls[imageId]) throw new Error('source image unavailable');
+          const r = await fetch(urls[imageId]);
+          src = await r.blob();
+        }
+        const result = await generateColoringImage(src, this.password);
+        recordSpend('pictures', result.cost);
+        const cid = imageId + '_c';
+        const blob = base64ToBlob(result.b64, 'image/png');
+        try { await saveImageBlob(cid, blob); } catch (e) { /* best-effort */ }
+        try { await imgUploadToCloud(cid, result.b64, 'image/png', this.password); } catch (e) { console.warn('Coloring R2 upload failed (kept locally):', e); }
+        // remember it in the story so every device sees the ✓
+        const story = this.currentStory;
+        story.coloring = story.coloring || {};
+        story.coloring[imageId] = cid;
+        try { await syncPushStory(story); } catch (e) { console.warn('Coloring map sync failed:', e); }
+        try { saveStoryToStorage(story); } catch (e) { /* quota */ }
+        await this._showColoringSheet(imageId, blob);
+      } catch (e) {
+        console.warn('Coloring generation failed:', e);
+        if (!this.exportSheet) return;
+        this.exportSheet.busy = false;
+        if (e.maybeOldWorker) this.exportSheet.error = 'The Cloudflare worker needs its v1.2.4 update for coloring pages — paste & deploy the new worker.js, then try again.';
+        else if (e.isContentPolicy) this.exportSheet.error = 'The art service declined this picture. Try a different page.';
+        else this.exportSheet.error = 'Sorry — the coloring page hit a snag. Check your connection and try again.';
+      }
+    },
+    async _showColoringSheet(imageId, blob) {
+      const el = await this._blobToImage(blob);
+      const assets = { bytes: { coloring: await blob.arrayBuffer() }, elements: { coloring: el } };
+      const spec = await STExport.buildSpec('coloring', this.currentStory, this._exportMeta(), this.version);
+      const pdfBytes = await STExport.renderSpecToPdf(spec, assets.bytes, this.version);
+      const built = { spec, assets, pdfBytes, imageId };
+      this._exportCache.coloring = built;
+      if (this.exportSheet && this.exportSheet.format === 'coloring') {
+        this.exportSheet = { stage: 'preview', format: 'coloring', busy: false, progressText: '', sheetCount: 0, current: 0, error: '' };
+        this._showExportPreview(built);
+      }
+    },
+    _blobToImage(blob) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+        img.src = url;
+      });
+    },
+
+    // ---- Print Alignment (v1.2.4) --------------------------------------
+    // One duplex test sheet measures the printer's back-side vertical
+    // drift; the chosen value shifts every Mini-Book back in the PDF.
+    openAlign() { this.showAlign = true; },
+    async printAlignTest() {
+      if (this.alignBusy) return;
+      this.alignBusy = true;
+      try {
+        await this._ensureExportLibs();
+        const bytes = await STExport.buildCalibrationPdf(this.version);
+        await this._deliverPdf(bytes, 'StoryTime — Print Alignment Test.pdf');
+      } catch (e) {
+        console.warn('Alignment test failed:', e);
+        alert('Could not build the test sheet — try again.');
+      } finally { this.alignBusy = false; }
+    },
+    setAlignOffset(mm) {
+      localStorage.setItem('storytime_print_back_offset_mm', String(mm));
+      this.alignVersion++;
+      if (this._exportCache) this._exportCache = {};   // rebuilt with the new offset
+    },
+
+    // ---- preview strip: drag-to-swipe with a mouse ---------------------
+    expDragDown(e) {
+      if (e.pointerType !== 'mouse') return;         // touch scrolls natively
+      const s = this.$refs.expStrip;
+      if (!s) return;
+      this._expDrag = { x: e.clientX, sl: s.scrollLeft };
+      s.style.scrollSnapType = 'none';
+      s.setPointerCapture(e.pointerId);
+    },
+    expDragMove(e) {
+      if (!this._expDrag) return;
+      const s = this.$refs.expStrip;
+      s.scrollLeft = this._expDrag.sl - (e.clientX - this._expDrag.x);
+    },
+    expDragUp() {
+      if (!this._expDrag) return;
+      this._expDrag = null;
+      const s = this.$refs.expStrip;
+      if (!s) return;
+      const kids = s.querySelectorAll('canvas');
+      if (kids.length) {
+        const step = kids[0].offsetWidth + 14;
+        s.scrollTo({ left: Math.round(s.scrollLeft / step) * step, behavior: 'smooth' });
+      }
+      setTimeout(() => { if (s) s.style.scrollSnapType = ''; }, 350);
     },
     _showExportPreview(built) {
       this.exportSheet.sheetCount = built.spec.sheets.length;
@@ -3123,6 +3346,12 @@ createApp({
     async exportPrimary() {
       const file = this._exportFile();
       if (!file) return;
+      await this._deliverPdf(file, file.name);
+    },
+    // Hand a PDF to the OS: share sheet (print/save/share in one) on
+    // phones, native print dialog on desktop.
+    async _deliverPdf(bytesOrFile, name) {
+      const file = bytesOrFile instanceof File ? bytesOrFile : new File([bytesOrFile], name, { type: 'application/pdf' });
       if (this.exportCanShareFiles) {
         try { await navigator.share({ files: [file] }); } catch (e) { /* cancelled */ }
         return;

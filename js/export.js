@@ -287,7 +287,8 @@ const STExport = (() => {
     const sheets = [];
     for (const imp of bookletImposition(last)) {
       sheets.push({ ops: miniSheetOps(imp.front, 'left', true, P, last, meta) });
-      sheets.push({ ops: miniSheetOps(imp.back, 'right', false, P, last, meta) });
+      // back:true → the PDF renderer applies the per-printer duplex offset
+      sheets.push({ ops: miniSheetOps(imp.back, 'right', false, P, last, meta), back: true });
     }
     return { kind: 'minibook', sheets, bookPages: last, sheetsOfPaper: sheets.length / 2 };
   }
@@ -410,15 +411,7 @@ const STExport = (() => {
         furn.push({ op: 'ctext', text: line, fontKey: 'sans', size: mSize, color: C.meta, cx: px + pw / 2, y: by });
         by += mLH;
       }
-      // "Made with ♥ and StoryTime" — vector heart in dark indigo
-      const madeA = 'Made with ', madeB = ' and StoryTime';
-      const f = _measure.sans;
-      const heartW = 7.5;
-      const totW = f.widthOfTextAtSize(madeA, mSize) + heartW + 2 + f.widthOfTextAtSize(madeB, mSize);
-      const startX = px + pw / 2 - totW / 2;
-      furn.push({ op: 'line-text', words: [{ t: madeA, x: 0 }], x: startX, y: by, size: mSize, fontKey: 'sans', color: C.meta });
-      furn.push({ op: 'heart', x: startX + f.widthOfTextAtSize(madeA, mSize) + 1, y: by - 6.8, size: heartW, color: C.heart });
-      furn.push({ op: 'line-text', words: [{ t: madeB, x: 0 }], x: startX + f.widthOfTextAtSize(madeA, mSize) + heartW + 2, y: by, size: mSize, fontKey: 'sans', color: C.meta });
+      furn.push({ op: 'ctext', text: 'Made with StoryTime', fontKey: 'sans', size: mSize, color: C.meta, cx: px + pw / 2, y: by });
     }
   }
 
@@ -491,6 +484,55 @@ const STExport = (() => {
     });
     flush(true);
     return { kind: 'storyboard', sheets, sheetsOfPaper: sheets.length };
+  }
+
+  // =====================================================================
+  //  COLORING PAGE — one full-page sheet: big square line art + footer
+  // =====================================================================
+  function buildColoringSpec(meta) {
+    const artSize = 540;                            // 7.5" square
+    const ax = (PAGE_W - artSize) / 2, ay = 78;
+    const ops = [
+      { op: 'image-cover', key: 'coloring', clip: { x: ax, y: ay, w: artSize, h: artSize } },
+      { op: 'rect-outline', x: ax - 6, y: ay - 6, w: artSize + 12, h: artSize + 12, color: C.parchBrd, width: 1 },
+      { op: 'ctext', text: `${meta.title} · Made with StoryTime`, fontKey: 'sans', size: 9.5, color: C.pageno, cx: PAGE_W / 2, y: ay + artSize + 34 },
+    ];
+    return { kind: 'coloring', sheets: [{ ops }], sheetsOfPaper: 1 };
+  }
+
+  // =====================================================================
+  //  PRINT-ALIGNMENT TEST — one duplex sheet that measures the printer's
+  //  back-side vertical drift. Front: a bold reference line. Back: a
+  //  ladder of numbered lines in 0.5mm steps. Hold the printed sheet up
+  //  to a light, back side toward you: the front line glows through —
+  //  whichever numbered line it sits on is the offset to save.
+  // =====================================================================
+  const MM = 72 / 25.4;
+  function buildCalibrationSpec() {
+    const midY = PAGE_H / 2;
+    const front = [];
+    const say = (arr, text, size, y, fontKey, color) =>
+      arr.push({ op: 'ctext', text, fontKey: fontKey || 'sans', size, color: color || C.ink, cx: PAGE_W / 2, y });
+    say(front, 'StoryTime · Print Alignment Test', 16, 90, 'serifBold');
+    say(front, 'Print this sheet 2-sided (flip on long edge, 100% scale).', 11, 118);
+    say(front, 'Then hold it up to a light with the BACK side toward you.', 11, 136);
+    front.push({ op: 'rule', x1: 60, y1: midY, x2: PAGE_W - 60, y2: midY, color: C.ink, width: 1.6 });
+    say(front, 'front reference line', 9, midY + 16, 'sans', C.meta);
+    say(front, 'This line will glow through the paper — read which numbered', 11, PAGE_H - 140);
+    say(front, 'line it lands on, and tap that number in the app.', 11, PAGE_H - 122);
+
+    const back = [];
+    say(back, 'Which numbered line does the glowing front line sit on?', 11, 100);
+    for (let n = -6; n <= 6; n++) {
+      const y = midY + n * 0.5 * MM;
+      const isZero = n === 0;
+      back.push({ op: 'rule', x1: 150, y1: y, x2: PAGE_W - 150, y2: y, color: isZero ? C.gold : C.ink, width: isZero ? 1.6 : 0.9 });
+      const label = (n * 0.5 === 0) ? '0' : (n > 0 ? `+${(n * 0.5).toFixed(1)}` : (n * 0.5).toFixed(1));
+      back.push({ op: 'ctext', text: label, fontKey: 'sansBold', size: 8.5, color: isZero ? C.gold : C.meta, cx: 120, y: y + 3 });
+      back.push({ op: 'ctext', text: label, fontKey: 'sansBold', size: 8.5, color: isZero ? C.gold : C.meta, cx: PAGE_W - 120, y: y + 3 });
+    }
+    say(back, 'If the glow sits between two lines, pick the closer one.', 10, PAGE_H - 130, 'sans', C.meta);
+    return { kind: 'calibration', sheets: [{ ops: front }, { ops: back }], sheetsOfPaper: 1, docTitle: 'StoryTime — Print Alignment Test' };
   }
 
   // How many storyboard pages a story needs (for footers, pre-computed).
@@ -567,7 +609,10 @@ const STExport = (() => {
   }
 
   // ---- PDF ------------------------------------------------------------
-  async function renderSpecToPdf(spec, imageBytes, version) {
+  // opts.backOffsetMm: per-printer duplex correction — every sheet marked
+  // back:true is shifted vertically by this amount (positive = down), so
+  // the backs land exactly behind the fronts on THIS printer.
+  async function renderSpecToPdf(spec, imageBytes, version, opts) {
     const bytes = await loadFontBytes(version);
     const doc = await PDFLib.PDFDocument.create();
     doc.registerFontkit(fontkit);
@@ -594,10 +639,12 @@ const STExport = (() => {
     }
     const { rgb } = PDFLib;
     const col = (c) => rgb(c[0], c[1], c[2]);
-    const Y = (y) => PAGE_H - y;                    // top-left → PDF coords
+    const backOffsetPt = (opts && opts.backOffsetMm ? opts.backOffsetMm : 0) * 72 / 25.4;
 
     for (const sheet of spec.sheets) {
       const page = doc.addPage([PAGE_W, PAGE_H]);
+      const dy = sheet.back ? backOffsetPt : 0;
+      const Y = (y) => PAGE_H - y - dy;             // top-left → PDF coords (+ duplex shift)
       for (const o of sheet.ops) {
         if (o.previewOnly) continue;              // preview guides never print
         if (o.op === 'rect') {
@@ -720,10 +767,18 @@ const STExport = (() => {
     await ensureMeasuringFonts(version);
     await ensurePreviewFonts(version);
     meta.sbPageCount = storyboardPageCount((story.pages || []).length);
-    const spec = format === 'minibook' ? buildMiniBookSpec(story, meta) : buildStoryboardSpec(story, meta);
-    spec.docTitle = `${meta.title} — ${format === 'minibook' ? 'Mini-Book' : 'Storyboard'}`;
+    const spec = format === 'minibook' ? buildMiniBookSpec(story, meta)
+      : format === 'coloring' ? buildColoringSpec(meta)
+      : buildStoryboardSpec(story, meta);
+    const label = format === 'minibook' ? 'Mini-Book' : format === 'coloring' ? 'Coloring Page' : 'Storyboard';
+    spec.docTitle = `${meta.title} — ${label}`;
     return spec;
   }
 
-  return { buildSpec, gatherAssets, renderSheetToCanvas, renderSpecToPdf, PAGE_W, PAGE_H };
+  async function buildCalibrationPdf(version) {
+    await ensureMeasuringFonts(version);
+    return renderSpecToPdf(buildCalibrationSpec(), {}, version);
+  }
+
+  return { buildSpec, gatherAssets, renderSheetToCanvas, renderSpecToPdf, buildCalibrationPdf, PAGE_W, PAGE_H };
 })();

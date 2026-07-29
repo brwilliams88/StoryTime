@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.3" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.3" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.3" />
-  <link rel="manifest" href="manifest.json?v=1.2.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.4" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.4" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.4" />
+  <link rel="manifest" href="manifest.json?v=1.2.4" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.3" />
-  <link rel="stylesheet" href="css/style.css?v=1.2.3" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.4" />
+  <link rel="stylesheet" href="css/style.css?v=1.2.4" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.3" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.4" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1152,9 +1152,11 @@
               <button @click="handleCleanupImages" class="btn-secondary btn-small">🧹 Clean Up Unused Images</button>
               <button @click="handleClearImages" class="btn-secondary btn-small">📥 Clear Offline Cache</button>
               <button @click="classifySurpriseGenres" :disabled="classifyRunning" class="btn-secondary btn-small">{{ classifyRunning ? 'Reading…' : '🏷 Fix "Surprise me" Genres' }}</button>
+              <button @click="retrofitQuizzes" :disabled="quizFixRunning" class="btn-secondary btn-small">{{ quizFixRunning ? 'Writing quizzes…' : '🧠 Add Quizzes to Old Books' }}</button>
               <button @click="resetGenTimings" class="btn-secondary btn-small">⏱ Reset Timing Data</button>
             </div>
             <p v-if="classifyMsg" class="settings-fine-print" style="color: var(--accent);">{{ classifyMsg }}</p>
+            <p v-if="quizFixMsg" class="settings-fine-print" style="color: var(--accent);">{{ quizFixMsg }}</p>
             <p v-if="backfillRunning || backfillDone" class="settings-fine-print" style="color: var(--accent);">
               {{ backfillRunning ? 'Rebuilding' : 'Done' }} — book {{ backfillDone }} / {{ backfillTotal }}<template v-if="backfillImages"> · {{ backfillImages }} thumbnails</template>
             </p>
@@ -1238,7 +1240,7 @@
         <div class="exp-card">
           <div class="exp-head">
             <button v-if="exportSheet.stage === 'preview'" class="exp-back" @click="exportBack" aria-label="Back">‹</button>
-            <h3>{{ exportSheet.stage === 'pick' ? 'Export & Print' : exportFormatLabel + ' · preview' }}</h3>
+            <h3>{{ exportSheetTitle }}</h3>
             <button class="exp-close" @click="closeExportSheet" aria-label="Close">✕</button>
           </div>
 
@@ -1259,6 +1261,39 @@
                 <small>One-sided handout — pictures beside words. No assembly.</small>
               </span>
             </button>
+            <button class="exp-opt" :disabled="!exportHasImages" @click="chooseExportFormat('coloring')">
+              <svg class="exp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+              <span class="exp-opt-text">
+                <strong>Coloring Page</strong>
+                <small v-if="exportHasImages">Pick a picture — it's redrawn as line art to color in (~3¢, saved forever).</small>
+                <small v-else>Needs pictures — this story was made without them.</small>
+              </span>
+            </button>
+            <button class="exp-howto-link" @click="openAlign">🎯 &nbsp;Print alignment<span v-if="alignOffsetMm !== 0"> · {{ alignOffsetMm > 0 ? '+' : '' }}{{ alignOffsetMm.toFixed(1) }}mm</span></button>
+          </template>
+
+          <!-- Coloring: pick a picture (✓ = already made, opens free) -->
+          <template v-else-if="exportSheet.stage === 'coloring-pick'">
+            <div class="exp-cgrid">
+              <button v-for="en in exportColoringEntries" :key="'cg' + en.imageId" class="exp-cthumb" @click="selectColoringPage(en)">
+                <img v-if="getImageURL(en.imageId)" :src="getImageURL(en.imageId)" :alt="en.label" />
+                <span class="exp-cthumb-label">{{ en.label }}</span>
+                <span v-if="en.made" class="exp-cthumb-made" title="Already made — opens instantly">✓</span>
+              </button>
+            </div>
+            <div class="exp-note">Tap a picture. ✓ ones are already made — they open instantly and free.</div>
+          </template>
+
+          <!-- Coloring: confirm before generating -->
+          <template v-else-if="exportSheet.stage === 'coloring-confirm'">
+            <div class="exp-cconfirm">
+              <img v-if="getImageURL(exportSheet.entry.imageId)" :src="getImageURL(exportSheet.entry.imageId)" :alt="exportSheet.entry.label" />
+              <div class="exp-note">{{ exportSheet.entry.label }} — redraw this picture as a black &amp; white coloring page?</div>
+            </div>
+            <div class="exp-btnrow">
+              <button class="exp-btn gold" @click="confirmColoringPage">🖍️ Make it (~3¢)</button>
+              <button class="exp-btn ghost" @click="exportBack">Cancel</button>
+            </div>
           </template>
 
           <!-- Stage 2: live preview of every sheet -->
@@ -1272,7 +1307,7 @@
             </template>
             <template v-else>
               <div class="exp-stage">
-                <div class="exp-strip" ref="expStrip" @scroll.passive="onExportScroll">
+                <div class="exp-strip" ref="expStrip" @scroll.passive="onExportScroll" @pointerdown="expDragDown" @pointermove="expDragMove" @pointerup="expDragUp" @pointercancel="expDragUp">
                   <canvas v-for="i in exportSheet.sheetCount" :key="'xc' + i" :ref="el => setExportCanvas(i - 1, el)" class="exp-canvas" width="612" height="792"></canvas>
                 </div>
                 <div class="exp-dots"><i v-for="i in exportSheet.sheetCount" :key="'xd' + i" :class="{ on: i - 1 === exportSheet.current }"></i></div>
@@ -1290,6 +1325,7 @@
                 </button>
               </div>
               <button v-if="exportSheet.format === 'minibook' && !exportCanShareFiles" class="exp-howto-link" @click="showHowTo = true">ⓘ &nbsp;How to build it</button>
+              <button v-if="exportSheet.format === 'coloring'" class="exp-howto-link" @click="remakeColoring">↻ &nbsp;Remake this coloring page (~3¢)</button>
             </template>
           </template>
         </div>
@@ -1307,6 +1343,27 @@
           <div class="hw-step"><span class="hw-n">3</span><div><strong>Stack by the numbers</strong><p>Cover on top, then follow the small numbers in the margin — 2, 3, 4… in order, numbers on the left, facing up.</p></div></div>
           <div class="hw-step"><span class="hw-n">4</span><div><strong>Staple the spine</strong><p>Two staples through the <b>gold marks</b> on the cover's dark spine band. Any desk stapler reaches. That's it — a real little book!</p></div></div>
           <button class="exp-btn gold hw-done" @click="showHowTo = false">Got it</button>
+        </div>
+      </div>
+
+      <!-- Print Alignment — cancel the printer's 2-sided vertical drift -->
+      <div v-if="showAlign" class="exp-overlay" @click.self="showAlign = false">
+        <div class="exp-card">
+          <div class="exp-head">
+            <h3>Print alignment</h3>
+            <button class="exp-close" @click="showAlign = false" aria-label="Close">✕</button>
+          </div>
+          <p class="exp-align-text">Most printers shift the BACK of a 2-sided page up or down by a millimetre or two. This one-time test measures yours, and every Mini-Book after that is corrected automatically.</p>
+          <p class="exp-align-text"><b>1.</b> Print the test sheet 2-sided (long edge, 100%).<br><b>2.</b> Hold it up to a light, back side toward you.<br><b>3.</b> Tap the number the glowing line lands on.</p>
+          <button class="exp-btn ghost exp-align-print" @click="printAlignTest" :disabled="alignBusy">
+            <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{{ alignBusy ? 'Building…' : 'Print test sheet' }}
+          </button>
+          <div class="exp-align-chips">
+            <button v-for="n in 13" :key="'al' + n" :class="['exp-align-chip', { sel: alignOffsetMm === (n - 7) * 0.5 }]" @click="setAlignOffset((n - 7) * 0.5)">
+              {{ (n - 7) === 0 ? '0' : ((n - 7) > 0 ? '+' : '') + ((n - 7) * 0.5).toFixed(1) }}
+            </button>
+          </div>
+          <p class="exp-align-current">Current: {{ alignOffsetMm === 0 ? 'no correction' : (alignOffsetMm > 0 ? '+' : '') + alignOffsetMm.toFixed(1) + 'mm' }}</p>
         </div>
       </div>
 
@@ -1436,18 +1493,18 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.2.3"></script>
-  <script src="vendor/cropper.min.js?v=1.2.3"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.2.3"></script>
-  <script src="vendor/gsap.min.js?v=1.2.3"></script>
-  <script src="js/storage.js?v=1.2.3"></script>
-  <script src="js/imageStorage.js?v=1.2.3"></script>
-  <script src="js/api.js?v=1.2.3"></script>
-  <script src="js/sync.js?v=1.2.3"></script>
-  <script src="js/pageShadow.js?v=1.2.3"></script>
-  <script src="js/pageCurl.js?v=1.2.3"></script>
-  <script src="js/export.js?v=1.2.3"></script>
-  <script src="js/app.js?v=1.2.3"></script>
+  <script src="vendor/vue.global.js?v=1.2.4"></script>
+  <script src="vendor/cropper.min.js?v=1.2.4"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.2.4"></script>
+  <script src="vendor/gsap.min.js?v=1.2.4"></script>
+  <script src="js/storage.js?v=1.2.4"></script>
+  <script src="js/imageStorage.js?v=1.2.4"></script>
+  <script src="js/api.js?v=1.2.4"></script>
+  <script src="js/sync.js?v=1.2.4"></script>
+  <script src="js/pageShadow.js?v=1.2.4"></script>
+  <script src="js/pageCurl.js?v=1.2.4"></script>
+  <script src="js/export.js?v=1.2.4"></script>
+  <script src="js/app.js?v=1.2.4"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

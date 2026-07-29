@@ -1,6 +1,13 @@
 // =====================================================================
-//  ███  WORKER REV: v1.1.0  (2026-07-27)  ███  (adds /img/migrate for the Supabase→R2 sweep)
-//  Changes since last deploy: NEW POST /img/migrate — copies images that still
+//  ███  WORKER REV: v1.2.4  (2026-07-28)  ███  (OpenAI proxy forwards multipart — needed for Coloring Pages)
+//  Changes since last deploy: proxyOpenAI now forwards the ORIGINAL
+//    Content-Type header and the RAW request body instead of assuming JSON.
+//    This is required for /v1/images/edits (image-to-image), which uses
+//    multipart/form-data — the Coloring Page export sends the page's real
+//    picture to gpt-image-1 to be redrawn as line art. JSON routes
+//    (/v1/chat/completions, /v1/images/generations) behave exactly as before.
+//  Previously (v1.1.0): /img/migrate for the Supabase→R2 sweep.
+//    NEW POST /img/migrate — copies images that still
 //    live only in Supabase Storage into R2, a BATCH at a time (Workers cap how
 //    many subrequests one request may make, so the client calls this in a loop
 //    and shows progress). Body: { limit? } → { ok, copied, failed, remaining,
@@ -166,13 +173,17 @@ async function spendList(env) {
 // OpenAI
 // =====================================================================
 async function proxyOpenAI(request, env, endpoint) {
-  const requestBody = await request.text();
+  // Forward the body EXACTLY as received: JSON stays JSON, and multipart
+  // form-data (used by /v1/images/edits for image-to-image) keeps its
+  // boundary header and binary payload intact.
+  const contentType = request.headers.get('Content-Type') || 'application/json';
+  const requestBody = await request.arrayBuffer();
   let openaiResponse;
   try {
     openaiResponse = await fetch(`https://api.openai.com${endpoint}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': contentType,
         'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
       },
       body: requestBody,

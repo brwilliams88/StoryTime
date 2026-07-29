@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.2.4 - 2026-07-28 - Coloring Pages; print alignment; quizzes for old books - Worker REV v1.2.4
+  • NEW EXPORT: COLORING PAGE. Pick any picture from the book and it's redrawn as clean black-and-white line art for coloring in (gpt-image-1 image-to-image, ~3¢). Full preview before you print, then Print / Share like the other formats. Every coloring page is saved to the cloud — pictures you've already made show a ✓ in the picker and open again instantly, free, on any device. A "Remake" link redraws one you don't love.
+  • REQUIRES the new worker.js (REV v1.2.4) — paste/deploy in Cloudflare. (The proxy now forwards image uploads properly; everything else is unchanged.)
+  • NEW: PRINT ALIGNMENT (in the export screen). Printers shift the back of a 2-sided page by a millimetre or two — that's what was shaving the Mini-Book pictures. Print the one-page test, hold it to a light, tap the number the glowing line lands on, and every Mini-Book after that pre-corrects the backs for YOUR printer.
+  • NEW in Developer: "🧠 Add Quizzes to Old Books" — writes a quiz for every book made before quizzes existed (gpt-4o-mini, ~½¢ each) and saves it to the cloud, so Quiz Me appears on every toolbox page.
+  • Export previews are bigger on the phone, you can drag with the mouse to flip pages on the laptop, and the Mini-Book back cover now simply says "Made with StoryTime".
+
+--------------------------
 v1.2.3 - 2026-07-28 - Mini-Book: no bleed at all — ink stops exactly at the lines
   • Removed the bleed technique entirely. Every picture, and the spine band, now stops EXACTLY on the dotted cut lines — nothing from one page can ever print on a neighbouring piece (no more spine-band sliver on page 18, no image edges crossing the lines on the back sheets). Verified: every image and rectangle in the whole book sits strictly inside its own cut piece.
   • The trade-off, accepted deliberately: if a cut (or the printer's 2-sided registration) wanders a hair off the line, that sliver shows as plain white paper instead of a neighbour's colour.
