@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.2.2',
+      version: 'v1.2.3',
       buildDate: '2026-07-28',
 
       showSplash: true,
@@ -3075,7 +3075,7 @@ createApp({
         const story = this.currentStory;
         const assets = await STExport.gatherAssets(story, (done, total) => {
           if (this.exportSheet) this.exportSheet.progressText = `Getting the pictures ready… ${Math.min(done, total)}/${total}`;
-        }, { extend: format === 'minibook' });
+        });
         if (!this.exportSheet) return;              // closed mid-build
         this.exportSheet.progressText = 'Laying out the pages…';
         const spec = await STExport.buildSpec(format, story, this._exportMeta(), this.version);

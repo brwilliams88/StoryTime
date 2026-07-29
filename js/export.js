@@ -37,12 +37,10 @@ const STExport = (() => {
   const CELL_W = 270, CELL_H = 252;               // one cut piece
   const SQ = 252;                                 // 3.5" square page face
   const GUT = 18;                                 // ¼" binding margin (the spine)
-  // Bleed = how far art overshoots the cut lines. 7pt ≈ 2.5mm — enough to
-  // absorb home-printer duplex drift (the HP ENVY shifts backs 1–2mm).
-  // Crucially the bleed is filled by STRETCHED EDGE PIXELS (see
-  // makeBleedExtended), so the artwork inside the cut lines is the full,
-  // uncropped square — nothing of the picture is sacrificed to the bleed.
-  const BLEED = 7;
+  // NO BLEED, by choice: every page's ink stops EXACTLY at the cut lines,
+  // so nothing from one page can ever end up printed on a neighbour's
+  // piece. (Trade-off, accepted: if a cut wanders a hair off the line, the
+  // sliver shows as white paper rather than a neighbour's colour.)
   // cells in order r1L r1R r2L r2R r3L r3R
   const CELL_POS = [
     [TRIM_X, TRIM_Y], [TRIM_X + CELL_W, TRIM_Y],
@@ -270,10 +268,10 @@ const STExport = (() => {
   function uniformTextBlocks(P, story, pad, endReserve) {
     const pages = story.pages || [];
     const maxW = SQ - 2 * pad;
-    let g = 11;
+    let g = 12;                                    // a notch bigger — fills the page more
     pages.forEach((pg, k) => {
       const isLast = k === pages.length - 1;
-      const f = fitText('serif', pg.text, 11, 8.5, maxW, SQ - 2 * pad - (isLast ? endReserve : 0), 'justify', 1.62);
+      const f = fitText('serif', pg.text, 12, 9, maxW, SQ - 2 * pad - (isLast ? endReserve : 0), 'justify', 1.62);
       if (f.size < g) g = f.size;
     });
     pages.forEach((pg, k) => {
@@ -338,22 +336,19 @@ const STExport = (() => {
     const outerEdge = gutterSide === 'left' ? 'right' : 'left';   // square's cut-line side
     const isCoverish = p.kind === 'cover' || p.kind === 'back';
 
-    // -- ART layer (everything that bleeds) ----------------------------
-    // Bleed-extended images ('X' keys): the artwork square maps EXACTLY
-    // onto the page square, and the bleed margins carry stretched edge
-    // pixels — so the cut lines frame the full picture, and a couple of
-    // millimetres of printer drift can never expose white paper.
-    const extDraw = { x: sqX - BLEED, y: cy - BLEED, w: SQ + 2 * BLEED, h: SQ + 2 * BLEED };
-    if (p.kind === 'cover') art.push({ op: 'image-cover', key: 'coverX', clip: bleedRect(sqX, cy, outerEdge), draw: extDraw });
-    if (p.kind === 'img')   art.push({ op: 'image-cover', key: p.imageKey + 'X', clip: bleedRect(sqX, cy, outerEdge), draw: extDraw });
-    if (p.kind === 'back')  art.push({ op: 'image-cover', key: 'coverBlur', clip: bleedRect(sqX, cy, outerEdge) });
+    // -- ART layer -----------------------------------------------------
+    // The artwork square maps EXACTLY onto the page square — flush to the
+    // cut lines on its three outer sides, flush to the spine margin inside.
+    const face = { x: sqX, y: cy, w: SQ, h: SQ };
+    if (p.kind === 'cover') art.push({ op: 'image-cover', key: 'cover', clip: face });
+    if (p.kind === 'img')   art.push({ op: 'image-cover', key: p.imageKey, clip: face });
+    if (p.kind === 'back')  art.push({ op: 'image-cover', key: 'coverBlur', clip: face });
 
-    // -- FURNITURE layer (painted over every bleed) --------------------
+    // -- FURNITURE layer -----------------------------------------------
     if (isCoverish) {
       // the whole ¼" binding margin IS the spine band — flush against the
-      // art, bleeding past its own trim/cut line
-      const bx = gutterSide === 'left' ? gutterX - BLEED : gutterX;
-      furn.push({ op: 'rect', x: bx, y: cy - BLEED, w: GUT + BLEED, h: CELL_H + 2 * BLEED, color: C.indigo });
+      // art on one side, stopping exactly at the cut/trim line on the other
+      furn.push({ op: 'rect', x: gutterX, y: cy, w: GUT, h: CELL_H, color: C.indigo });
       // two gold staple marks — vertical, ½" long (a real staple), spread wide
       const mx = gutterX + GUT / 2;
       const stapleLen = 36, stapleW = 2.4;
@@ -396,16 +391,18 @@ const STExport = (() => {
     }
 
     if (p.kind === 'back') {
-      // translucent panel — like the back of a real book jacket
-      const inset = 10;
+      // translucent panel — like the back of a real book jacket. A wider
+      // blurred-art border around a slightly smaller panel, a touch of
+      // breathing room above the summary, and a bigger summary size.
+      const inset = 16;
       const px = sqX + inset, py = cy + inset, pw = SQ - 2 * inset, ph = SQ - 2 * inset;
       furn.push({ op: 'rect', x: px, y: py, w: pw, h: ph, color: C.panel, opacity: 0.9 });
-      const tpad = 13;
+      const tpad = 13, topPad = 19;
       // bottom block reserved first: short gold rule · credits · made-with
       const mSize = 7.5, mLH = mSize * 1.7;
       const bottomH = 10 + (meta.credits.length + 1) * mLH + 12;
-      const summary = fitText('serifItal', `${meta.summary || ''}`, 11, 8.5, pw - 2 * tpad, ph - tpad - 8 - bottomH, 'justify', 1.6);
-      pushTextBlock(furn, summary, 'serifItal', C.inkSoft, px + tpad, py + tpad);
+      const summary = fitText('serifItal', `${meta.summary || ''}`, 12, 9, pw - 2 * tpad, ph - topPad - 8 - bottomH, 'justify', 1.6);
+      pushTextBlock(furn, summary, 'serifItal', C.inkSoft, px + tpad, py + topPad);
       let by = py + ph - bottomH;
       furn.push({ op: 'rule', x1: px + pw / 2 - 26, y1: by, x2: px + pw / 2 + 26, y2: by, color: C.plateBrd, width: 1 });
       by += 10 + mSize * 0.78;
@@ -423,16 +420,6 @@ const STExport = (() => {
       furn.push({ op: 'heart', x: startX + f.widthOfTextAtSize(madeA, mSize) + 1, y: by - 6.8, size: heartW, color: C.heart });
       furn.push({ op: 'line-text', words: [{ t: madeB, x: 0 }], x: startX + f.widthOfTextAtSize(madeA, mSize) + heartW + 2, y: by, size: mSize, fontKey: 'sans', color: C.meta });
     }
-  }
-
-  // Bleed on the square's three cut-line sides (top, bottom, outer).
-  function bleedRect(sqX, sqY, outerEdge) {
-    return {
-      x: outerEdge === 'left' ? sqX - BLEED : sqX,
-      y: sqY - BLEED,
-      w: SQ + BLEED,
-      h: SQ + 2 * BLEED,
-    };
   }
 
   // =====================================================================
@@ -657,7 +644,7 @@ const STExport = (() => {
   // Collect image bytes + preview elements for a story: IndexedDB blob
   // first (already there for any story that's been read), signed R2 URL
   // as the fallback. Also builds the soft-blurred back-cover art.
-  async function gatherAssets(story, onProgress, opts) {
+  async function gatherAssets(story, onProgress) {
     const wants = [];
     if (story.cover && story.cover.image_status === 'ready' && story.cover.image_id) wants.push(['cover', story.cover.image_id]);
     (story.pages || []).forEach((p, i) => {
@@ -683,15 +670,6 @@ const STExport = (() => {
         if (onProgress) onProgress(Object.keys(bytes).length, wants.length);
       }
     }
-    // Mini-Book: bleed-extended copies of every picture (art at exact page
-    // size + stretched-edge margins) — see the BLEED comment up top.
-    if (opts && opts.extend) {
-      for (const key of Object.keys(elements).filter((k) => k === 'cover' || /^p\d+$/.test(k))) {
-        const ext = await makeBleedExtended(elements[key]);
-        bytes[key + 'X'] = ext.bytes;
-        elements[key + 'X'] = ext.el;
-      }
-    }
     // blurred echo of the cover for the back cover (downscale→upscale:
     // robust everywhere, no ctx.filter dependency)
     if (elements.cover) {
@@ -715,30 +693,6 @@ const STExport = (() => {
       img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
       img.src = url;
     });
-  }
-
-  // Pad an image with STRETCHED EDGE PIXELS so it can bleed past the cut
-  // lines without scaling/cropping the artwork itself. The margin `m` is
-  // sized so that, when the padded image is drawn at (SQ + 2·BLEED) points,
-  // the original art lands on exactly SQ points — pixel-true composition.
-  async function makeBleedExtended(img) {
-    const nat = img.naturalWidth || img.width;
-    const m = Math.max(2, Math.round(nat * BLEED / SQ));
-    const c = document.createElement('canvas');
-    c.width = nat + 2 * m; c.height = nat + 2 * m;
-    const x = c.getContext('2d');
-    x.imageSmoothingEnabled = true;
-    x.drawImage(img, 0, 0, nat, 1, m, 0, nat, m);                 // top strip
-    x.drawImage(img, 0, nat - 1, nat, 1, m, nat + m, nat, m);     // bottom
-    x.drawImage(img, 0, 0, 1, nat, 0, m, m, nat);                 // left
-    x.drawImage(img, nat - 1, 0, 1, nat, nat + m, m, m, nat);     // right
-    x.drawImage(img, 0, 0, 1, 1, 0, 0, m, m);                     // corners
-    x.drawImage(img, nat - 1, 0, 1, 1, nat + m, 0, m, m);
-    x.drawImage(img, 0, nat - 1, 1, 1, 0, nat + m, m, m);
-    x.drawImage(img, nat - 1, nat - 1, 1, 1, nat + m, nat + m, m, m);
-    x.drawImage(img, m, m);                                       // the art itself
-    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.92));
-    return { bytes: await blob.arrayBuffer(), el: await blobToImage(blob) };
   }
 
   async function makeBlurred(img) {

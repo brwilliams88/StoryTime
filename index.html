@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.2" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.2" />
-  <link rel="manifest" href="manifest.json?v=1.2.2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.3" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.3" />
+  <link rel="manifest" href="manifest.json?v=1.2.3" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.2" />
-  <link rel="stylesheet" href="css/style.css?v=1.2.2" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.3" />
+  <link rel="stylesheet" href="css/style.css?v=1.2.3" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.2" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.3" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1303,7 +1303,7 @@
             <button class="exp-close" @click="showHowTo = false" aria-label="Close">✕</button>
           </div>
           <div class="hw-step"><span class="hw-n">1</span><div><strong>Print 2-sided</strong><p>Choose two-sided, <b>flip on long edge</b>, at <b>100% scale</b> ("Actual size"). Plain paper is fine — card stock makes a sturdier cover.</p></div></div>
-          <div class="hw-step"><span class="hw-n">2</span><div><strong>Cut the grid</strong><p>Cut with the lined side up: trim the white border, then cut the six pages apart. Little wobbles disappear into the pictures.</p></div></div>
+          <div class="hw-step"><span class="hw-n">2</span><div><strong>Cut the grid</strong><p>Cut with the lined side up: trim the white border, then cut the six pages apart along the dotted lines.</p></div></div>
           <div class="hw-step"><span class="hw-n">3</span><div><strong>Stack by the numbers</strong><p>Cover on top, then follow the small numbers in the margin — 2, 3, 4… in order, numbers on the left, facing up.</p></div></div>
           <div class="hw-step"><span class="hw-n">4</span><div><strong>Staple the spine</strong><p>Two staples through the <b>gold marks</b> on the cover's dark spine band. Any desk stapler reaches. That's it — a real little book!</p></div></div>
           <button class="exp-btn gold hw-done" @click="showHowTo = false">Got it</button>
@@ -1436,18 +1436,18 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.2.2"></script>
-  <script src="vendor/cropper.min.js?v=1.2.2"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.2.2"></script>
-  <script src="vendor/gsap.min.js?v=1.2.2"></script>
-  <script src="js/storage.js?v=1.2.2"></script>
-  <script src="js/imageStorage.js?v=1.2.2"></script>
-  <script src="js/api.js?v=1.2.2"></script>
-  <script src="js/sync.js?v=1.2.2"></script>
-  <script src="js/pageShadow.js?v=1.2.2"></script>
-  <script src="js/pageCurl.js?v=1.2.2"></script>
-  <script src="js/export.js?v=1.2.2"></script>
-  <script src="js/app.js?v=1.2.2"></script>
+  <script src="vendor/vue.global.js?v=1.2.3"></script>
+  <script src="vendor/cropper.min.js?v=1.2.3"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.2.3"></script>
+  <script src="vendor/gsap.min.js?v=1.2.3"></script>
+  <script src="js/storage.js?v=1.2.3"></script>
+  <script src="js/imageStorage.js?v=1.2.3"></script>
+  <script src="js/api.js?v=1.2.3"></script>
+  <script src="js/sync.js?v=1.2.3"></script>
+  <script src="js/pageShadow.js?v=1.2.3"></script>
+  <script src="js/pageCurl.js?v=1.2.3"></script>
+  <script src="js/export.js?v=1.2.3"></script>
+  <script src="js/app.js?v=1.2.3"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

@@ -9,6 +9,13 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.2.3 - 2026-07-28 - Mini-Book: no bleed at all — ink stops exactly at the lines
+  • Removed the bleed technique entirely. Every picture, and the spine band, now stops EXACTLY on the dotted cut lines — nothing from one page can ever print on a neighbouring piece (no more spine-band sliver on page 18, no image edges crossing the lines on the back sheets). Verified: every image and rectangle in the whole book sits strictly inside its own cut piece.
+  • The trade-off, accepted deliberately: if a cut (or the printer's 2-sided registration) wanders a hair off the line, that sliver shows as plain white paper instead of a neighbour's colour.
+  • Back cover: breathing room above the summary, summary up to ~12pt, and a slightly smaller panel so more of the blurred cover art frames it.
+  • Story text on the Mini-Book pages is a notch bigger (up to 12pt, still one size across the whole book, with the same comfortable margins).
+
+--------------------------
 v1.2.2 - 2026-07-28 - Mini-Book: pieces match the halved spine; bleed layering
   • The cut pieces now match the halved spine: each page is exactly the 3½" picture square plus a ¼" spine margin — the dead white strip between the spine band and the cover art is gone, and the sheet re-tiles with a ½" side border and ¼" top/bottom border. The centre cut still sits exactly on the sheet's mirror axis, so 2-sided printing lines up as before.
   • Proper print-shop layering: pictures (which deliberately overshoot the cut lines a little, so a wobbly cut or printer drift can't leave white slivers) are drawn first, then every page face and margin is painted clean OVER the overshoot — no more faint colour streaks on the tops of text pages or in the margins. This was most of what read as "misalignment" on the first print.
