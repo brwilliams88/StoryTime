@@ -31,7 +31,12 @@ const STExport = (() => {
   const CELL_W = 288, CELL_H = 252;               // 4.0 × 3.5"
   const SQ = 252;                                 // 3.5" square page face
   const GUT = 36;                                 // 0.5" staple gutter
-  const BLEED = 4.5;                              // 1/16" image bleed
+  // Bleed = how far art overshoots the cut lines. 7pt ≈ 2.5mm — enough to
+  // absorb home-printer duplex drift (the HP ENVY shifts backs 1–2mm).
+  // Crucially the bleed is filled by STRETCHED EDGE PIXELS (see
+  // makeBleedExtended), so the artwork inside the cut lines is the full,
+  // uncropped square — nothing of the picture is sacrificed to the bleed.
+  const BLEED = 7;
   // cells in order r1L r1R r2L r2R r3L r3R
   const CELL_POS = [
     [TRIM, TRIM], [TRIM + CELL_W, TRIM],
@@ -81,6 +86,30 @@ const STExport = (() => {
     return _fontBytes;
   }
 
+  // The canvas PREVIEW must draw with the same Fraunces faces the PDF
+  // embeds — the app's stylesheet doesn't load the italic (or a true 600),
+  // and a fallback face has different widths, so justified words would
+  // look collided in the preview while the PDF is actually fine. Register
+  // our shipped TTFs with the browser once, before any preview renders.
+  let _previewFontsReady = false;
+  async function ensurePreviewFonts(version) {
+    if (_previewFontsReady) return;
+    _previewFontsReady = true;
+    const v = encodeURIComponent(version || '');
+    const faces = [
+      ['assets/fonts/Fraunces-Regular.ttf',  { style: 'normal', weight: '400' }],
+      ['assets/fonts/Fraunces-SemiBold.ttf', { style: 'normal', weight: '600' }],
+      ['assets/fonts/Fraunces-Italic.ttf',   { style: 'italic', weight: '400' }],
+    ];
+    await Promise.all(faces.map(async ([url, desc]) => {
+      try {
+        const f = new FontFace('Fraunces', `url(${url}?v=${v})`, desc);
+        await f.load();
+        document.fonts.add(f);
+      } catch (e) { /* preview falls back; the PDF is unaffected */ }
+    }));
+  }
+
   // Measuring doc: a throwaway PDFDocument whose only job is giving us
   // font metrics for line breaking (the real doc embeds its own copies).
   let _measure = null;   // { serif, serifBold, serifItal, sans, sansBold }
@@ -123,8 +152,9 @@ const STExport = (() => {
       let gap = spaceW, startX = 0;
       if (align === 'justify' && !isLast && ln.words.length > 1) {
         const extra = (maxW - ln.width) / (ln.words.length - 1);
-        // don't stretch grotesquely on a very short line — leave it ragged
-        if (extra < spaceW * 2.2) gap = spaceW + extra;
+        // justify every full line; bail out only on the truly grotesque
+        // (a 2-word line stretching across the page)
+        if (extra < spaceW * 6) gap = spaceW + extra;
       } else if (align === 'center') {
         startX = (maxW - ln.width) / 2;
       }
@@ -226,8 +256,28 @@ const STExport = (() => {
     return sheets;
   }
 
+  // One text size for the WHOLE book: fit every page (the last one reserves
+  // room for The End), take the smallest size that fits, lay all pages out
+  // at that size. Mixed sizes across a printed book read as a mistake.
+  function uniformTextBlocks(P, story, pad, endReserve) {
+    const pages = story.pages || [];
+    const maxW = SQ - 2 * pad;
+    let g = 11;
+    pages.forEach((pg, k) => {
+      const isLast = k === pages.length - 1;
+      const f = fitText('serif', pg.text, 11, 8.5, maxW, SQ - 2 * pad - (isLast ? endReserve : 0), 'justify', 1.62);
+      if (f.size < g) g = f.size;
+    });
+    pages.forEach((pg, k) => {
+      const n = 2 * (k + 1) + 1;
+      const lines = layoutText('serif', pg.text, g, maxW, 'justify');
+      P[n].block = { lines, size: g, lineH: g * 1.62, height: lines.length * g * 1.62 };
+    });
+  }
+
   function buildMiniBookSpec(story, meta) {
     const { P, last } = bookletPages(story);
+    uniformTextBlocks(P, story, 20, 34);
     const sheets = [];
     for (const imp of bookletImposition(last)) {
       sheets.push({ ops: miniSheetOps(imp.front, 'left', true, P, last, meta) });
@@ -271,13 +321,18 @@ const STExport = (() => {
 
     // -- staple margin -------------------------------------------------
     if (isCoverish) {
-      // printed indigo SPINE BAND (bleeds past its outer trim/cut line)
-      const bx = gutterSide === 'left' ? gutterX - BLEED : gutterX;
-      ops.push({ op: 'rect', x: bx, y: cy - BLEED, w: GUT + BLEED, h: CELL_H + 2 * BLEED, color: C.indigo });
-      // two gold staple marks — VERTICAL, matching the staples themselves
-      const mx = gutterX + GUT / 2;
-      for (const f of [0.24, 0.66]) {
-        ops.push({ op: 'rect', x: mx - 1.1, y: cy + CELL_H * f, w: 2.2, h: 9, color: C.gold, radius: 1.1 });
+      // indigo SPINE BAND: half the gutter (18pt = ¼"), flush against the
+      // binding edge, bleeding past its trim/cut line. Staples land ~¼"
+      // from the edge — right where a desk stapler naturally reaches.
+      const bandW = GUT / 2;
+      const bx = gutterSide === 'left' ? gutterX - BLEED : gutterX + GUT - bandW;
+      ops.push({ op: 'rect', x: bx, y: cy - BLEED, w: bandW + BLEED, h: CELL_H + 2 * BLEED, color: C.indigo });
+      // two gold staple marks — vertical, ½" long (an actual staple's
+      // length), centred in the band, spread wide for a secure bind
+      const mx = gutterSide === 'left' ? gutterX + bandW / 2 : gutterX + GUT - bandW / 2;
+      const stapleLen = 36, stapleW = 2.4;
+      for (const f of [0.16, 0.70]) {
+        ops.push({ op: 'rect', x: mx - stapleW / 2, y: cy + CELL_H * f, w: stapleW, h: stapleLen, color: C.gold });
       }
     } else {
       // inner pages: bare paper — just the little collation number
@@ -285,9 +340,14 @@ const STExport = (() => {
     }
 
     // -- page face -------------------------------------------------------
+    // Bleed-extended images ('X' keys): the artwork square maps EXACTLY
+    // onto the page square, and the bleed margins carry stretched edge
+    // pixels — so the cut lines frame the full picture, and a couple of
+    // millimetres of printer drift can never expose white paper.
+    const extDraw = { x: sqX - BLEED, y: cy - BLEED, w: SQ + 2 * BLEED, h: SQ + 2 * BLEED };
     if (p.kind === 'cover') {
       const bl = bleedRect(sqX, cy, outerEdge);
-      ops.push({ op: 'image-cover', key: 'cover', clip: bl });
+      ops.push({ op: 'image-cover', key: 'coverX', clip: bl, draw: extDraw });
       // slim title-only plate near the bottom (echoes the in-app cover plate)
       const plateW = SQ - 56, plateX = sqX + 28;
       const title = fitText('serifBold', meta.title, 13.5, 10, plateW - 16, 40, 'center', 1.22);
@@ -299,12 +359,12 @@ const STExport = (() => {
 
     if (p.kind === 'img') {
       const bl = bleedRect(sqX, cy, outerEdge);
-      ops.push({ op: 'image-cover', key: p.imageKey, clip: bl });
+      ops.push({ op: 'image-cover', key: p.imageKey + 'X', clip: bl, draw: extDraw });
     }
 
     if (p.kind === 'text') {
-      const pad = 20, maxW = SQ - 2 * pad;
-      const block = fitText('serif', p.text, 11, 8.5, maxW, SQ - 2 * pad - (p.last ? 34 : 0), 'justify', 1.62);
+      const pad = 20;
+      const block = p.block;                        // pre-laid, book-uniform size
       if (!p.last) {
         const top = cy + (SQ - block.height) / 2;
         pushTextBlock(ops, block, 'serif', C.ink, sqX + pad, top);
@@ -321,16 +381,22 @@ const STExport = (() => {
     if (p.kind === 'back') {
       const bl = bleedRect(sqX, cy, outerEdge);
       ops.push({ op: 'image-cover', key: 'coverBlur', clip: bl });
-      // translucent panel — like the back of a real book jacket
-      const inset = 15;
+      // translucent panel — like the back of a real book jacket. Tight
+      // inset + a bigger summary = much less dead space than v1.2.0.
+      const inset = 10;
       const px = sqX + inset, py = cy + inset, pw = SQ - 2 * inset, ph = SQ - 2 * inset;
-      ops.push({ op: 'rect', x: px, y: py, w: pw, h: ph, color: C.panel, opacity: 0.88 });
-      const tpad = 14;
-      const summary = fitText('serifItal', `${meta.summary || ''}`, 10, 8, pw - 2 * tpad, ph - 100, 'justify', 1.58);
+      ops.push({ op: 'rect', x: px, y: py, w: pw, h: ph, color: C.panel, opacity: 0.9 });
+      const tpad = 13;
+      // bottom furniture, reserved first: rule · credits · made-with · barcode
+      const mSize = 7.5, mLH = mSize * 1.7;
+      const barW = 76, barH = 20;
+      const bottomH = 10 + (meta.credits.length + 1) * mLH + 6 + barH + 8;
+      const summary = fitText('serifItal', `${meta.summary || ''}`, 11, 8.5, pw - 2 * tpad, ph - tpad - 8 - bottomH, 'justify', 1.6);
       pushTextBlock(ops, summary, 'serifItal', C.inkSoft, px + tpad, py + tpad);
-      // credits: all three lines stacked together at the BOTTOM
-      const mSize = 8.6, mLH = mSize * 1.75;
-      let by = py + ph - 12 - mLH * (meta.credits.length);   // heart line + credit lines
+      // short gold rule, then the small distinct credit block
+      let by = py + ph - bottomH;
+      ops.push({ op: 'rule', x1: px + pw / 2 - 26, y1: by, x2: px + pw / 2 + 26, y2: by, color: C.plateBrd, width: 1 });
+      by += 10 + mSize * 0.78;
       for (const line of meta.credits) {
         ops.push({ op: 'ctext', text: line, fontKey: 'sans', size: mSize, color: C.meta, cx: px + pw / 2, y: by });
         by += mLH;
@@ -338,13 +404,35 @@ const STExport = (() => {
       // "Made with ♥ and StoryTime" — vector heart in dark indigo
       const madeA = 'Made with ', madeB = ' and StoryTime';
       const f = _measure.sans;
-      const heartW = 8;
+      const heartW = 7.5;
       const totW = f.widthOfTextAtSize(madeA, mSize) + heartW + 2 + f.widthOfTextAtSize(madeB, mSize);
       const startX = px + pw / 2 - totW / 2;
       ops.push({ op: 'line-text', words: [{ t: madeA, x: 0 }], x: startX, y: by, size: mSize, fontKey: 'sans', color: C.meta });
-      ops.push({ op: 'heart', x: startX + f.widthOfTextAtSize(madeA, mSize) + 1, y: by - 7.2, size: heartW, color: C.heart });
+      ops.push({ op: 'heart', x: startX + f.widthOfTextAtSize(madeA, mSize) + 1, y: by - 6.8, size: heartW, color: C.heart });
       ops.push({ op: 'line-text', words: [{ t: madeB, x: 0 }], x: startX + f.widthOfTextAtSize(madeA, mSize) + heartW + 2, y: by, size: mSize, fontKey: 'sans', color: C.meta });
+      // a playful faux barcode — instantly reads as "the back of a book"
+      pushBarcode(ops, px + pw / 2 - barW / 2, py + ph - 8 - barH, barW, barH, meta);
     }
+  }
+
+  // Fake barcode: white box, deterministic bars seeded from the title, and
+  // the story's date as the "number". Pure decoration — kids love it.
+  function pushBarcode(ops, x, y, w, h, meta) {
+    ops.push({ op: 'rect', x, y, w, h, color: [1, 1, 1], borderColor: C.parchBrd, borderWidth: 0.8 });
+    const inkBar = [0.12, 0.12, 0.16];
+    let seed = 0;
+    for (const ch of (meta.title || 'story')) seed = (seed * 31 + ch.charCodeAt(0)) % 9973;
+    const widths = [0.8, 1.6, 0.8, 2.4, 1.2, 0.8, 1.8, 1.0];
+    let bx = x + 5;
+    const barTop = y + 3, barHgt = h - 9.5;
+    let i = 0;
+    while (bx < x + w - 6) {
+      const bw = widths[(seed + i * 7) % widths.length];
+      if (i % 2 === 0) ops.push({ op: 'rect', x: bx, y: barTop, w: bw, h: barHgt, color: inkBar });
+      bx += bw + 0.9;
+      i++;
+    }
+    ops.push({ op: 'ctext', text: meta.barcodeDigits || 'STORYTIME', fontKey: 'sans', size: 4.6, color: inkBar, cx: x + w / 2, y: y + h - 2 });
   }
 
   // Bleed on the square's three cut-line sides (top, bottom, outer).
@@ -360,8 +448,10 @@ const STExport = (() => {
   // =====================================================================
   //  STORYBOARD
   // =====================================================================
+  // imgSize 184: with the 116pt banner, three rows land at y=746 on page 1 —
+  // pictures as large as the sheet allows without squeezing the footer.
   const SB = {
-    margin: 36, imgSize: 175, rowGap: 14, textPad: 15,
+    margin: 36, imgSize: 184, rowGap: 14, textPad: 15,
     bannerH: 116, rowsPerPage: 3,
   };
 
@@ -388,11 +478,25 @@ const STExport = (() => {
       ops = []; y = SB.margin;
     };
 
+    // ONE text size across every panel: fit each (the last reserves room
+    // for The End), take the smallest, lay all panels out at that size.
+    const textX = SB.margin + (meta.hasImages ? SB.imgSize + 14 : 0);
+    const textW = PAGE_W - SB.margin - textX;
+    const maxW = textW - 2 * SB.textPad - 6;
+    let gsize = 13.5;
+    pages.forEach((pg, i) => {
+      const isLast = i === pages.length - 1;
+      const f = fitText('serif', pg.text, 13.5, 10, maxW, rowH - 2 * SB.textPad - (isLast ? 30 : 0), 'justify', 1.6);
+      if (f.size < gsize) gsize = f.size;
+    });
+    const blocks = pages.map((pg) => {
+      const lines = layoutText('serif', pg.text, gsize, maxW, 'justify');
+      return { lines, size: gsize, lineH: gsize * 1.6, height: lines.length * gsize * 1.6 };
+    });
+
     pages.forEach((pg, i) => {
       if (y + rowH > PAGE_H - SB.margin - 8) flush(false);
       const isLast = i === pages.length - 1;
-      const textX = SB.margin + (meta.hasImages ? SB.imgSize + 14 : 0);
-      const textW = PAGE_W - SB.margin - textX;
       if (meta.hasImages) {
         const key = 'p' + i;
         if (meta.pageHasImage[i]) ops.push({ op: 'image-cover', key, clip: { x: SB.margin, y, w: SB.imgSize, h: SB.imgSize } });
@@ -400,8 +504,7 @@ const STExport = (() => {
       }
       // parchment text card
       ops.push({ op: 'rect', x: textX, y, w: textW, h: rowH, color: C.parchment, borderColor: C.parchBrd, borderWidth: 1 });
-      const maxTextH = rowH - 2 * SB.textPad - (isLast ? 30 : 0);
-      const block = fitText('serif', pg.text, 13.5, 10, textW - 2 * SB.textPad - 6, maxTextH, 'justify', 1.6);
+      const block = blocks[i];
       const groupH = isLast ? block.height + 14 + 12 : block.height;
       const top = y + (rowH - groupH) / 2;
       pushTextBlock(ops, block, 'serif', C.ink, textX + SB.textPad, top);
@@ -459,7 +562,8 @@ const STExport = (() => {
       } else if (o.op === 'image-cover') {
         const img = assets[o.key];
         if (!img) continue;
-        const r = coverFit(img.naturalWidth || img.width, img.naturalHeight || img.height, o.clip.x, o.clip.y, o.clip.w, o.clip.h);
+        const box = o.draw || o.clip;
+        const r = coverFit(img.naturalWidth || img.width, img.naturalHeight || img.height, box.x, box.y, box.w, box.h);
         ctx.save(); ctx.beginPath(); ctx.rect(o.clip.x, o.clip.y, o.clip.w, o.clip.h); ctx.clip();
         ctx.drawImage(img, r.x, r.y, r.w, r.h);
         ctx.restore();
@@ -500,8 +604,13 @@ const STExport = (() => {
       sans:      await doc.embedFont(PDFLib.StandardFonts.Helvetica),
       sansBold:  await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),
     };
+    // embed only the images this spec actually draws (the asset bag may
+    // hold both plain and bleed-extended copies)
+    const used = new Set();
+    for (const sh of spec.sheets) for (const o of sh.ops) if (o.op === 'image-cover') used.add(o.key);
     const images = {};
     for (const [key, ab] of Object.entries(imageBytes)) {
+      if (!used.has(key)) continue;
       const u8 = new Uint8Array(ab);
       const isJpg = u8[0] === 0xff && u8[1] === 0xd8;
       images[key] = isJpg ? await doc.embedJpg(ab) : await doc.embedPng(ab);
@@ -522,7 +631,8 @@ const STExport = (() => {
         } else if (o.op === 'image-cover') {
           const img = images[o.key];
           if (!img) continue;
-          const r = coverFit(img.width, img.height, o.clip.x, o.clip.y, o.clip.w, o.clip.h);
+          const box = o.draw || o.clip;
+          const r = coverFit(img.width, img.height, box.x, box.y, box.w, box.h);
           const { pushGraphicsState, popGraphicsState, moveTo, lineTo, closePath, clip, endPath } = PDFLib;
           page.pushOperators(
             pushGraphicsState(),
@@ -556,7 +666,7 @@ const STExport = (() => {
   // Collect image bytes + preview elements for a story: IndexedDB blob
   // first (already there for any story that's been read), signed R2 URL
   // as the fallback. Also builds the soft-blurred back-cover art.
-  async function gatherAssets(story, onProgress) {
+  async function gatherAssets(story, onProgress, opts) {
     const wants = [];
     if (story.cover && story.cover.image_status === 'ready' && story.cover.image_id) wants.push(['cover', story.cover.image_id]);
     (story.pages || []).forEach((p, i) => {
@@ -580,6 +690,15 @@ const STExport = (() => {
           if (r.ok) await addAsset(key, await r.blob());
         } catch (e) { /* leave it out — layout falls back */ }
         if (onProgress) onProgress(Object.keys(bytes).length, wants.length);
+      }
+    }
+    // Mini-Book: bleed-extended copies of every picture (art at exact page
+    // size + stretched-edge margins) — see the BLEED comment up top.
+    if (opts && opts.extend) {
+      for (const key of Object.keys(elements).filter((k) => k === 'cover' || /^p\d+$/.test(k))) {
+        const ext = await makeBleedExtended(elements[key]);
+        bytes[key + 'X'] = ext.bytes;
+        elements[key + 'X'] = ext.el;
       }
     }
     // blurred echo of the cover for the back cover (downscale→upscale:
@@ -607,6 +726,30 @@ const STExport = (() => {
     });
   }
 
+  // Pad an image with STRETCHED EDGE PIXELS so it can bleed past the cut
+  // lines without scaling/cropping the artwork itself. The margin `m` is
+  // sized so that, when the padded image is drawn at (SQ + 2·BLEED) points,
+  // the original art lands on exactly SQ points — pixel-true composition.
+  async function makeBleedExtended(img) {
+    const nat = img.naturalWidth || img.width;
+    const m = Math.max(2, Math.round(nat * BLEED / SQ));
+    const c = document.createElement('canvas');
+    c.width = nat + 2 * m; c.height = nat + 2 * m;
+    const x = c.getContext('2d');
+    x.imageSmoothingEnabled = true;
+    x.drawImage(img, 0, 0, nat, 1, m, 0, nat, m);                 // top strip
+    x.drawImage(img, 0, nat - 1, nat, 1, m, nat + m, nat, m);     // bottom
+    x.drawImage(img, 0, 0, 1, nat, 0, m, m, nat);                 // left
+    x.drawImage(img, nat - 1, 0, 1, nat, nat + m, m, m, nat);     // right
+    x.drawImage(img, 0, 0, 1, 1, 0, 0, m, m);                     // corners
+    x.drawImage(img, nat - 1, 0, 1, 1, nat + m, 0, m, m);
+    x.drawImage(img, 0, nat - 1, 1, 1, 0, nat + m, m, m);
+    x.drawImage(img, nat - 1, nat - 1, 1, 1, nat + m, nat + m, m, m);
+    x.drawImage(img, m, m);                                       // the art itself
+    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.92));
+    return { bytes: await blob.arrayBuffer(), el: await blobToImage(blob) };
+  }
+
   async function makeBlurred(img) {
     const tiny = document.createElement('canvas');
     tiny.width = 14; tiny.height = 14;
@@ -630,6 +773,7 @@ const STExport = (() => {
   // meta: { title, summary, byline, credits[], hasImages, pageHasImage[], sbPageCount }
   async function buildSpec(format, story, meta, version) {
     await ensureMeasuringFonts(version);
+    await ensurePreviewFonts(version);
     meta.sbPageCount = storyboardPageCount((story.pages || []).length);
     const spec = format === 'minibook' ? buildMiniBookSpec(story, meta) : buildStoryboardSpec(story, meta);
     spec.docTitle = `${meta.title} — ${format === 'minibook' ? 'Mini-Book' : 'Storyboard'}`;

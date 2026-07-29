@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.0" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.0" />
-  <link rel="manifest" href="manifest.json?v=1.2.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.1" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.1" />
+  <link rel="manifest" href="manifest.json?v=1.2.1" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.0" />
-  <link rel="stylesheet" href="css/style.css?v=1.2.0" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.1" />
+  <link rel="stylesheet" href="css/style.css?v=1.2.1" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.0" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.1" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1259,7 +1259,6 @@
                 <small>One-sided handout — pictures beside words. No assembly.</small>
               </span>
             </button>
-            <div class="exp-note">Made right on your device — free, and works offline for books you've read.</div>
           </template>
 
           <!-- Stage 2: live preview of every sheet -->
@@ -1280,14 +1279,17 @@
                 <div class="exp-cap">{{ exportSheetCaption }}</div>
               </div>
               <div class="exp-btnrow">
-                <button class="exp-btn gold" @click="printExport">
-                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print
+                <button class="exp-btn gold" @click="exportPrimary">
+                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{{ exportCanShareFiles ? 'Print / Share' : 'Print' }}
                 </button>
-                <button class="exp-btn ghost" @click="shareExport">
-                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share / Save
+                <button v-if="!exportCanShareFiles" class="exp-btn ghost" @click="exportSecondary">
+                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save PDF
+                </button>
+                <button v-else-if="exportSheet.format === 'minibook'" class="exp-btn ghost" @click="showHowTo = true">
+                  <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>How to build
                 </button>
               </div>
-              <button v-if="exportSheet.format === 'minibook'" class="exp-howto-link" @click="showHowTo = true">ⓘ &nbsp;How to build it</button>
+              <button v-if="exportSheet.format === 'minibook' && !exportCanShareFiles" class="exp-howto-link" @click="showHowTo = true">ⓘ &nbsp;How to build it</button>
             </template>
           </template>
         </div>
@@ -1434,18 +1436,18 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.2.0"></script>
-  <script src="vendor/cropper.min.js?v=1.2.0"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.2.0"></script>
-  <script src="vendor/gsap.min.js?v=1.2.0"></script>
-  <script src="js/storage.js?v=1.2.0"></script>
-  <script src="js/imageStorage.js?v=1.2.0"></script>
-  <script src="js/api.js?v=1.2.0"></script>
-  <script src="js/sync.js?v=1.2.0"></script>
-  <script src="js/pageShadow.js?v=1.2.0"></script>
-  <script src="js/pageCurl.js?v=1.2.0"></script>
-  <script src="js/export.js?v=1.2.0"></script>
-  <script src="js/app.js?v=1.2.0"></script>
+  <script src="vendor/vue.global.js?v=1.2.1"></script>
+  <script src="vendor/cropper.min.js?v=1.2.1"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.2.1"></script>
+  <script src="vendor/gsap.min.js?v=1.2.1"></script>
+  <script src="js/storage.js?v=1.2.1"></script>
+  <script src="js/imageStorage.js?v=1.2.1"></script>
+  <script src="js/api.js?v=1.2.1"></script>
+  <script src="js/sync.js?v=1.2.1"></script>
+  <script src="js/pageShadow.js?v=1.2.1"></script>
+  <script src="js/pageCurl.js?v=1.2.1"></script>
+  <script src="js/export.js?v=1.2.1"></script>
+  <script src="js/app.js?v=1.2.1"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

@@ -3848,13 +3848,13 @@ body.ios-standalone .gallery-view { padding-top: max(0.8rem, calc(env(safe-area-
 .exp-error { padding: 30px 8px; text-align: center; font-size: 0.88rem; color: var(--text-dim); }
 .exp-stage { background: #101028; border-radius: 12px; padding: 13px 0 10px; margin-bottom: 13px; }
 .exp-strip {
-  display: flex; gap: 14px; overflow-x: auto; padding: 0 34px;
+  display: flex; gap: 14px; overflow-x: auto; padding: 0 22px;
   scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .exp-strip::-webkit-scrollbar { display: none; }
 .exp-canvas {
-  flex: none; width: 82%; height: auto; border-radius: 3px;
+  flex: none; width: 90%; height: auto; border-radius: 3px;
   scroll-snap-align: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
   background: #fff;
 }

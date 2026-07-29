@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.2.0',
+      version: 'v1.2.1',
       buildDate: '2026-07-28',
 
       showSplash: true,
@@ -681,9 +681,17 @@ createApp({
       if (x.format === 'minibook') {
         const paper = Math.floor(x.current / 2) + 1;
         const side = x.current % 2 === 0 ? 'front' : 'back';
-        return `Sheet ${paper} of ${x.sheetCount / 2} · ${side} — swipe to check every side`;
+        return `Sheet ${paper} of ${x.sheetCount / 2} · ${side}`;
       }
       return `Page ${x.current + 1} of ${x.sheetCount}`;
+    },
+    // On phones/tablets the OS share sheet IS print + save + share in one,
+    // so the UI shows a single button there and Print + Save on desktop.
+    exportCanShareFiles() {
+      try {
+        const probe = new File(['x'], 'probe.pdf', { type: 'application/pdf' });
+        return !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+      } catch (e) { return false; }
     },
   },
 
@@ -3047,11 +3055,15 @@ createApp({
       else if (s.created_by) credits.push(`Created by ${s.created_by}`);
       const gs = [genre, style].filter(Boolean).join(' · ');
       if (gs) credits.push(gs);
+      const digits = d
+        ? `9 ${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')} ${(s.pages || []).length}`
+        : 'STORYTIME';
       return {
         title: s.title || 'A StoryTime story',
         summary: s.summary || '',
         byline: bylineBits.join(' · '),
         credits,
+        barcodeDigits: digits,
         hasImages: this.exportHasImages,
         pageHasImage: (s.pages || []).map((p) => p.image_status === 'ready' && !!p.image_id),
       };
@@ -3067,7 +3079,7 @@ createApp({
         const story = this.currentStory;
         const assets = await STExport.gatherAssets(story, (done, total) => {
           if (this.exportSheet) this.exportSheet.progressText = `Getting the pictures ready… ${Math.min(done, total)}/${total}`;
-        });
+        }, { extend: format === 'minibook' });
         if (!this.exportSheet) return;              // closed mid-build
         this.exportSheet.progressText = 'Laying out the pages…';
         const spec = await STExport.buildSpec(format, story, this._exportMeta(), this.version);
@@ -3109,14 +3121,14 @@ createApp({
       return new File([built.pdfBytes], this._exportFileName(), { type: 'application/pdf' });
     },
 
-    async printExport() {
+    // Primary action. Phone/tablet: ONE OS share sheet = print + save +
+    // share (no `title` passed — Messages would turn it into message text;
+    // the file already carries its name). Desktop: native print dialog.
+    async exportPrimary() {
       const file = this._exportFile();
       if (!file) return;
-      // Phones/tablets: the OS share sheet carries Print/AirPrint. Desktop:
-      // native print dialog via a hidden iframe (fallback: open the PDF).
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: file.name }); } catch (e) { /* cancelled */ }
-        this._afterExportAction();
+      if (this.exportCanShareFiles) {
+        try { await navigator.share({ files: [file] }); } catch (e) { /* cancelled */ }
         return;
       }
       const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
@@ -3129,25 +3141,16 @@ createApp({
         this._exportFrame && this._exportFrame.remove();
         this._exportFrame = frame;                  // keep alive while the dialog is up
       } catch (e) { window.open(url, '_blank'); }
-      this._afterExportAction();
     },
-    async shareExport() {
+    // Desktop-only secondary: save the PDF to disk.
+    exportSecondary() {
       const file = this._exportFile();
       if (!file) return;
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: file.name }); } catch (e) { /* cancelled */ }
-      } else {
-        const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
-        const a = document.createElement('a');
-        a.href = url; a.download = file.name;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-      }
-      this._afterExportAction();
-    },
-    _afterExportAction() {
-      // The build instructions matter right when the paper comes out.
-      if (this.exportSheet && this.exportSheet.format === 'minibook') this.showHowTo = true;
+      const url = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     },
 
     openImageInspection(target) {

@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.2.1 - 2026-07-28 - Mini-Book print fixes from the first real print run
+  • ALIGNMENT: pictures no longer get shaved by the scissors. Before, the "bleed" worked by enlarging each picture ~3% and cropping it, so cutting on the lines always trimmed a little art (mostly top and bottom) — and any duplex drift from the printer made it worse. Now the artwork sits at exactly page size and the bleed zone is filled with stretched edge pixels, with the tolerance widened to ~2.5mm to absorb home-printer duplex shift (HP ENVY tested). You get the whole picture, and misregistration can't expose white paper.
+  • The spine band is half as wide (a ¼-inch strip at the binding edge), and the gold staple marks are now the length of a real staple and spread further apart — a true guide for where to staple.
+  • Text is now guaranteed justified on every page (some pages' lines were slipping through a too-cautious justification guard), and the whole book uses ONE text size — no more one-page shrinkage. Same on the Storyboard, where the last panel used to shrink to make room for The End.
+  • Back cover rework: bigger, more readable summary; the credits are smaller and tucked under a short gold rule at the bottom; and a playful faux barcode (seeded from the title, numbered with the story's date) makes it read like a real book jacket.
+  • Storyboard pictures grew to use the empty space above the page-1 footer.
+  • Export screen: bigger page previews; on iPhone, Print and Share were the same OS sheet in two costumes — now it's one "Print / Share" button (with "How to build" beside it); the how-to no longer pops up on its own; sharing no longer attaches the filename as message text; assorted decluttering.
+
+--------------------------
 v1.2.0 - 2026-07-28 - Print your stories: Mini-Book & Storyboard PDF export
   • NEW: the Export button on the end-of-book page works! Two ways to put a story on paper, both built entirely on your device — free, no internet needed for books you've already read.
   • MINI-BOOK: prints 2-sided, then cut along the dotted lines, stack by the little margin numbers, and staple — a real 4 × 3½ inch book with square pages, full-bleed pictures on every left page and the words on the right, just like the reader. The cover and back cover get a deep-indigo "spine" band with gold marks showing exactly where the staples go.
