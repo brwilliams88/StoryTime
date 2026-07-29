@@ -52,7 +52,7 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.2.1',
+      version: 'v1.2.2',
       buildDate: '2026-07-28',
 
       showSplash: true,
@@ -3055,15 +3055,11 @@ createApp({
       else if (s.created_by) credits.push(`Created by ${s.created_by}`);
       const gs = [genre, style].filter(Boolean).join(' · ');
       if (gs) credits.push(gs);
-      const digits = d
-        ? `9 ${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')} ${(s.pages || []).length}`
-        : 'STORYTIME';
       return {
         title: s.title || 'A StoryTime story',
         summary: s.summary || '',
         byline: bylineBits.join(' · '),
         credits,
-        barcodeDigits: digits,
         hasImages: this.exportHasImages,
         pageHasImage: (s.pages || []).map((p) => p.image_status === 'ready' && !!p.image_id),
       };

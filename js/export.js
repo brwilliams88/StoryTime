@@ -26,11 +26,17 @@
 
 const STExport = (() => {
   // ---- Geometry (points; 72/inch) ------------------------------------
+  // A cut piece = 3½" square art face + a ¼" spine margin — 270 × 252pt,
+  // nothing extra. 2×270 across + 3×252 down tiles Letter with a ½" side
+  // trim and a ¼" top/bottom trim. The centre cut sits EXACTLY on the
+  // sheet's mirror axis (x = 306 = 612/2), which is what makes the duplex
+  // long-edge flip land every back precisely behind its front.
   const PAGE_W = 612, PAGE_H = 792;              // US Letter portrait
-  const TRIM = 18;                                // 0.25" trim border
-  const CELL_W = 288, CELL_H = 252;               // 4.0 × 3.5"
+  const TRIM_X = 36;                              // ½" side trim
+  const TRIM_Y = 18;                              // ¼" top/bottom trim
+  const CELL_W = 270, CELL_H = 252;               // one cut piece
   const SQ = 252;                                 // 3.5" square page face
-  const GUT = 36;                                 // 0.5" staple gutter
+  const GUT = 18;                                 // ¼" binding margin (the spine)
   // Bleed = how far art overshoots the cut lines. 7pt ≈ 2.5mm — enough to
   // absorb home-printer duplex drift (the HP ENVY shifts backs 1–2mm).
   // Crucially the bleed is filled by STRETCHED EDGE PIXELS (see
@@ -39,9 +45,9 @@ const STExport = (() => {
   const BLEED = 7;
   // cells in order r1L r1R r2L r2R r3L r3R
   const CELL_POS = [
-    [TRIM, TRIM], [TRIM + CELL_W, TRIM],
-    [TRIM, TRIM + CELL_H], [TRIM + CELL_W, TRIM + CELL_H],
-    [TRIM, TRIM + 2 * CELL_H], [TRIM + CELL_W, TRIM + 2 * CELL_H],
+    [TRIM_X, TRIM_Y], [TRIM_X + CELL_W, TRIM_Y],
+    [TRIM_X, TRIM_Y + CELL_H], [TRIM_X + CELL_W, TRIM_Y + CELL_H],
+    [TRIM_X, TRIM_Y + 2 * CELL_H], [TRIM_X + CELL_W, TRIM_Y + 2 * CELL_H],
   ];
 
   // ---- Colours --------------------------------------------------------
@@ -60,6 +66,8 @@ const STExport = (() => {
     panel:     [0xfd / 255, 0xf8 / 255, 0xec / 255],   // back-cover panel
     heart:     [0x27 / 255, 0x27 / 255, 0x5e / 255],   // dark-indigo heart
     spare:     [0xc9 / 255, 0xc9 / 255, 0xc9 / 255],
+    guide:     [0x8c / 255, 0x9e / 255, 0xd9 / 255],   // preview-only cut guides
+    white:     [1, 1, 1],
     banner:    [0xd9 / 255, 0xc9 / 255, 0xa6 / 255],   // storyboard rule
     pageno:    [0xb0 / 255, 0x9c / 255, 0x6d / 255],
   };
@@ -286,31 +294,42 @@ const STExport = (() => {
     return { kind: 'minibook', sheets, bookPages: last, sheetsOfPaper: sheets.length / 2 };
   }
 
+  // Two draw layers per sheet: ART first (everything that bleeds), then
+  // FURNITURE (spine bands, white margins, text faces, plates, panels) on
+  // top. That way a neighbour's bleed smear can never sit on any kept
+  // surface — margins and page faces are repainted clean over it.
   function miniSheetOps(cells, gutterSide, isFront, P, last, meta) {
-    const ops = [];
+    const art = [], furn = [];
     cells.forEach((pg, ci) => {
       const [cx, cy] = CELL_POS[ci];
-      miniCellOps(ops, pg, cx, cy, gutterSide, P, last, meta);
+      miniCellOps(art, furn, pg, cx, cy, gutterSide, P, last, meta);
     });
+    const ops = art.concat(furn);
+    const dash = { dash: [3, 3] };
+    const lines = [
+      { op: 'rule', x1: TRIM_X, y1: 0, x2: TRIM_X, y2: PAGE_H, color: C.trimline, width: 0.8, ...dash },
+      { op: 'rule', x1: PAGE_W - TRIM_X, y1: 0, x2: PAGE_W - TRIM_X, y2: PAGE_H, color: C.trimline, width: 0.8, ...dash },
+      { op: 'rule', x1: 0, y1: TRIM_Y, x2: PAGE_W, y2: TRIM_Y, color: C.trimline, width: 0.8, ...dash },
+      { op: 'rule', x1: 0, y1: PAGE_H - TRIM_Y, x2: PAGE_W, y2: PAGE_H - TRIM_Y, color: C.trimline, width: 0.8, ...dash },
+      { op: 'rule', x1: PAGE_W / 2, y1: 0, x2: PAGE_W / 2, y2: PAGE_H, color: C.cutline, width: 1, ...dash },
+      { op: 'rule', x1: 0, y1: TRIM_Y + CELL_H, x2: PAGE_W, y2: TRIM_Y + CELL_H, color: C.cutline, width: 1, ...dash },
+      { op: 'rule', x1: 0, y1: TRIM_Y + 2 * CELL_H, x2: PAGE_W, y2: TRIM_Y + 2 * CELL_H, color: C.cutline, width: 1, ...dash },
+    ];
     if (isFront) {
-      const dash = { dash: [3, 3] };
-      // trim border (light) + interior cuts (darker) — front side only
-      const t = C.trimline, k = C.cutline;
-      ops.push({ op: 'rule', x1: TRIM, y1: 0, x2: TRIM, y2: PAGE_H, color: t, width: 0.8, ...dash });
-      ops.push({ op: 'rule', x1: PAGE_W - TRIM, y1: 0, x2: PAGE_W - TRIM, y2: PAGE_H, color: t, width: 0.8, ...dash });
-      ops.push({ op: 'rule', x1: 0, y1: TRIM, x2: PAGE_W, y2: TRIM, color: t, width: 0.8, ...dash });
-      ops.push({ op: 'rule', x1: 0, y1: PAGE_H - TRIM, x2: PAGE_W, y2: PAGE_H - TRIM, color: t, width: 0.8, ...dash });
-      ops.push({ op: 'rule', x1: PAGE_W / 2, y1: 0, x2: PAGE_W / 2, y2: PAGE_H, color: k, width: 1, ...dash });
-      ops.push({ op: 'rule', x1: 0, y1: TRIM + CELL_H, x2: PAGE_W, y2: TRIM + CELL_H, color: k, width: 1, ...dash });
-      ops.push({ op: 'rule', x1: 0, y1: TRIM + 2 * CELL_H, x2: PAGE_W, y2: TRIM + 2 * CELL_H, color: k, width: 1, ...dash });
+      ops.push(...lines);                       // printed — you cut on these
+    } else {
+      // back sides stay clean on paper, but the PREVIEW shows the same
+      // grid in blue so alignment can be checked by eye
+      ops.push(...lines.map((l) => ({ ...l, color: C.guide, width: 0.8, previewOnly: true })));
     }
     return ops;
   }
 
-  function miniCellOps(ops, pg, cx, cy, gutterSide, P, last, meta) {
-    if (!pg) {                                      // spare cell → discard
-      ops.push({ op: 'rect-outline', x: cx + 96, y: cy + 112, w: 96, h: 26, color: C.spare, dash: [3, 3], width: 0.8 });
-      ops.push({ op: 'ctext', text: 'spare — recycle', fontKey: 'sans', size: 7.5, color: C.spare, cx: cx + CELL_W / 2, y: cy + 129 });
+  function miniCellOps(art, furn, pg, cx, cy, gutterSide, P, last, meta) {
+    if (!pg) {                                      // spare piece → discarded
+      furn.push({ op: 'rect', x: cx, y: cy, w: CELL_W, h: CELL_H, color: C.white });
+      furn.push({ op: 'rect-outline', x: cx + CELL_W / 2 - 48, y: cy + 112, w: 96, h: 26, color: C.spare, dash: [3, 3], width: 0.8 });
+      furn.push({ op: 'ctext', text: 'spare — recycle', fontKey: 'sans', size: 7.5, color: C.spare, cx: cx + CELL_W / 2, y: cy + 129 });
       return;
     }
     const p = P[pg];
@@ -319,86 +338,79 @@ const STExport = (() => {
     const outerEdge = gutterSide === 'left' ? 'right' : 'left';   // square's cut-line side
     const isCoverish = p.kind === 'cover' || p.kind === 'back';
 
-    // -- staple margin -------------------------------------------------
-    if (isCoverish) {
-      // indigo SPINE BAND: half the gutter (18pt = ¼"), flush against the
-      // binding edge, bleeding past its trim/cut line. Staples land ~¼"
-      // from the edge — right where a desk stapler naturally reaches.
-      const bandW = GUT / 2;
-      const bx = gutterSide === 'left' ? gutterX - BLEED : gutterX + GUT - bandW;
-      ops.push({ op: 'rect', x: bx, y: cy - BLEED, w: bandW + BLEED, h: CELL_H + 2 * BLEED, color: C.indigo });
-      // two gold staple marks — vertical, ½" long (an actual staple's
-      // length), centred in the band, spread wide for a secure bind
-      const mx = gutterSide === 'left' ? gutterX + bandW / 2 : gutterX + GUT - bandW / 2;
-      const stapleLen = 36, stapleW = 2.4;
-      for (const f of [0.16, 0.70]) {
-        ops.push({ op: 'rect', x: mx - stapleW / 2, y: cy + CELL_H * f, w: stapleW, h: stapleLen, color: C.gold });
-      }
-    } else {
-      // inner pages: bare paper — just the little collation number
-      ops.push({ op: 'ctext', text: String(pg), fontKey: 'sansBold', size: 7.5, color: C.collate, cx: gutterX + GUT / 2, y: cy + CELL_H * 0.45 + 2.6 });
-    }
-
-    // -- page face -------------------------------------------------------
+    // -- ART layer (everything that bleeds) ----------------------------
     // Bleed-extended images ('X' keys): the artwork square maps EXACTLY
     // onto the page square, and the bleed margins carry stretched edge
     // pixels — so the cut lines frame the full picture, and a couple of
     // millimetres of printer drift can never expose white paper.
     const extDraw = { x: sqX - BLEED, y: cy - BLEED, w: SQ + 2 * BLEED, h: SQ + 2 * BLEED };
+    if (p.kind === 'cover') art.push({ op: 'image-cover', key: 'coverX', clip: bleedRect(sqX, cy, outerEdge), draw: extDraw });
+    if (p.kind === 'img')   art.push({ op: 'image-cover', key: p.imageKey + 'X', clip: bleedRect(sqX, cy, outerEdge), draw: extDraw });
+    if (p.kind === 'back')  art.push({ op: 'image-cover', key: 'coverBlur', clip: bleedRect(sqX, cy, outerEdge) });
+
+    // -- FURNITURE layer (painted over every bleed) --------------------
+    if (isCoverish) {
+      // the whole ¼" binding margin IS the spine band — flush against the
+      // art, bleeding past its own trim/cut line
+      const bx = gutterSide === 'left' ? gutterX - BLEED : gutterX;
+      furn.push({ op: 'rect', x: bx, y: cy - BLEED, w: GUT + BLEED, h: CELL_H + 2 * BLEED, color: C.indigo });
+      // two gold staple marks — vertical, ½" long (a real staple), spread wide
+      const mx = gutterX + GUT / 2;
+      const stapleLen = 36, stapleW = 2.4;
+      for (const f of [0.16, 0.70]) {
+        furn.push({ op: 'rect', x: mx - stapleW / 2, y: cy + CELL_H * f, w: stapleW, h: stapleLen, color: C.gold });
+      }
+    } else {
+      // inner pages: the margin is repainted clean white (covers any
+      // neighbour's bleed smear), then the little collation number
+      furn.push({ op: 'rect', x: gutterX, y: cy, w: GUT, h: CELL_H, color: C.white });
+      furn.push({ op: 'ctext', text: String(pg), fontKey: 'sansBold', size: 7.5, color: C.collate, cx: gutterX + GUT / 2, y: cy + CELL_H * 0.45 + 2.6 });
+    }
+
     if (p.kind === 'cover') {
-      const bl = bleedRect(sqX, cy, outerEdge);
-      ops.push({ op: 'image-cover', key: 'coverX', clip: bl, draw: extDraw });
       // slim title-only plate near the bottom (echoes the in-app cover plate)
       const plateW = SQ - 56, plateX = sqX + 28;
       const title = fitText('serifBold', meta.title, 13.5, 10, plateW - 16, 40, 'center', 1.22);
       const plateH = title.height + 13;
       const plateY = cy + SQ - plateH - 14;
-      ops.push({ op: 'rect', x: plateX, y: plateY, w: plateW, h: plateH, color: C.parchment, opacity: 0.94, borderColor: C.plateBrd, borderWidth: 1.2 });
-      pushTextBlock(ops, title, 'serifBold', [0x2c / 255, 0x23 / 255, 0x13 / 255], plateX + 8, plateY + 6);
-    }
-
-    if (p.kind === 'img') {
-      const bl = bleedRect(sqX, cy, outerEdge);
-      ops.push({ op: 'image-cover', key: p.imageKey + 'X', clip: bl, draw: extDraw });
+      furn.push({ op: 'rect', x: plateX, y: plateY, w: plateW, h: plateH, color: C.parchment, opacity: 0.94, borderColor: C.plateBrd, borderWidth: 1.2 });
+      pushTextBlock(furn, title, 'serifBold', [0x2c / 255, 0x23 / 255, 0x13 / 255], plateX + 8, plateY + 6);
     }
 
     if (p.kind === 'text') {
+      // page face repainted white first — a neighbour's bleed can't streak it
+      furn.push({ op: 'rect', x: sqX, y: cy, w: SQ, h: SQ, color: C.white });
       const pad = 20;
       const block = p.block;                        // pre-laid, book-uniform size
       if (!p.last) {
         const top = cy + (SQ - block.height) / 2;
-        pushTextBlock(ops, block, 'serif', C.ink, sqX + pad, top);
+        pushTextBlock(furn, block, 'serif', C.ink, sqX + pad, top);
       } else {
         // centre text + The End TOGETHER as one group (no stray gap)
         const endSize = 11.5, gap = 16;
         const groupH = block.height + gap + endSize;
         const top = cy + (SQ - groupH) / 2;
-        pushTextBlock(ops, block, 'serif', C.ink, sqX + pad, top);
-        pushTheEnd(ops, 'serifBold', endSize, C.ink, sqX + SQ / 2, top + block.height + gap + endSize * 0.78);
+        pushTextBlock(furn, block, 'serif', C.ink, sqX + pad, top);
+        pushTheEnd(furn, 'serifBold', endSize, C.ink, sqX + SQ / 2, top + block.height + gap + endSize * 0.78);
       }
     }
 
     if (p.kind === 'back') {
-      const bl = bleedRect(sqX, cy, outerEdge);
-      ops.push({ op: 'image-cover', key: 'coverBlur', clip: bl });
-      // translucent panel — like the back of a real book jacket. Tight
-      // inset + a bigger summary = much less dead space than v1.2.0.
+      // translucent panel — like the back of a real book jacket
       const inset = 10;
       const px = sqX + inset, py = cy + inset, pw = SQ - 2 * inset, ph = SQ - 2 * inset;
-      ops.push({ op: 'rect', x: px, y: py, w: pw, h: ph, color: C.panel, opacity: 0.9 });
+      furn.push({ op: 'rect', x: px, y: py, w: pw, h: ph, color: C.panel, opacity: 0.9 });
       const tpad = 13;
-      // bottom furniture, reserved first: rule · credits · made-with · barcode
+      // bottom block reserved first: short gold rule · credits · made-with
       const mSize = 7.5, mLH = mSize * 1.7;
-      const barW = 76, barH = 20;
-      const bottomH = 10 + (meta.credits.length + 1) * mLH + 6 + barH + 8;
+      const bottomH = 10 + (meta.credits.length + 1) * mLH + 12;
       const summary = fitText('serifItal', `${meta.summary || ''}`, 11, 8.5, pw - 2 * tpad, ph - tpad - 8 - bottomH, 'justify', 1.6);
-      pushTextBlock(ops, summary, 'serifItal', C.inkSoft, px + tpad, py + tpad);
-      // short gold rule, then the small distinct credit block
+      pushTextBlock(furn, summary, 'serifItal', C.inkSoft, px + tpad, py + tpad);
       let by = py + ph - bottomH;
-      ops.push({ op: 'rule', x1: px + pw / 2 - 26, y1: by, x2: px + pw / 2 + 26, y2: by, color: C.plateBrd, width: 1 });
+      furn.push({ op: 'rule', x1: px + pw / 2 - 26, y1: by, x2: px + pw / 2 + 26, y2: by, color: C.plateBrd, width: 1 });
       by += 10 + mSize * 0.78;
       for (const line of meta.credits) {
-        ops.push({ op: 'ctext', text: line, fontKey: 'sans', size: mSize, color: C.meta, cx: px + pw / 2, y: by });
+        furn.push({ op: 'ctext', text: line, fontKey: 'sans', size: mSize, color: C.meta, cx: px + pw / 2, y: by });
         by += mLH;
       }
       // "Made with ♥ and StoryTime" — vector heart in dark indigo
@@ -407,32 +419,10 @@ const STExport = (() => {
       const heartW = 7.5;
       const totW = f.widthOfTextAtSize(madeA, mSize) + heartW + 2 + f.widthOfTextAtSize(madeB, mSize);
       const startX = px + pw / 2 - totW / 2;
-      ops.push({ op: 'line-text', words: [{ t: madeA, x: 0 }], x: startX, y: by, size: mSize, fontKey: 'sans', color: C.meta });
-      ops.push({ op: 'heart', x: startX + f.widthOfTextAtSize(madeA, mSize) + 1, y: by - 6.8, size: heartW, color: C.heart });
-      ops.push({ op: 'line-text', words: [{ t: madeB, x: 0 }], x: startX + f.widthOfTextAtSize(madeA, mSize) + heartW + 2, y: by, size: mSize, fontKey: 'sans', color: C.meta });
-      // a playful faux barcode — instantly reads as "the back of a book"
-      pushBarcode(ops, px + pw / 2 - barW / 2, py + ph - 8 - barH, barW, barH, meta);
+      furn.push({ op: 'line-text', words: [{ t: madeA, x: 0 }], x: startX, y: by, size: mSize, fontKey: 'sans', color: C.meta });
+      furn.push({ op: 'heart', x: startX + f.widthOfTextAtSize(madeA, mSize) + 1, y: by - 6.8, size: heartW, color: C.heart });
+      furn.push({ op: 'line-text', words: [{ t: madeB, x: 0 }], x: startX + f.widthOfTextAtSize(madeA, mSize) + heartW + 2, y: by, size: mSize, fontKey: 'sans', color: C.meta });
     }
-  }
-
-  // Fake barcode: white box, deterministic bars seeded from the title, and
-  // the story's date as the "number". Pure decoration — kids love it.
-  function pushBarcode(ops, x, y, w, h, meta) {
-    ops.push({ op: 'rect', x, y, w, h, color: [1, 1, 1], borderColor: C.parchBrd, borderWidth: 0.8 });
-    const inkBar = [0.12, 0.12, 0.16];
-    let seed = 0;
-    for (const ch of (meta.title || 'story')) seed = (seed * 31 + ch.charCodeAt(0)) % 9973;
-    const widths = [0.8, 1.6, 0.8, 2.4, 1.2, 0.8, 1.8, 1.0];
-    let bx = x + 5;
-    const barTop = y + 3, barHgt = h - 9.5;
-    let i = 0;
-    while (bx < x + w - 6) {
-      const bw = widths[(seed + i * 7) % widths.length];
-      if (i % 2 === 0) ops.push({ op: 'rect', x: bx, y: barTop, w: bw, h: barHgt, color: inkBar });
-      bx += bw + 0.9;
-      i++;
-    }
-    ops.push({ op: 'ctext', text: meta.barcodeDigits || 'STORYTIME', fontKey: 'sans', size: 4.6, color: inkBar, cx: x + w / 2, y: y + h - 2 });
   }
 
   // Bleed on the square's three cut-line sides (top, bottom, outer).
@@ -622,6 +612,7 @@ const STExport = (() => {
     for (const sheet of spec.sheets) {
       const page = doc.addPage([PAGE_W, PAGE_H]);
       for (const o of sheet.ops) {
+        if (o.previewOnly) continue;              // preview guides never print
         if (o.op === 'rect') {
           page.drawRectangle({ x: o.x, y: Y(o.y + o.h), width: o.w, height: o.h, color: col(o.color), opacity: o.opacity != null ? o.opacity : 1,
             borderColor: o.borderColor ? col(o.borderColor) : undefined, borderWidth: o.borderColor ? (o.borderWidth || 1) : undefined });

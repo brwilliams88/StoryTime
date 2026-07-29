@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.2.2 - 2026-07-28 - Mini-Book: pieces match the halved spine; bleed layering
+  • The cut pieces now match the halved spine: each page is exactly the 3½" picture square plus a ¼" spine margin — the dead white strip between the spine band and the cover art is gone, and the sheet re-tiles with a ½" side border and ¼" top/bottom border. The centre cut still sits exactly on the sheet's mirror axis, so 2-sided printing lines up as before.
+  • Proper print-shop layering: pictures (which deliberately overshoot the cut lines a little, so a wobbly cut or printer drift can't leave white slivers) are drawn first, then every page face and margin is painted clean OVER the overshoot — no more faint colour streaks on the tops of text pages or in the margins. This was most of what read as "misalignment" on the first print.
+  • The PREVIEW now draws the cut grid on the BACK sheets too, in blue — so you can check back-side alignment by eye. The blue lines are preview-only and never print.
+  • Verified in-app: every picture square lands on the cut grid to within 0.01pt, and every staple margin mirrors exactly onto its 2-sided partner. (Also confirmed: the spine band next to the tent picture belongs to the back cover — a left-hand page binds on its right edge; the cut line runs between them.)
+  • Removed the faux barcode from the back cover.
+
+--------------------------
 v1.2.1 - 2026-07-28 - Mini-Book print fixes from the first real print run
   • ALIGNMENT: pictures no longer get shaved by the scissors. Before, the "bleed" worked by enlarging each picture ~3% and cropping it, so cutting on the lines always trimmed a little art (mostly top and bottom) — and any duplex drift from the printer made it worse. Now the artwork sits at exactly page size and the bleed zone is filled with stretched edge pixels, with the tolerance widened to ~2.5mm to absorb home-printer duplex shift (HP ENVY tested). You get the whole picture, and misregistration can't expose white paper.
   • The spine band is half as wide (a ¼-inch strip at the binding edge), and the gold staple marks are now the length of a real staple and spread further apart — a true guide for where to staple.
