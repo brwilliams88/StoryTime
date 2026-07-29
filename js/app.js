@@ -52,8 +52,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.2.4',
-      buildDate: '2026-07-28',
+      version: 'v1.2.5',
+      buildDate: '2026-07-29',   // ALWAYS set from `date +%F` on this machine at commit time
 
       showSplash: true,
 
@@ -214,9 +214,10 @@ createApp({
       //                       sheetCount, current, error }
       exportSheet: null,
       showHowTo: false,          // "How to build it" popup (Mini-Book)
-      showAlign: false,          // Print Alignment popup (duplex calibration)
+      showAlign: false,          // Printer calibration popup (duplex offset)
       alignVersion: 0,           // bump to re-read the stored offset
       alignBusy: false,
+      coloringVersion: 0,        // bump when a coloring page is made
       spend: null,               // API-spend summary (populated when Settings opens)
       readerUiShow: true,        // floating reader controls visible (auto-fade while reading)
       librarySearch: '',         // full-text search (server-side over story body)
@@ -719,8 +720,16 @@ createApp({
       });
       return out;
     },
+    // Coloring pages made so far (counted from the stories this device has;
+    // the coloring map syncs inside each story's JSON).
+    coloringCount() {
+      this.coloringVersion;
+      let n = 0;
+      try { getStoredStories().forEach((s) => { n += Object.keys(s.coloring || {}).length; }); } catch (e) { /* none */ }
+      return n;
+    },
     // Per-printer duplex correction (mm, + = shift backs down), saved from
-    // the Print Alignment test. alignVersion just makes this reactive.
+    // the Printer Calibration test. alignVersion just makes this reactive.
     alignOffsetMm() {
       this.alignVersion;
       const v = parseFloat(localStorage.getItem('storytime_print_back_offset_mm'));
@@ -3211,7 +3220,7 @@ createApp({
       if (built && built.imageId) await this._generateColoring(built.imageId);
     },
     async _generateColoring(imageId) {
-      this.exportSheet = { stage: 'preview', format: 'coloring', busy: true, progressText: 'Redrawing your picture as line art… (~20s)', sheetCount: 0, current: 0, error: '' };
+      this.exportSheet = { stage: 'preview', format: 'coloring', busy: true, progressText: 'Making your coloring page… ✨ (about 20 seconds)', sheetCount: 0, current: 0, error: '' };
       try {
         await this._ensureExportLibs();
         // source picture: local cache first, signed URL as fallback
@@ -3224,7 +3233,7 @@ createApp({
           src = await r.blob();
         }
         const result = await generateColoringImage(src, this.password);
-        recordSpend('pictures', result.cost);
+        recordSpend('coloring', result.cost);
         const cid = imageId + '_c';
         const blob = base64ToBlob(result.b64, 'image/png');
         try { await saveImageBlob(cid, blob); } catch (e) { /* best-effort */ }
@@ -3235,6 +3244,7 @@ createApp({
         story.coloring[imageId] = cid;
         try { await syncPushStory(story); } catch (e) { console.warn('Coloring map sync failed:', e); }
         try { saveStoryToStorage(story); } catch (e) { /* quota */ }
+        this.coloringVersion++;                     // refresh the settings count
         await this._showColoringSheet(imageId, blob);
       } catch (e) {
         console.warn('Coloring generation failed:', e);
@@ -3522,7 +3532,7 @@ createApp({
     // Width % for a breakdown bar, relative to the largest category.
     spendBarPct(amount) {
       if (!this.spend) return 0;
-      const max = Math.max(this.spend.pictures, this.spend.text, this.spend.characters, 0.0001);
+      const max = Math.max(this.spend.pictures, this.spend.text, this.spend.characters, this.spend.coloring || 0, 0.0001);
       return Math.round((amount / max) * 100);
     },
     closeSettings() { this.showSettings = false; },

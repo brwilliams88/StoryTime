@@ -487,52 +487,62 @@ const STExport = (() => {
   }
 
   // =====================================================================
-  //  COLORING PAGE — one full-page sheet: big square line art + footer
+  //  COLORING PAGE — art as big as the paper allows, caption at the very
+  //  bottom edge (not under the art). No frame.
   // =====================================================================
   function buildColoringSpec(meta) {
-    const artSize = 540;                            // 7.5" square
-    const ax = (PAGE_W - artSize) / 2, ay = 78;
+    const artSize = PAGE_W - 36;                    // 576pt = 8" square, ¼" side margins
+    const ax = 18, ay = 64;
     const ops = [
       { op: 'image-cover', key: 'coloring', clip: { x: ax, y: ay, w: artSize, h: artSize } },
-      { op: 'rect-outline', x: ax - 6, y: ay - 6, w: artSize + 12, h: artSize + 12, color: C.parchBrd, width: 1 },
-      { op: 'ctext', text: `${meta.title} · Made with StoryTime`, fontKey: 'sans', size: 9.5, color: C.pageno, cx: PAGE_W / 2, y: ay + artSize + 34 },
+      { op: 'ctext', text: `${meta.title} · Made with StoryTime`, fontKey: 'sans', size: 9.5, color: C.pageno, cx: PAGE_W / 2, y: PAGE_H - 32 },
     ];
     return { kind: 'coloring', sheets: [{ ops }], sheetsOfPaper: 1 };
   }
 
   // =====================================================================
-  //  PRINT-ALIGNMENT TEST — one duplex sheet that measures the printer's
-  //  back-side vertical drift. Front: a bold reference line. Back: a
-  //  ladder of numbered lines in 0.5mm steps. Hold the printed sheet up
-  //  to a light, back side toward you: the front line glows through —
-  //  whichever numbered line it sits on is the offset to save.
+  //  PRINTER CALIBRATION TEST — one duplex sheet that measures the
+  //  printer's back-side vertical drift. THIRTEEN widely-spaced rows,
+  //  one per candidate offset: each row has a long line on the front and
+  //  a short line on the back, deliberately offset by that row's value.
+  //  Held up to a light, the row where the two lines MELT INTO ONE is
+  //  the printer's drift — tap that row's number in the app.
+  //  (v1.2.4 drew all 13 lines 0.5mm apart around one centre — they
+  //  merged into an unreadable bar. Never label lines 1.4pt apart.)
   // =====================================================================
   const MM = 72 / 25.4;
+  const CAL_ROWS = (() => {
+    const rows = [];
+    for (let n = -6; n <= 6; n++) rows.push({ mm: n * 0.5, y: 168 + (n + 6) * 38 });
+    return rows;
+  })();
   function buildCalibrationSpec() {
-    const midY = PAGE_H / 2;
     const front = [];
     const say = (arr, text, size, y, fontKey, color) =>
       arr.push({ op: 'ctext', text, fontKey: fontKey || 'sans', size, color: color || C.ink, cx: PAGE_W / 2, y });
-    say(front, 'StoryTime · Print Alignment Test', 16, 90, 'serifBold');
-    say(front, 'Print this sheet 2-sided (flip on long edge, 100% scale).', 11, 118);
-    say(front, 'Then hold it up to a light with the BACK side toward you.', 11, 136);
-    front.push({ op: 'rule', x1: 60, y1: midY, x2: PAGE_W - 60, y2: midY, color: C.ink, width: 1.6 });
-    say(front, 'front reference line', 9, midY + 16, 'sans', C.meta);
-    say(front, 'This line will glow through the paper — read which numbered', 11, PAGE_H - 140);
-    say(front, 'line it lands on, and tap that number in the app.', 11, PAGE_H - 122);
+    say(front, 'StoryTime · Printer Calibration', 16, 78, 'serifBold');
+    say(front, 'Print this sheet 2-sided (flip on long edge, 100% scale),', 11, 106);
+    say(front, 'then hold it up to a light. Each row has one line on the front', 11, 124);
+    say(front, 'and one on the back — find the row where they melt into ONE line,', 11, 142);
+    say(front, 'and tap that row’s number in the app.', 11, 160);
+    for (const r of CAL_ROWS) {
+      front.push({ op: 'rule', x1: 150, y1: r.y, x2: PAGE_W - 150, y2: r.y, color: C.ink, width: 1 });
+    }
+    say(front, 'One line = that row’s number is your printer’s setting.', 10, PAGE_H - 96, 'sans', C.meta);
 
     const back = [];
-    say(back, 'Which numbered line does the glowing front line sit on?', 11, 100);
-    for (let n = -6; n <= 6; n++) {
-      const y = midY + n * 0.5 * MM;
-      const isZero = n === 0;
-      back.push({ op: 'rule', x1: 150, y1: y, x2: PAGE_W - 150, y2: y, color: isZero ? C.gold : C.ink, width: isZero ? 1.6 : 0.9 });
-      const label = (n * 0.5 === 0) ? '0' : (n > 0 ? `+${(n * 0.5).toFixed(1)}` : (n * 0.5).toFixed(1));
-      back.push({ op: 'ctext', text: label, fontKey: 'sansBold', size: 8.5, color: isZero ? C.gold : C.meta, cx: 120, y: y + 3 });
-      back.push({ op: 'ctext', text: label, fontKey: 'sansBold', size: 8.5, color: isZero ? C.gold : C.meta, cx: PAGE_W - 120, y: y + 3 });
+    say(back, 'Hold up to a light — which row’s lines become ONE?', 12, 106, 'serifBold');
+    for (const r of CAL_ROWS) {
+      const isZero = r.mm === 0;
+      // the back line is drawn OFFSET by the row's value; the printer's
+      // real drift cancels it exactly on the matching row
+      back.push({ op: 'rule', x1: 216, y1: r.y + r.mm * MM, x2: PAGE_W - 216, y2: r.y + r.mm * MM, color: isZero ? C.gold : C.ink, width: 1 });
+      const label = r.mm === 0 ? '0' : (r.mm > 0 ? `+${r.mm.toFixed(1)}` : r.mm.toFixed(1));
+      back.push({ op: 'ctext', text: label, fontKey: 'sansBold', size: 11, color: isZero ? C.gold : C.ink, cx: 130, y: r.y + 4 });
+      back.push({ op: 'ctext', text: label, fontKey: 'sansBold', size: 11, color: isZero ? C.gold : C.ink, cx: PAGE_W - 130, y: r.y + 4 });
     }
-    say(back, 'If the glow sits between two lines, pick the closer one.', 10, PAGE_H - 130, 'sans', C.meta);
-    return { kind: 'calibration', sheets: [{ ops: front }, { ops: back }], sheetsOfPaper: 1, docTitle: 'StoryTime — Print Alignment Test' };
+    say(back, 'If two rows look equally good, pick either one.', 10, PAGE_H - 96, 'sans', C.meta);
+    return { kind: 'calibration', sheets: [{ ops: front }, { ops: back }], sheetsOfPaper: 1, docTitle: 'StoryTime — Printer Calibration' };
   }
 
   // How many storyboard pages a story needs (for footers, pre-computed).

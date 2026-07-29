@@ -129,7 +129,7 @@ function summarizeSpend(events, lastStory) {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;   // last 7 days (rolling)
 
-  const cat = { pictures: b.pictures, text: b.text, characters: b.characters };
+  const cat = { pictures: b.pictures, text: b.text, characters: b.characters, coloring: b.coloring || 0 };
   let today = 0, week = 0;
   for (const e of (events || [])) {
     const ts = typeof e.ts === 'number' ? e.ts : new Date(e.ts).getTime();
@@ -139,10 +139,10 @@ function summarizeSpend(events, lastStory) {
     if (ts >= startOfToday) today += a;
     if (ts >= startOfWeek) week += a;
   }
-  const allTime = cat.pictures + cat.text + cat.characters;
+  const allTime = cat.pictures + cat.text + cat.characters + cat.coloring;
   return {
     allTime, today, week,
-    pictures: cat.pictures, text: cat.text, characters: cat.characters,
+    pictures: cat.pictures, text: cat.text, characters: cat.characters, coloring: cat.coloring,
     lastStory: lastStory || null,
     baselineTotal: b.total, baselineAsOf: b.asOf,
   };

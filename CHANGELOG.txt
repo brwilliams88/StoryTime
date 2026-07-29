@@ -9,6 +9,14 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.2.5 - 2026-07-29 - Printer calibration you can actually read; coloring polish
+  • FIXED the printer calibration test sheet — the old one drew all 13 lines half a millimetre apart, which merged into an unreadable black bar (as the first print showed). Now it's 13 widely-spaced rows, one per setting: each row has one line on the front and one on the back, and the row where the two melt into a SINGLE line against the light is your printer's number. Big legible labels on both ends.
+  • Renamed "Print alignment" → "Printer calibration" with a proper printer icon (no more dart emoji), and dropped the redundant "Current: …" line — the highlighted chip already shows the saved setting.
+  • Coloring Page polish: crayon icon in the export menu; kid-friendly wording everywhere ("Make my coloring page", "Making your coloring page… ✨") and no cost chatter in the UI; the printed page loses the tan frame and the art now fills the paper (8-inch square) with the title · Made with StoryTime caption along the bottom edge of the page.
+  • Usage & Costs has a new 🖍️ Coloring pages row, and Library & Storage counts your coloring pages.
+  • Build Date fixed (the app said July 28 while it was the 29th) — from now on the date is read from the machine's clock (Pacific time) at commit time, never copied forward.
+
+--------------------------
 v1.2.4 - 2026-07-28 - Coloring Pages; print alignment; quizzes for old books - Worker REV v1.2.4
   • NEW EXPORT: COLORING PAGE. Pick any picture from the book and it's redrawn as clean black-and-white line art for coloring in (gpt-image-1 image-to-image, ~3¢). Full preview before you print, then Print / Share like the other formats. Every coloring page is saved to the cloud — pictures you've already made show a ✓ in the picker and open again instantly, free, on any device. A "Remake" link redraws one you don't love.
   • REQUIRES the new worker.js (REV v1.2.4) — paste/deploy in Cloudflare. (The proxy now forwards image uploads properly; everything else is unchanged.)

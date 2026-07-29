@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.4" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.4" />
-  <link rel="manifest" href="manifest.json?v=1.2.4" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.2.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.2.5" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.2.5" />
+  <link rel="manifest" href="manifest.json?v=1.2.5" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.4" />
-  <link rel="stylesheet" href="css/style.css?v=1.2.4" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.2.5" />
+  <link rel="stylesheet" href="css/style.css?v=1.2.5" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.4" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.2.5" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -1017,6 +1017,7 @@
             <div class="settings-row"><span>Books</span><strong>{{ libraryBooks.length }}</strong></div>
             <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
             <div class="settings-row"><span>Pictures</span><strong>{{ galleryAll.length || '…' }}</strong></div>
+            <div v-if="coloringCount" class="settings-row"><span>Coloring pages</span><strong>{{ coloringCount }}</strong></div>
             <div class="settings-row settings-subnote"><span>Stored files <em class="toggle-note">(incl. thumbnails)</em></span><strong>{{ cloudUsage.loaded ? cloudUsage.r2Count : '…' }}</strong></div>
             <div class="settings-row"><span>Cloud storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: Math.max(cloudUsagePercent, 1) + '%' }"></div></div>
@@ -1085,6 +1086,10 @@
               <div class="spend-row">
                 <div class="spend-row-head"><span>🧑‍🎨 Character creation</span><strong>{{ fmtUsd(spend.characters) }}</strong></div>
                 <div class="spend-bar"><span class="spend-bar-fill spend-bar-chars" :style="{ width: spendBarPct(spend.characters) + '%' }"></span></div>
+              </div>
+              <div class="spend-row">
+                <div class="spend-row-head"><span>🖍️ Coloring pages</span><strong>{{ fmtUsd(spend.coloring || 0) }}</strong></div>
+                <div class="spend-bar"><span class="spend-bar-fill spend-bar-coloring" :style="{ width: spendBarPct(spend.coloring || 0) + '%' }"></span></div>
               </div>
             </div>
 
@@ -1262,14 +1267,17 @@
               </span>
             </button>
             <button class="exp-opt" :disabled="!exportHasImages" @click="chooseExportFormat('coloring')">
-              <svg class="exp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+              <svg class="exp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 4.5c1-1 2.6-1 3.6 0l.4.4c1 1 1 2.6 0 3.6L8.5 19.5 3 21l1.5-5.5L15.5 4.5z"/><line x1="13.2" y1="6.8" x2="17.2" y2="10.8"/></svg>
               <span class="exp-opt-text">
                 <strong>Coloring Page</strong>
-                <small v-if="exportHasImages">Pick a picture — it's redrawn as line art to color in (~3¢, saved forever).</small>
+                <small v-if="exportHasImages">Pick a picture and turn it into a coloring page you can print.</small>
                 <small v-else>Needs pictures — this story was made without them.</small>
               </span>
             </button>
-            <button class="exp-howto-link" @click="openAlign">🎯 &nbsp;Print alignment<span v-if="alignOffsetMm !== 0"> · {{ alignOffsetMm > 0 ? '+' : '' }}{{ alignOffsetMm.toFixed(1) }}mm</span></button>
+            <button class="exp-howto-link" @click="openAlign">
+              <svg class="exp-link-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Printer calibration<span v-if="alignOffsetMm !== 0"> · {{ alignOffsetMm > 0 ? '+' : '' }}{{ alignOffsetMm.toFixed(1) }}mm</span>
+            </button>
           </template>
 
           <!-- Coloring: pick a picture (✓ = already made, opens free) -->
@@ -1288,10 +1296,10 @@
           <template v-else-if="exportSheet.stage === 'coloring-confirm'">
             <div class="exp-cconfirm">
               <img v-if="getImageURL(exportSheet.entry.imageId)" :src="getImageURL(exportSheet.entry.imageId)" :alt="exportSheet.entry.label" />
-              <div class="exp-note">{{ exportSheet.entry.label }} — redraw this picture as a black &amp; white coloring page?</div>
+              <div class="exp-note">{{ exportSheet.entry.label }} — make this into a coloring page?</div>
             </div>
             <div class="exp-btnrow">
-              <button class="exp-btn gold" @click="confirmColoringPage">🖍️ Make it (~3¢)</button>
+              <button class="exp-btn gold" @click="confirmColoringPage">🖍️ Make my coloring page</button>
               <button class="exp-btn ghost" @click="exportBack">Cancel</button>
             </div>
           </template>
@@ -1325,7 +1333,7 @@
                 </button>
               </div>
               <button v-if="exportSheet.format === 'minibook' && !exportCanShareFiles" class="exp-howto-link" @click="showHowTo = true">ⓘ &nbsp;How to build it</button>
-              <button v-if="exportSheet.format === 'coloring'" class="exp-howto-link" @click="remakeColoring">↻ &nbsp;Remake this coloring page (~3¢)</button>
+              <button v-if="exportSheet.format === 'coloring'" class="exp-howto-link" @click="remakeColoring">↻ &nbsp;Remake this coloring page</button>
             </template>
           </template>
         </div>
@@ -1346,15 +1354,15 @@
         </div>
       </div>
 
-      <!-- Print Alignment — cancel the printer's 2-sided vertical drift -->
+      <!-- Printer calibration — cancel the printer's 2-sided vertical drift -->
       <div v-if="showAlign" class="exp-overlay" @click.self="showAlign = false">
         <div class="exp-card">
           <div class="exp-head">
-            <h3>Print alignment</h3>
+            <h3>Printer calibration</h3>
             <button class="exp-close" @click="showAlign = false" aria-label="Close">✕</button>
           </div>
           <p class="exp-align-text">Most printers shift the BACK of a 2-sided page up or down by a millimetre or two. This one-time test measures yours, and every Mini-Book after that is corrected automatically.</p>
-          <p class="exp-align-text"><b>1.</b> Print the test sheet 2-sided (long edge, 100%).<br><b>2.</b> Hold it up to a light, back side toward you.<br><b>3.</b> Tap the number the glowing line lands on.</p>
+          <p class="exp-align-text"><b>1.</b> Print the test sheet 2-sided (long edge, 100%).<br><b>2.</b> Hold it up to a light — each row has one line on the front and one on the back.<br><b>3.</b> Tap the number of the row where the two lines melt into ONE.</p>
           <button class="exp-btn ghost exp-align-print" @click="printAlignTest" :disabled="alignBusy">
             <svg class="tb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>{{ alignBusy ? 'Building…' : 'Print test sheet' }}
           </button>
@@ -1363,7 +1371,6 @@
               {{ (n - 7) === 0 ? '0' : ((n - 7) > 0 ? '+' : '') + ((n - 7) * 0.5).toFixed(1) }}
             </button>
           </div>
-          <p class="exp-align-current">Current: {{ alignOffsetMm === 0 ? 'no correction' : (alignOffsetMm > 0 ? '+' : '') + alignOffsetMm.toFixed(1) + 'mm' }}</p>
         </div>
       </div>
 
@@ -1493,18 +1500,18 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.2.4"></script>
-  <script src="vendor/cropper.min.js?v=1.2.4"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.2.4"></script>
-  <script src="vendor/gsap.min.js?v=1.2.4"></script>
-  <script src="js/storage.js?v=1.2.4"></script>
-  <script src="js/imageStorage.js?v=1.2.4"></script>
-  <script src="js/api.js?v=1.2.4"></script>
-  <script src="js/sync.js?v=1.2.4"></script>
-  <script src="js/pageShadow.js?v=1.2.4"></script>
-  <script src="js/pageCurl.js?v=1.2.4"></script>
-  <script src="js/export.js?v=1.2.4"></script>
-  <script src="js/app.js?v=1.2.4"></script>
+  <script src="vendor/vue.global.js?v=1.2.5"></script>
+  <script src="vendor/cropper.min.js?v=1.2.5"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.2.5"></script>
+  <script src="vendor/gsap.min.js?v=1.2.5"></script>
+  <script src="js/storage.js?v=1.2.5"></script>
+  <script src="js/imageStorage.js?v=1.2.5"></script>
+  <script src="js/api.js?v=1.2.5"></script>
+  <script src="js/sync.js?v=1.2.5"></script>
+  <script src="js/pageShadow.js?v=1.2.5"></script>
+  <script src="js/pageCurl.js?v=1.2.5"></script>
+  <script src="js/export.js?v=1.2.5"></script>
+  <script src="js/app.js?v=1.2.5"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and
