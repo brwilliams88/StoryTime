@@ -22,12 +22,40 @@ const PRICING = {
   outputPer1M: 10.00,
   miniInputPer1M:  0.15,
   miniOutputPer1M: 0.60,
+  // Fallback per-image table — used ONLY when a response carries no usage
+  // block. Since v1.3.0 real costs are computed from measured tokens.
   image: {
-    '1024x1024': { low: 0.011, medium: 0.042, high: 0.167 },
-    '1024x1536': { low: 0.016, medium: 0.063, high: 0.25 },
-    '1536x1024': { low: 0.016, medium: 0.063, high: 0.25 },
+    'gpt-image-1': {
+      '1024x1024': { low: 0.011, medium: 0.042, high: 0.167 },
+      '1024x1536': { low: 0.016, medium: 0.063, high: 0.25 },
+      '1536x1024': { low: 0.016, medium: 0.063, high: 0.25 },
+    },
+    'gpt-image-2': {
+      '1024x1024': { low: 0.006, medium: 0.053, high: 0.211 },
+    },
+  },
+  // $ per 1M tokens for the Images API (verified against real usage blocks
+  // in the v1.3 lab: e.g. 1756 output tokens × $30/M = $0.0527 = official
+  // medium price). Reference/anchor images bill as imageIn tokens.
+  imageTokens: {
+    'gpt-image-1': { textIn: 5.0, imageIn: 10.0, output: 40.0 },
+    'gpt-image-2': { textIn: 5.0, imageIn: 8.0,  output: 30.0 },
   },
 };
+
+// Exact cost of one Images-API call, from the usage block it returned.
+// Falls back to the price table if the response had no usage data.
+function imageCostFromUsage(model, data, quality, size) {
+  const u = data && data.usage;
+  const rates = PRICING.imageTokens[model];
+  if (u && rates && u.output_tokens != null) {
+    const det = u.input_tokens_details || {};
+    const imgIn = det.image_tokens || 0;
+    const txtIn = det.text_tokens != null ? det.text_tokens : Math.max(0, (u.input_tokens || 0) - imgIn);
+    return (txtIn * rates.textIn + imgIn * rates.imageIn + u.output_tokens * rates.output) / 1e6;
+  }
+  return costForImage(quality, size, model);
+}
 
 const GENRE_GUIDANCE = {
   'surprise-me':    'pick the genre that best fits the reader\'s other inputs',
@@ -179,6 +207,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `- VARIETY in who appears: not every image needs all characters. Some scenes show one character. Some show several. Some show only scenery or an important object (when that's the visual heart of the page). Match what the page text is really about.`,
     `- Images should depict EXACTLY what the page text describes — no inventing scenes not in the text.`,
     `- The app will enrich your image prompts further before sending to the image model — your job is to nail the SCENE accurately.`,
+    `- Each page also carries a "continuity" line: the VISUAL state that carries into that scene — the outfit each character currently wears (note any change), objects they have acquired and still carry, and the location + time of day. Keep it to ONE short sentence; it keeps the illustrations consistent as the story develops.`,
     ``
   );
 
@@ -229,8 +258,8 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `  "chosen_genre": "(only if the genre was left to you) the closest match from the provided genre list, verbatim",`,
     `  "cover_image_prompt": "vivid scene for the cover — describe characters and setting only, no mention of 'book cover' or text",`,
     `  "pages": [`,
-    `    { "page_number": 1, "text": "...", "image_prompt": "scene description with action verb and composition" },`,
-    `    { "page_number": 2, "text": "...", "image_prompt": "..." }`,
+    `    { "page_number": 1, "text": "...", "image_prompt": "scene description with action verb and composition", "continuity": "one short sentence: current outfits, objects carried, location + time of day" },`,
+    `    { "page_number": 2, "text": "...", "image_prompt": "...", "continuity": "..." }`,
     `  ],`,
     `  "quiz": {`,
     `    "comprehension": [`,
@@ -486,12 +515,20 @@ async function callOpenAIChatRaw(requestBody, password) {
 // =====================================================================
 // IMAGE GENERATION (gpt-image-1)
 // =====================================================================
-function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback) {
+function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback, continuity) {
   const parts = [];
   if (styleAnchor) {
     parts.push(`Illustration style: ${styleAnchor}. Maintain this exact style consistently across all images in this story.`);
+    // gpt-image-2 renders more literally/richly than image-1 — without this
+    // it drifts softer styles (colored pencil, crayon, watercolor) toward
+    // detailed realism. Deliberately style-neutral wording so photoreal /
+    // 3D styles are not harmed either.
+    parts.push(`STYLE FIDELITY: stay strictly faithful to the illustration style described above — match its texture, linework, color handling, and level of stylization exactly. Do not render more photorealistically or in finer detail than the style itself calls for; the style defines the ceiling.`);
   }
   parts.push(`Scene: ${scenePrompt}`);
+  if (continuity && String(continuity).trim()) {
+    parts.push(`Continuity (visual facts carried from earlier pages — keep these exactly): ${String(continuity).trim()}`);
+  }
   if (characters && characters.length > 0) {
     parts.push(`Character references (use these exact names and appearances when mentioned in the scene):`);
     characters.forEach(c => {
@@ -509,26 +546,44 @@ function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback) {
   return parts.join('\n\n');
 }
 
+// options: { quality, size, model, anchorBlob }
+//   model      — 'gpt-image-2' (default since v1.3.0) or 'gpt-image-1'
+//   anchorBlob — optional small reference image (the 256px cover anchor):
+//                when present the call goes through /v1/images/edits so the
+//                model keeps characters/palette consistent with the anchor.
+//                Anchor input bills by measured image tokens (256px ≈ $0.002).
 async function generateImage(fullPrompt, password, options = {}) {
   const quality = options.quality || 'medium';
   const size = options.size || '1024x1024';
-
-  const requestBody = {
-    model: 'gpt-image-1',
-    prompt: fullPrompt,
-    size,
-    quality,
-    n: 1,
-  };
+  const model = options.model || 'gpt-image-2';
+  const anchorBlob = options.anchorBlob || null;
 
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch(`${WORKER_URL}/v1/images/generations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
-        body: JSON.stringify(requestBody),
-      });
+      let response;
+      if (anchorBlob) {
+        // image-to-image: multipart with the anchor as a reference image
+        // (NOTE: no Content-Type header — the browser sets the boundary)
+        const form = new FormData();
+        form.append('model', model);
+        form.append('prompt', fullPrompt);
+        form.append('n', '1');
+        form.append('size', size);
+        form.append('quality', quality);
+        form.append('image[]', anchorBlob, anchorBlob.type === 'image/png' ? 'anchor.png' : 'anchor.jpg');
+        response = await fetch(`${WORKER_URL}/v1/images/edits`, {
+          method: 'POST',
+          headers: { 'X-App-Password': password },
+          body: form,
+        });
+      } else {
+        response = await fetch(`${WORKER_URL}/v1/images/generations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-App-Password': password },
+          body: JSON.stringify({ model, prompt: fullPrompt, size, quality, n: 1 }),
+        });
+      }
 
       if (response.status === 401) throw new Error('Wrong password. Open Settings to reset.');
       if (response.status >= 500 && attempt === 0) {
@@ -550,8 +605,8 @@ async function generateImage(fullPrompt, password, options = {}) {
       const b64 = data.data && data.data[0] && data.data[0].b64_json;
       if (!b64) throw new Error('No image data in response');
 
-      const cost = costForImage(quality, size);
-      return { b64, cost, rawResponse: data, prompt: fullPrompt };
+      const cost = imageCostFromUsage(model, data, quality, size);
+      return { b64, cost, model, anchored: !!anchorBlob, rawResponse: data, prompt: fullPrompt };
     } catch (err) {
       lastError = err;
       if (attempt === 0 && /5\d\d/.test(err.message)) {
@@ -564,8 +619,9 @@ async function generateImage(fullPrompt, password, options = {}) {
   throw lastError;
 }
 
-function costForImage(quality, size) {
-  const sizePricing = PRICING.image[size] || PRICING.image['1024x1024'];
+function costForImage(quality, size, model) {
+  const table = PRICING.image[model] || PRICING.image['gpt-image-1'];
+  const sizePricing = table[size] || table['1024x1024'];
   return sizePricing[quality] || sizePricing.medium;
 }
 
@@ -598,13 +654,16 @@ function generateFakeStory(formData) {
 // loading screen disappears. The rest of the pictures stream in while reading,
 // so this is roughly constant regardless of book length (only text gen scales).
 function loadingHintForLength(lengthKey) {
+  // Fallback guesses until the calibrator has 3 real samples. gpt-image-2
+  // (v1.3.0) takes ~60s/image vs image-1's ~19s, and the book opens after
+  // cover + page 1 (drawn in parallel) — hence the bigger numbers.
   const map = {
-    short:        '~25 seconds',
-    regular:      '~30 seconds',
-    long:         '~35 seconds',
-    'extra-long': '~40 seconds',
+    short:        '~70 seconds',
+    regular:      '~80 seconds',
+    long:         '~90 seconds',
+    'extra-long': '~100 seconds',
   };
-  return map[lengthKey] || '~30 seconds';
+  return map[lengthKey] || '~80 seconds';
 }
 
 
@@ -866,7 +925,7 @@ async function generateColoringImage(imageBlob, password) {
   const data = await response.json();
   const b64 = data.data && data.data[0] && data.data[0].b64_json;
   if (!b64) throw new Error('No image data in response');
-  return { b64, cost: costForImage('medium', '1024x1024') };
+  return { b64, cost: imageCostFromUsage('gpt-image-1', data, 'medium', '1024x1024') };
 }
 
 
@@ -890,8 +949,9 @@ STYLE:
 - Flat simple colors
 - Warm, inviting expression`;
 
+  // gpt-image-2 low since v1.3.0 — 45% cheaper than image-1 low ($0.006)
   const requestBody = {
-    model: 'gpt-image-1',
+    model: 'gpt-image-2',
     prompt,
     size: '1024x1024',
     quality: 'low',
@@ -918,7 +978,7 @@ STYLE:
       const data = await response.json();
       const b64 = data.data && data.data[0] && data.data[0].b64_json;
       if (!b64) throw new Error('No thumbnail data in response');
-      return { b64, cost: PRICING.image['1024x1024'].low, rawResponse: data };
+      return { b64, cost: imageCostFromUsage('gpt-image-2', data, 'low', '1024x1024'), rawResponse: data };
     } catch (err) {
       lastError = err;
       if (attempt === 0 && /HTTP 5\d\d/.test(err.message)) {

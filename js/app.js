@@ -52,8 +52,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.2.5',
-      buildDate: '2026-07-29',   // ALWAYS set from `date +%F` on this machine at commit time
+      version: 'v1.3.0',
+      buildDate: '2026-07-31',   // ALWAYS set from `date +%F` on this machine at commit time
 
       showSplash: true,
 
@@ -208,6 +208,11 @@ createApp({
       // ---- Quiz retrofit (v1.2.4, Developer tool) ----
       quizFixRunning: false,
       quizFixMsg: '',
+
+      // ---- Picture engine (v1.3.0) ----
+      // 'v2' = gpt-image-2 + 256px cover anchor (the Consistency Engine).
+      // 'v1' = classic gpt-image-1, no anchor — kept as a Developer fallback.
+      imageEngine: localStorage.getItem('storytime_image_engine') || 'v2',
 
       // ---- Export & Print (v1.2.0) ----
       // exportSheet: null | { stage:'pick'|'preview', format, busy, progressText,
@@ -747,6 +752,14 @@ createApp({
 
   mounted() {
     console.log(`${this.appName} ${this.version} loaded ✓`);
+
+    // v1.3.0 one-time: the picture engine changed speed classes (image-2 is
+    // ~3× slower per image) — clear image-1-era timing samples so the
+    // "~Xs" loading estimate re-learns instead of wildly under-promising.
+    if (localStorage.getItem('storytime_gen_timings_engine') !== 'v2') {
+      clearGenTimings();
+      localStorage.setItem('storytime_gen_timings_engine', 'v2');
+    }
     setTimeout(() => this.dismissSplash(), 1500);
 
     // ---- iOS standalone detection -------------------------------------
@@ -937,6 +950,36 @@ createApp({
       this.showSettings = false;
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
+    toggleImageEngine() {
+      this.imageEngine = this.imageEngine === 'v2' ? 'v1' : 'v2';
+      localStorage.setItem('storytime_image_engine', this.imageEngine);
+      // the two engines have very different speeds — old samples would
+      // poison the "~Xs" estimate, so start the calibrator fresh
+      clearGenTimings();
+      this.genTimingVersion++;
+    },
+    _imageModel() { return this.imageEngine === 'v1' ? 'gpt-image-1' : 'gpt-image-2'; },
+
+    // The 256px cover anchor for the current story (v1.3.0 "D2" pipeline).
+    // Returns null until the cover is ready — page 1 generates in parallel
+    // with the cover (unanchored, keeps the fast book-open); pages 2+ get
+    // the anchor. Cached per story so we downscale once, not per page.
+    async _storyAnchorBlob(storyData) {
+      const cover = storyData.cover;
+      if (!cover || cover.image_status !== 'ready' || !cover.image_id) return null;
+      if (!this._anchorBlobs) this._anchorBlobs = {};
+      if (this._anchorBlobs[storyData.id]) return this._anchorBlobs[storyData.id];
+      try {
+        const blob = await getImageBlob(cover.image_id);
+        if (!blob) return null;
+        const anchor = await downscaleToThumb(blob, 256, 0.8);
+        this._anchorBlobs[storyData.id] = anchor;
+        return anchor;
+      } catch (e) {
+        console.warn('Anchor build failed (pages will generate unanchored):', e);
+        return null;
+      }
+    },
 
     // One-off repair: books created before v1.1.3 with genre "surprise-me" never
     // recorded what the storyteller actually picked. The genre is obvious from
@@ -2144,7 +2187,11 @@ createApp({
 
       // Detect if any character in this image is using fallback
       const anyFallback = charsForPrompt.some(c => c.use_fallback);
-      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt, anyFallback);
+      // Per-page continuity (v1.3.0): outfits / carried objects / scene state
+      // written by the storyteller, so illustrations track the story's
+      // developing visual facts (the sword she picked up stays with her).
+      const continuity = target === 'cover' ? '' : ((storyData.pages[target] || {}).continuity || '');
+      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt, anyFallback, continuity);
       slot.full_prompt = fullPrompt;
 
       if (this.skipImages) {
@@ -2154,7 +2201,16 @@ createApp({
       }
 
       try {
-        const result = await generateImage(fullPrompt, this.password, { quality, size: '1024x1024' });
+        // v1.3.0 "D2" pipeline: gpt-image-2 with a 256px cover anchor on
+        // every page after the cover exists. The cover itself and page 1
+        // (drawn in parallel with it) generate unanchored.
+        const model = this._imageModel();
+        const anchorBlob = (model === 'gpt-image-2' && target !== 'cover')
+          ? await this._storyAnchorBlob(storyData)
+          : null;
+        const result = await generateImage(fullPrompt, this.password, { quality, size: '1024x1024', model, anchorBlob });
+        slot.image_model = result.model;
+        slot.image_anchored = result.anchored;
         // Compress PNG → JPEG (~80-90% smaller, visually identical for art)
         // before caching locally and uploading to the cloud.
         const pngBlob = base64ToBlob(result.b64, 'image/png');

@@ -9,6 +9,15 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.3.0 - 2026-07-31 - The Consistency Engine: richer pictures that stay consistent
+  • NEW PICTURE ENGINE (gpt-image-2). Noticeably richer, more detailed illustrations — chosen after a side-by-side lab on two real books (colored pencil + anime, 47 test images, measured costs). A STYLE FIDELITY instruction now rides every image prompt so each artwork style stays true to itself — the extra detail goes INTO the style, not toward realism.
+  • CHARACTERS STAY CONSISTENT ACROSS PAGES. Every page after the first is drawn with a small (256px) copy of the cover as a visual anchor — same faces, same outfits, same palette through the whole book. In the lab this fixed things like a hero's eyes changing color between pages. The cover and page 1 still draw in parallel, so the book opens on the title + first spread exactly as before.
+  • THE STORYTELLER NOW TRACKS CONTINUITY. Each page carries a one-line note of the visual state — current outfits, objects picked up along the way, place and time of day — which is fed into that page's illustration. Things characters acquire or change into now carry through the artwork as the story develops.
+  • COST TRACKING IS NOW MEASURED, NOT ESTIMATED. Every image call's real token usage (including the anchor input) is read off the API response and priced exactly — flowing into Usage & Costs, Last generation, and each book's stored cost. A story lands around $0.60 (was ~$0.45); character thumbnails got 45% cheaper (image-2 low).
+  • Pictures take longer on the new engine (~60s each vs ~19s) — the loading estimate re-calibrates itself, and its fallback guesses were updated. Developer has a "Picture engine" switch to go back to Classic (gpt-image-1, faster, cheaper, pre-v1.3 look) any time; switching resets the timing calibration.
+  • No worker change — the v1.2.4 worker already handles everything.
+
+--------------------------
 v1.2.5 - 2026-07-29 - Printer calibration you can actually read; coloring polish
   • FIXED the printer calibration test sheet — the old one drew all 13 lines half a millimetre apart, which merged into an unreadable black bar (as the first print showed). Now it's 13 widely-spaced rows, one per setting: each row has one line on the front and one on the back, and the row where the two melt into a SINGLE line against the light is your printer's number. Big legible labels on both ends.
   • Renamed "Print alignment" → "Printer calibration" with a proper printer icon (no more dart emoji), and dropped the redundant "Current: …" line — the highlighted chip already shows the saved setting.
