@@ -22,7 +22,7 @@
 // in the debug panel — it unregisters this SW and clears all caches.
 // =====================================================================
 
-const CACHE_VERSION = 'v1.3.0';
+const CACHE_VERSION = 'v1.3.1';
 const CACHE_NAME = `storytime-${CACHE_VERSION}`;
 
 // ---- Install ----

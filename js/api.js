@@ -116,7 +116,7 @@ const ARTWORK_STYLE_GUIDANCE = {
 // =====================================================================
 // STORY PROMPT BUILDER
 // =====================================================================
-function buildStoryPrompt(formData, selectedCharacters) {
+function buildStoryPrompt(formData, selectedCharacters, recentTitles) {
   const lengthInfo = LENGTH_PRESETS[formData.length] || LENGTH_PRESETS.regular;
   const genreLabel = (formData.genre || 'surprise-me').replace('-', ' ');
   const genreNote = GENRE_GUIDANCE[formData.genre] || GENRE_GUIDANCE['surprise-me'];
@@ -201,6 +201,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
 
   lines.push(
     `- Plus a separate "cover_image_prompt" for the book cover — describe the SCENE only. Do NOT mention "book cover" or include the story title in the image_prompt. The title is shown separately above the image.`,
+    `- The cover must be EMBLEMATIC of the whole story — prefer a moment from the MIDDLE or CLIMAX, or a symbolic wide shot of the story's world, never the opening scene. It must NOT depict the same moment, action, or setting as page 1's image_prompt: the reader sees the cover and then opens to page 1, and those two pictures should feel clearly different (different place or different moment in the journey, different framing).`,
     `- Each image_prompt MUST include a specific ACTION VERB — show what characters are DOING, not just standing. Specify the moment.`,
     `- Vary CAMERA ANGLE / COMPOSITION across the story: close-ups, wide shots, over-the-shoulder, top-down, etc. Don't repeat the same framing.`,
     `- Use exact character names as provided.`,
@@ -251,7 +252,7 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `Return ONLY valid JSON. No markdown, no commentary.`,
     `Exact structure:`,
     `{`,
-    `  "title": "short evocative story title",`,
+    `  "title": "a short, DISTINCTIVE, story-specific title — see TITLE RULES",`,
     `  "summary": "a brief 2-sentence back-cover blurb (~30-45 words), inviting, names the main character(s), no spoilers. VARY the opening — do NOT start with 'Join'; use a different style each time (a question, a vivid setting, a character moment, or the stakes)",`,
     `  "style_anchor": "the consistent illustration style for this entire story (a descriptive phrase)",`,
     `  "chosen_art_style": "(only if you chose the style yourself) the closest match from the provided list, verbatim",`,
@@ -277,8 +278,21 @@ function buildStoryPrompt(formData, selectedCharacters) {
     `Quiz rules:`,
     `- 3 comprehension multiple-choice questions about specific story details. Options must all be plausible. "correct" is the index (0-3) of the right answer.`,
     `- 2 reflection questions that connect the story to the reader's own life — age-appropriate.`,
-    `- Quiz language matches the age range of the reader.`
+    `- Quiz language matches the age range of the reader.`,
+    ``,
+    `TITLE RULES:`,
+    `- The title must be DISTINCTIVE and specific to THIS story: draw it from the story's most memorable object, moment, place or twist (a story about trading a dollar up to a house wants a title like "Seven Swaps to a House", not "Kai's Trading Adventure").`,
+    `- Genre words (Adventure, Quest, Mystery...) are allowed only when they genuinely earn their place — never as a default. Avoid formulaic patterns like "<Name>'s <Adjective> <Genre-word>".`,
+    `- Vary title STRUCTURE from book to book: sometimes an object ("The Golden Lantern"), a place, a question, a number, a phrase from the story.`
   );
+
+  if (recentTitles && recentTitles.length) {
+    lines.push(
+      ``,
+      `RECENT TITLES in this reader's library — make the new title feel clearly different from ALL of these (different words, different structure):`,
+      ...recentTitles.slice(0, 10).map(t => `- ${t}`)
+    );
+  }
 
   return lines.join('\n');
 }
@@ -287,8 +301,8 @@ function buildStoryPrompt(formData, selectedCharacters) {
 // =====================================================================
 // GENERATE STORY
 // =====================================================================
-async function generateStory(formData, selectedCharacters, password) {
-  const prompt = buildStoryPrompt(formData, selectedCharacters);
+async function generateStory(formData, selectedCharacters, password, recentTitles) {
+  const prompt = buildStoryPrompt(formData, selectedCharacters, recentTitles);
   const requestBody = {
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
@@ -440,7 +454,7 @@ Make the character memorable, specific, charming. Avoid generic archetypes.`;
 // Cheap call to gpt-4o-mini that turns a basic scene prompt into a
 // detail-rich one matching ChatGPT-style background expansion.
 // =====================================================================
-async function enrichImagePrompt(styleAnchor, basicPrompt, pageText, characters, password, storySoFar) {
+async function enrichImagePrompt(styleAnchor, basicPrompt, pageText, characters, password, storySoFar, prevEnriched) {
   const charBlock = (characters && characters.length > 0)
     ? characters.map(c => `- ${c.name}: ${c.visual_description}`).join('\n')
     : '(none — generic scene)';
@@ -459,7 +473,8 @@ ${storySoFar && storySoFar.trim() ? storySoFar : '(this is the first page)'}
   const prompt = `Take this basic illustration brief and turn it into a vivid, detail-rich prompt for an AI image model.
 
 ADD these enrichments:
-- Specific composition / camera angle (close-up, wide shot, over-the-shoulder, top-down, etc)
+- Specific composition / camera angle (close-up, wide shot, over-the-shoulder, top-down, low angle, etc). VARY it: pick a framing clearly DIFFERENT from the previous page's, so the book doesn't repeat the same staging page after page.${prevEnriched ? `
+  The previous page's illustration prompt began: "${String(prevEnriched).slice(0, 160)}..." — choose a DIFFERENT camera angle and staging than that.` : ''}
 - Lighting and mood (warm afternoon sun, dim candlelight, moonlight, etc)
 - Active verbs — show what's happening, not static description
 - Sensory details (textures, colors, atmosphere)
@@ -515,7 +530,19 @@ async function callOpenAIChatRaw(requestBody, password) {
 // =====================================================================
 // IMAGE GENERATION (gpt-image-1)
 // =====================================================================
-function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback, continuity) {
+// v1.3.1 "anchor discipline" (each rule verified in the offline lab):
+//  - SCENE-SCOPED CAST: only characters actually present in this page's
+//    scene/text get a visual description. Before this, every page carried
+//    every character's description, so the model cast absent characters as
+//    the story's strangers ("a girl" was drawn as Akhil).
+//  - REFERENCE CONTRACT + ANTI-BLEED (only when an anchor image rides
+//    along): the anchor governs style + named characters ONLY — never
+//    composition, and never lends its faces/outfits to strangers. Both
+//    halves are required: scene-scoping alone still left an Akhil
+//    look-alike, because the model could see him in the anchor picture.
+// opts: { pageText, anchored, isCover }
+function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback, continuity, opts) {
+  const o = opts || {};
   const parts = [];
   if (styleAnchor) {
     parts.push(`Illustration style: ${styleAnchor}. Maintain this exact style consistently across all images in this story.`);
@@ -525,15 +552,39 @@ function buildImagePrompt(styleAnchor, scenePrompt, characters, useFallback, con
     // 3D styles are not harmed either.
     parts.push(`STYLE FIDELITY: stay strictly faithful to the illustration style described above — match its texture, linework, color handling, and level of stylization exactly. Do not render more photorealistically or in finer detail than the style itself calls for; the style defines the ceiling.`);
   }
+  if (o.anchored) {
+    parts.push(`REFERENCE IMAGE: an image from this same storybook is attached. Use it ONLY to match (a) the illustration style, rendering technique and colour palette, and (b) the exact appearance of the named characters listed below who also appear in it. Do NOT copy its composition, camera angle, character poses, staging, background or layout — this is a DIFFERENT moment in the story and must be framed exactly as the Scene describes. NEVER reuse the reference's faces, hairstyles or clothing for anyone who is not named below.`);
+  }
   parts.push(`Scene: ${scenePrompt}`);
+  parts.push(`COMPOSITION: follow the camera angle, framing and staging described in the Scene exactly — it is deliberately different from the other pages of this book.`);
   if (continuity && String(continuity).trim()) {
     parts.push(`Continuity (visual facts carried from earlier pages — keep these exactly): ${String(continuity).trim()}`);
   }
-  if (characters && characters.length > 0) {
-    parts.push(`Character references (use these exact names and appearances when mentioned in the scene):`);
-    characters.forEach(c => {
+
+  // ---- scene-scoped cast ----
+  const all = characters || [];
+  const haystack = ((scenePrompt || '') + ' ' + (o.pageText || '') + ' ' + (continuity || '')).toLowerCase();
+  const inScene = (c) => {
+    if (o.isCover) return true;                      // the cover is the group shot
+    if (c.use_fallback) return true;                 // fallback aliases may not literal-match — keep, to be safe
+    const esc = String(c.name || '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return esc && new RegExp('\\b' + esc + '\\b').test(haystack);
+  };
+  const present = all.filter(inScene);
+  const absent = all.filter(c => !present.includes(c)).map(c => c.name).filter(Boolean);
+
+  if (present.length > 0) {
+    parts.push(`Character references — these are the ONLY named characters in this image (match their appearance exactly):`);
+    present.forEach(c => {
       parts.push(`- ${c.name}: ${c.visual_description}`);
     });
+  }
+  if (!o.isCover && all.length > 0) {
+    const cast = present.map(c => c.name).join(', ') || 'none';
+    if (o.anchored && absent.length > 0) {
+      parts.push(`ANTI-BLEED: the attached reference image may also show ${absent.join(', ')}, who ${absent.length === 1 ? 'is' : 'are'} NOT in this scene. Do not include ${absent.join(', ')} anywhere in this image. Any other person here is a DIFFERENT person and must be visibly distinct from ${absent.join(', ')} — different face shape, different hairstyle, different skin tone, different eyewear, and completely different clothing colours and patterns.`);
+    }
+    parts.push(`CAST OF THIS PAGE: the only named characters here are: ${cast}. Do NOT add any other named character from this story to this page${absent.length ? ' — in particular do NOT include ' + absent.join(', ') : ''}. Every other person the Scene calls for (a girl, a boy, a shopkeeper, passers-by) is a STRANGER who has never appeared before — invent them fresh with clearly DIFFERENT face, hair, skin tone, build and clothing from the named characters. It is completely fine for a page to show only one named character, or none.`);
   }
   if (useFallback) {
     parts.push(`The characters in this image are ORIGINAL CREATIONS for this story. Do not interpret them as references to any existing copyrighted or trademarked characters from films, games, or shows. Render them based solely on the descriptions provided.`);
@@ -559,7 +610,10 @@ async function generateImage(fullPrompt, password, options = {}) {
   const anchorBlob = options.anchorBlob || null;
 
   let lastError = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Up to 4 attempts: 429 (rate limit) and 5xx back off 1s/2s/4s and retry.
+  // v1.3.1 generates up to 5 images at once, so 429s are a real possibility
+  // — they must become a short delay, never a missing picture.
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       let response;
       if (anchorBlob) {
@@ -586,9 +640,9 @@ async function generateImage(fullPrompt, password, options = {}) {
       }
 
       if (response.status === 401) throw new Error('Wrong password. Open Settings to reset.');
-      if (response.status >= 500 && attempt === 0) {
-        lastError = new Error(`Image API error (HTTP ${response.status}) — retrying`);
-        await new Promise(r => setTimeout(r, 1000));
+      if ((response.status === 429 || response.status >= 500) && attempt < 3) {
+        lastError = new Error(`Image API ${response.status === 429 ? 'rate limit' : 'error'} (HTTP ${response.status}) — retrying`);
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
         continue;
       }
       if (!response.ok) {
@@ -609,8 +663,8 @@ async function generateImage(fullPrompt, password, options = {}) {
       return { b64, cost, model, anchored: !!anchorBlob, rawResponse: data, prompt: fullPrompt };
     } catch (err) {
       lastError = err;
-      if (attempt === 0 && /5\d\d/.test(err.message)) {
-        await new Promise(r => setTimeout(r, 1000));
+      if (attempt < 3 && /(rate limit|5\d\d|Failed to fetch|load failed)/i.test(err.message)) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
         continue;
       }
       throw err;
@@ -654,16 +708,16 @@ function generateFakeStory(formData) {
 // loading screen disappears. The rest of the pictures stream in while reading,
 // so this is roughly constant regardless of book length (only text gen scales).
 function loadingHintForLength(lengthKey) {
-  // Fallback guesses until the calibrator has 3 real samples. gpt-image-2
-  // (v1.3.0) takes ~60s/image vs image-1's ~19s, and the book opens after
-  // cover + page 1 (drawn in parallel) — hence the bigger numbers.
+  // Fallback guesses until the calibrator has 3 real samples. v1.3.1 flow:
+  // story text (~20s) + draft anchor (~21s) + first wave of cover + 4 pages
+  // in parallel (~60s) ≈ 100s before the book opens, fully anchored.
   const map = {
-    short:        '~70 seconds',
-    regular:      '~80 seconds',
-    long:         '~90 seconds',
-    'extra-long': '~100 seconds',
+    short:        '~100 seconds',
+    regular:      '~110 seconds',
+    long:         '~2 minutes',
+    'extra-long': '~2 minutes',
   };
-  return map[lengthKey] || '~80 seconds';
+  return map[lengthKey] || '~110 seconds';
 }
 
 

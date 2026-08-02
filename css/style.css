@@ -61,6 +61,10 @@ html {
      leaving it stuck big when you rotate back to portrait — the Manage Characters bug). */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* v1.3.1: kill DOUBLE-TAP zoom app-wide (Kai's star-game rapid taps kept
+     zooming the loading screen). `manipulation` allows panning and pinch —
+     accessibility zoom stays — but removes the double-tap gesture. */
+  touch-action: manipulation;
 }
 /* In the Library, everything ABOVE the shelf (the toolbar / pull-to-refresh) is
    the night-indigo "wall". The full-bleed wooden bookshelf has a min-height of

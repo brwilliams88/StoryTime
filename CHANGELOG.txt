@@ -9,6 +9,19 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.3.1 - 2026-08-02 - Consistency Engine tuned by the first real book
+  • PAGE 1 NOW MATCHES THE REST OF THE BOOK. A cheap throwaway draft of the cover (~21s, half a cent, never shown or saved) becomes the story's anchor, so the real cover AND the first pages all draw in parallel from the same reference — no more Akhil changing shirts between the cover and page 1. Verified 3-for-3 in an offline lab before shipping.
+  • CHARACTERS STOP SNEAKING INTO EVERY PICTURE. Each page's prompt now only describes the characters actually in that scene, plus explicit rules that anyone else is a brand-new stranger — and, when a reference image rides along, that its faces and outfits must never be reused for strangers. (In "The One-Dollar Adventure", the girl and boy Kai traded with were both drawn as Akhil. Both halves of this fix were proven in the lab — either alone wasn't enough.)
+  • THE COVER IS NO LONGER PAGE 1's TWIN: the storyteller must make the cover an emblematic image of the whole story, clearly different from page 1's scene.
+  • CONTINUITY ACTUALLY WORKS NOW — v1.3.0 generated the per-page "what carries forward" notes but a field-copying bug threw them away before they reached any picture. Fixed; objects gained and outfit changes now follow the story again.
+  • Pictures vary their staging: each illustration brief must pick a camera/framing different from the previous page's, so books stop feeling like the same two-shot repeated.
+  • MORE DISTINCTIVE TITLES: titles must come from the story's most memorable object, moment or twist, avoid formulaic "<Name>'s <Adjective> Adventure" patterns, and steer clear of the reader's 10 most recent titles (goodbye, three "Adventure"s in a row).
+  • Loading: the book now opens with the cover + first FOUR pages ready (~100s all-in) and keeps generating 4 at a time — a big head start over a reader at ~30-45s a page. Rate limits now retry with backoff instead of dropping a picture; loading estimates re-learn automatically.
+  • "Redraw this picture" now fetches the cover anchor from the cloud when it isn't cached on this device — regenerated pages stay consistent on your phone even for books made on the laptop.
+  • Double-tap zoom is disabled app-wide (rapid star-tapping on the loading screen could zoom the whole app on iOS); pinch zoom still works.
+  • Settings › Account & Services now lists exactly which AI models the app uses for stories, pictures, quizzes, coloring pages and thumbnails.
+
+--------------------------
 v1.3.0 - 2026-07-31 - The Consistency Engine: richer pictures that stay consistent
   • NEW PICTURE ENGINE (gpt-image-2). Noticeably richer, more detailed illustrations — chosen after a side-by-side lab on two real books (colored pencil + anime, 47 test images, measured costs). A STYLE FIDELITY instruction now rides every image prompt so each artwork style stays true to itself — the extra detail goes INTO the style, not toward realism.
   • CHARACTERS STAY CONSISTENT ACROSS PAGES. Every page after the first is drawn with a small (256px) copy of the cover as a visual anchor — same faces, same outfits, same palette through the whole book. In the lab this fixed things like a hero's eyes changing color between pages. The cover and page 1 still draw in parallel, so the book opens on the title + first spread exactly as before.

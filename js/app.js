@@ -52,8 +52,8 @@ createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.3.0',
-      buildDate: '2026-07-31',   // ALWAYS set from `date +%F` on this machine at commit time
+      version: 'v1.3.1',
+      buildDate: '2026-08-02',   // ALWAYS set from `date +%F` on this machine at commit time
 
       showSplash: true,
 
@@ -960,24 +960,62 @@ createApp({
     },
     _imageModel() { return this.imageEngine === 'v1' ? 'gpt-image-1' : 'gpt-image-2'; },
 
-    // The 256px cover anchor for the current story (v1.3.0 "D2" pipeline).
-    // Returns null until the cover is ready — page 1 generates in parallel
-    // with the cover (unanchored, keeps the fast book-open); pages 2+ get
-    // the anchor. Cached per story so we downscale once, not per page.
+    // The story's 256px anchor image (v1.3.1). Sources, in order:
+    //   1. the session's draft anchor (made by _makeDraftAnchor during
+    //      generation — lets the cover and ALL pages anchor in parallel)
+    //   2. the finished cover — local cache first, then R2 via a signed
+    //      URL (so "redraw this page" stays anchored on OTHER devices and
+    //      after a cache clear, instead of silently degrading)
+    // Cached per story so we build it once, not per page.
     async _storyAnchorBlob(storyData) {
-      const cover = storyData.cover;
-      if (!cover || cover.image_status !== 'ready' || !cover.image_id) return null;
       if (!this._anchorBlobs) this._anchorBlobs = {};
       if (this._anchorBlobs[storyData.id]) return this._anchorBlobs[storyData.id];
+      const cover = storyData.cover;
+      if (!cover || cover.image_status !== 'ready' || !cover.image_id) return null;
       try {
-        const blob = await getImageBlob(cover.image_id);
+        let blob = null;
+        try { blob = await getImageBlob(cover.image_id); } catch (e) { /* fall through */ }
+        if (!blob) {
+          const urls = await signImageUrlsFor([cover.image_id]);
+          if (urls[cover.image_id]) {
+            const r = await fetch(urls[cover.image_id]);
+            if (r.ok) {
+              blob = await r.blob();
+              try { await saveImageBlob(cover.image_id, blob); } catch (e) { /* cache is best-effort */ }
+            }
+          }
+        }
         if (!blob) return null;
         const anchor = await downscaleToThumb(blob, 256, 0.8);
         this._anchorBlobs[storyData.id] = anchor;
         return anchor;
       } catch (e) {
-        console.warn('Anchor build failed (pages will generate unanchored):', e);
+        console.warn('Anchor build failed (image will generate unanchored):', e);
         return null;
+      }
+    },
+
+    // A cheap LOW-quality draft of the cover (~21s, $0.006), downscaled to
+    // 256px, becomes the story's anchor for the whole generation session.
+    // It is never shown, never uploaded, never in the gallery — it exists
+    // only so the real cover and every page can anchor IN PARALLEL. If it
+    // fails, generation proceeds and pages anchor to the cover once ready.
+    async _makeDraftAnchor(storyData) {
+      try {
+        const chars = this.selectedCharsForPrompt(storyData.selected_characters || []);
+        const anyFallback = chars.some(c => c.use_fallback);
+        const prompt = buildImagePrompt(storyData.style_anchor, storyData.cover.image_prompt, chars, anyFallback, '', { isCover: true });
+        const draft = await generateImage(prompt, this.password, { quality: 'low', size: '1024x1024', model: 'gpt-image-2' });
+        this.currentImagesCost += draft.cost;
+        this.currentStoryCost = this.currentTextCost + this.currentImagesCost;
+        storyData.images_cost = this.currentImagesCost;
+        storyData.cost = this.currentStoryCost;
+        recordSpend('pictures', draft.cost);
+        const blob = base64ToBlob(draft.b64, 'image/png');
+        if (!this._anchorBlobs) this._anchorBlobs = {};
+        this._anchorBlobs[storyData.id] = await downscaleToThumb(blob, 256, 0.8);
+      } catch (e) {
+        console.warn('Draft anchor failed — pages will anchor to the cover instead:', e);
       }
     },
 
@@ -1773,8 +1811,10 @@ createApp({
       });
 
       try {
-        // Story text always uses REAL character names
-        const textResult = await generateStory(this.formData, selected, this.password);
+        // Story text always uses REAL character names. Recent titles ride
+        // along so the new title doesn't echo the library (v1.3.1).
+        const recentTitles = (this.libraryBooks || []).slice(0, 10).map(b => b.title).filter(Boolean);
+        const textResult = await generateStory(this.formData, selected, this.password, recentTitles);
 
         selected.forEach(c => touchCharacterLastUsed(c.id));
         this.characters = getStoredCharacters();
@@ -1790,6 +1830,7 @@ createApp({
           page_number: p.page_number,
           text: p.text,
           image_prompt: p.image_prompt,
+          continuity: p.continuity || '',   // visual state carried into this scene (v1.3.1 — was dropped here, silently disabling the feature)
           image_id: null,
           image_status: 'pending',
           image_cost: 0,
@@ -1867,12 +1908,21 @@ createApp({
           window.scrollTo(0, 0);
           this.persistStory(storyData);
         } else {
-          // Draw the COVER + PAGE 1 together, keeping the loading screen up
-          // until both are ready, so the book opens with its first spreads drawn.
-          // (The loading text keeps cycling its own flavour messages — see
-          // startLoadingFx — so we deliberately don't overwrite it here.)
+          // v1.3.1 draft-anchor flow (New engine): a cheap LOW draft of the
+          // cover (~21s, $0.006) becomes the story's 256px anchor — then the
+          // REAL cover and the first pages all draw in parallel, every one
+          // anchored, and the book opens with a several-page reading buffer.
+          // Verified 3/3 in the offline lab (page 1 finally matches the
+          // cover; draft-anchored covers as good as unanchored ones).
+          // Classic engine keeps the original cover+page1 flow.
+          const isV2 = this._imageModel() === 'gpt-image-2';
+          if (isV2) await this._makeDraftAnchor(storyData);
+
+          const wave = mode === 'first-two' ? 1 : (isV2 ? 4 : 1);
           const firstBatch = [this.generateOneImage('cover', storyData)];
-          if (storyData.pages.length > 0) firstBatch.push(this.generateOneImage(0, storyData));
+          for (let i = 0; i < Math.min(wave, storyData.pages.length); i++) {
+            firstBatch.push(this.generateOneImage(i, storyData));
+          }
           await Promise.all(firstBatch);
 
           // Record how long "ready to read" actually took, to calibrate the
@@ -2001,13 +2051,16 @@ createApp({
         });
         pageIndices = [];
       } else {
-        // Everything still 'pending' (cover + page 1 are already done)
+        // Everything still 'pending' (the first wave is already done)
         pageIndices = storyData.pages
           .map((_, i) => i)
           .filter(i => storyData.pages[i].image_status === 'pending');
       }
 
-      const CONCURRENCY = 3;
+      // v2 pages are anchored and independent → 4 at a time keeps the
+      // generator ahead of a reader doing ~30-45s per spread. Classic
+      // keeps its original 3. 429s back off inside generateImage.
+      const CONCURRENCY = this._imageModel() === 'gpt-image-2' ? 4 : 3;
       let cursor = 0;
       const worker = async () => {
         while (cursor < pageIndices.length) {
@@ -2165,13 +2218,20 @@ createApp({
         if (basicScene) {
           // For page text used in enrichment context, also apply name fallback
           const safePageText = this.applyNameFallback(pageText, charsForPrompt);
+          // The previous illustration's enriched prompt lets the enricher
+          // choose a genuinely DIFFERENT camera/staging (v1.3.1) — page 1's
+          // "previous" is the cover.
+          const prevEnriched = target === 'cover' ? ''
+            : (target === 0 ? (storyData.cover.enriched_prompt || '')
+                            : ((storyData.pages[target - 1] || {}).enriched_prompt || ''));
           const enrich = await enrichImagePrompt(
             storyData.style_anchor,
             basicScene,
             safePageText,
             charsForPrompt,
             this.password,
-            storySoFar
+            storySoFar,
+            prevEnriched
           );
           enrichedScene = enrich.enriched;
           slot.enriched_prompt = enrichedScene;
@@ -2187,11 +2247,24 @@ createApp({
 
       // Detect if any character in this image is using fallback
       const anyFallback = charsForPrompt.some(c => c.use_fallback);
-      // Per-page continuity (v1.3.0): outfits / carried objects / scene state
-      // written by the storyteller, so illustrations track the story's
-      // developing visual facts (the sword she picked up stays with her).
+      // Per-page continuity: outfits / carried objects / scene state written
+      // by the storyteller, so illustrations track the story's developing
+      // visual facts (the sword she picked up stays with her).
       const continuity = target === 'cover' ? '' : ((storyData.pages[target] || {}).continuity || '');
-      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt, anyFallback, continuity);
+
+      // v1.3.1: the anchor decision comes BEFORE the prompt is built, so the
+      // prompt can carry the reference contract + anti-bleed rules when (and
+      // only when) a reference image actually rides along. Every image —
+      // including the cover — anchors to the story's draft anchor if one
+      // exists, else to the finished cover, else generates unanchored.
+      const model = this._imageModel();
+      const anchorBlob = model === 'gpt-image-2' ? await this._storyAnchorBlob(storyData) : null;
+
+      const fullPrompt = buildImagePrompt(storyData.style_anchor, enrichedScene, charsForPrompt, anyFallback, continuity, {
+        pageText,
+        anchored: !!anchorBlob,
+        isCover: target === 'cover',
+      });
       slot.full_prompt = fullPrompt;
 
       if (this.skipImages) {
@@ -2201,13 +2274,6 @@ createApp({
       }
 
       try {
-        // v1.3.0 "D2" pipeline: gpt-image-2 with a 256px cover anchor on
-        // every page after the cover exists. The cover itself and page 1
-        // (drawn in parallel with it) generate unanchored.
-        const model = this._imageModel();
-        const anchorBlob = (model === 'gpt-image-2' && target !== 'cover')
-          ? await this._storyAnchorBlob(storyData)
-          : null;
         const result = await generateImage(fullPrompt, this.password, { quality, size: '1024x1024', model, anchorBlob });
         slot.image_model = result.model;
         slot.image_anchored = result.anchored;
@@ -2331,6 +2397,7 @@ createApp({
         page_number: p.page_number,
         text: p.text,
         image_prompt: p.image_prompt,
+        continuity: p.continuity || '',
         image_id: null,
         image_status: 'skipped',
         image_cost: 0,
