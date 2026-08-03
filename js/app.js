@@ -23,36 +23,104 @@ const MAX_INGREDIENTS = 3;
 const MAX_SELECTED_CHARACTERS = 5;
 
 // ---------------------------------------------------------------------
-// Loading-screen messages. These are FLAVOUR, not progress reporting — they
-// follow the same rough arc every time (write → build the world → illustrate →
-// finish) but pick different wording, so the wait feels alive instead of
-// repetitive. buildLoadingMessages() returns one shuffled run.
+// Loading-screen messages (v1.3.2). Personalised, progress-gated flavour:
+// the pools are built from the story form itself — character names, genre,
+// art style — with zero extra API calls. Each message carries `at`, the
+// progress % it unlocks at, so end-of-book wording ("Binding…") can never
+// appear while the story is still being written; the ticker in
+// startLoadingFx() only ever walks forward.
 // ---------------------------------------------------------------------
-const LOADING_MSGS = {
-  start: ['Writing your story…', 'Dreaming up the adventure…', 'Putting pen to paper…', 'Opening a blank page…'],
-  world: ['Setting the scene…', 'Building the world…', 'Choosing the perfect words…', 'Deciding how it begins…'],
-  cast:  ['Waking up the characters…', 'Gathering everyone together…', 'Teaching the dragon its lines…', 'Giving everyone their voices…'],
-  magic: ['Sprinkling in some magic…', 'Tucking in a surprise…', 'Chasing down a plot twist…', 'Stirring in a little wonder…'],
-  art:   ['Mixing the paint pots…', 'Drawing the pictures…', 'Colouring everything in…', 'Sketching the first scene…'],
-  final: ['Adding the tiny details…', 'Polishing the pages…', 'Binding the book…', 'Almost ready…'],
+const GENRE_LOADING_LINES = {
+  'adventure':    ['Packing for the expedition…', 'Drawing the treasure map…'],
+  'fairy-tale':   ['Dusting off the once-upon-a-time…', 'Inviting the fairies…'],
+  'heartfelt':    ['Warming up the hugs…', 'Gathering the warm feelings…'],
+  'fantasy':      ['Casting the world-building spell…', 'Growing an enchanted forest…'],
+  'sci-fi':       ['Fueling the rocket ship…', 'Booting up the robots…'],
+  'pirates':      ['Hoisting the sails…', 'Polishing the treasure…'],
+  'superhero':    ['Ironing the capes…', 'Charging up the superpowers…'],
+  'mystery':      ['Hiding the clues…', 'Practising suspicious looks…'],
+  'spooky':       ['Rehearsing the friendly ghosts…', 'Fluffing the cobwebs…'],
+  'animal-tales': ['Herding everyone into place…', 'Handing out the whiskers…'],
+  'dinosaurs':    ['Waking the dinosaurs gently…', 'Measuring the footprints…'],
+  'underwater':   ['Filling up the ocean…', 'Blowing the bubbles…'],
+  'western':      ['Saddling the horses…', 'Dusting the desert trail…'],
 };
-function buildLoadingMessages() {
+// Per art style: [prep line, verb for "<verb> <names>…"]
+const ART_LOADING_LINES = {
+  'watercolor':      ['Wetting the watercolor brushes…', 'Painting'],
+  'crayon':          ['Peeling the crayon wrappers…', 'Scribbling'],
+  'comic-book':      ['Inking the comic panels…', 'Drawing'],
+  'anime':           ['Sharpening the anime pencils…', 'Drawing'],
+  'pixel-art':       ['Counting out the pixels…', 'Pixel-painting'],
+  '3d-animation':    ['Warming up the render farm…', 'Animating'],
+  'claymation':      ['Softening the modeling clay…', 'Sculpting'],
+  'building-blocks': ['Tipping out the box of bricks…', 'Building'],
+  'stuffies':        ['Fluffing the stuffing…', 'Stitching'],
+  'paper-cutouts':   ['Snipping the colored paper…', 'Cutting out'],
+  'chalkboard':      ['Dusting off the chalkboard…', 'Chalking'],
+  '3d-printed':      ['Loading the 3D printer…', 'Printing'],
+  'photorealistic':  ['Focusing the camera lens…', 'Photographing'],
+  'stained-glass':   ['Melting the colored glass…', 'Piecing together'],
+  'colored-pencil':  ['Sharpening the colored pencils…', 'Sketching'],
+  'oil-painting':    ['Squeezing out the oil paints…', 'Painting'],
+  'ukiyo-e':         ['Carving the woodblocks…', 'Printing'],
+  'origami':         ['Creasing the origami paper…', 'Folding'],
+  'candy-world':     ['Boiling the candy sugar…', 'Sugar-spinning'],
+};
+
+// "Kai" · "Kai and Nozomi" · "Kai, Nozomi and Ball" · 4+ → "Kai, Nozomi and friends"
+function friendlyNameList(names) {
+  const n = (names || []).map(s => String(s || '').trim()).filter(Boolean);
+  if (!n.length) return 'the characters';
+  if (n.length === 1) return n[0];
+  if (n.length === 2) return n[0] + ' and ' + n[1];
+  if (n.length === 3) return n[0] + ', ' + n[1] + ' and ' + n[2];
+  return n[0] + ', ' + n[1] + ' and friends';
+}
+
+// One shuffled personalised run: [{ at: <unlock %>, text }], in order.
+function buildLoadingMessages(formData, characterNames) {
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const names = friendlyNameList(characterNames);
+  const art = ART_LOADING_LINES[(formData && formData.artStyle) || ''] || ['Mixing the paint pots…', 'Drawing'];
+  const genre = GENRE_LOADING_LINES[(formData && formData.genre) || ''] || null;
   return [
-    pick(LOADING_MSGS.start),
-    pick(LOADING_MSGS.world),
-    pick(LOADING_MSGS.cast),
-    pick(LOADING_MSGS.magic),
-    pick(LOADING_MSGS.art),
-    pick(LOADING_MSGS.final),
+    { at: 0,  text: pick(['Writing your story…', 'Dreaming up the adventure…', 'Putting pen to paper…', 'Opening a blank page…']) },
+    { at: 10, text: pick(['Waking up ' + names + '…', 'Getting ' + names + ' ready…', 'Giving ' + names + ' their voices…']) },
+    { at: 21, text: genre ? pick(genre) : pick(['Setting the scene…', 'Building the world…', 'Deciding how it begins…']) },
+    { at: 32, text: pick(['Sprinkling in some magic…', 'Tucking in a surprise…', 'Chasing down a plot twist…', 'Stirring in a little wonder…']) },
+    { at: 44, text: art[0] },
+    { at: 57, text: art[1] + ' ' + names + '…' },
+    { at: 71, text: pick(['Coloring everything in…', 'Adding the tiny details…', 'Painting the backgrounds…']) },
+    { at: 86, text: pick(['Binding the book…', 'Polishing the pages…', 'Sewing the spine…']) },
+    { at: 95, text: 'Almost ready…' },
   ];
+}
+
+// Parse CHANGELOG.txt into release entries for the What's New modal.
+// Format per entry: "v1.3.2 - 2026-08-02 - Title" followed by "  • bullet"
+// lines; deeper-indented lines continue the previous bullet.
+function parseChangelog(text) {
+  const entries = [];
+  let cur = null;
+  for (const raw of String(text || '').split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    // separator is " - " in recent entries, " — " (em-dash) in v0.11.1 and older
+    const head = line.match(/^(v\d+\S*)\s+[-—–]\s+(\d{4}-\d{2}-\d{2})\s+[-—–]\s+(.+)$/);
+    if (head) { cur = { version: head[1], date: head[2], title: head[3], bullets: [] }; entries.push(cur); continue; }
+    if (!cur || !line.trim() || /^-{4,}$/.test(line.trim())) continue;
+    const bullet = line.match(/^\s+[•\-]\s+(.*)$/);
+    if (bullet) cur.bullets.push(bullet[1]);
+    else if (cur.bullets.length && /^\s/.test(raw)) cur.bullets[cur.bullets.length - 1] += ' ' + line.trim();
+  }
+  return entries;
 }
 
 createApp({
   data() {
     return {
       appName: 'StoryTime',
-      version: 'v1.3.1',
+      version: 'v1.3.2',
       buildDate: '2026-08-02',   // ALWAYS set from `date +%F` on this machine at commit time
 
       showSplash: true,
@@ -65,7 +133,8 @@ createApp({
 
       loading: false,
       loadingMessage: '',
-      loadingHint: '',
+      loadingPct: null,          // 0-100 while a story generates (gold arc); null hides it
+      lastGenInfo: getLastGenInfo(),   // { ms, length, ts } of the last real generation
       loadingProgress: '',
       loadingGameOn: false,          // catch-the-stars mini-game runs during story generation
       loadingStarsCaught: 0,
@@ -119,6 +188,9 @@ createApp({
       },
 
       showSettings: false,
+      showReleaseNotes: false,
+      releaseNotes: null,        // parsed CHANGELOG entries, fetched on first open
+      releaseNotesError: '',
       nextStoryQuality: 'medium',
       imageGenMode: 'all',  // 'all' | 'first-two' | 'skip'
       showInspect: false,
@@ -429,6 +501,13 @@ createApp({
     estimatedStoryCostFormatted() {
       return formatCostFriendly(this.estimatedStoryCostNumber);
     },
+    // Gold progress arc (v1.3.2): dashoffset for the r=90 circle in index.html
+    loaderRingOffset() {
+      const CIRC = 565.49;   // 2π × 90 — keep in sync with the SVG
+      const p = Math.max(0, Math.min(100, this.loadingPct || 0));
+      return (CIRC * (1 - p / 100)).toFixed(1);
+    },
+    loadingPctLabel() { return Math.round(this.loadingPct || 0) + '%'; },
     // MRU-sorted lists. Touch mruVersion so they recompute after touchMRU().
     genres() {
       this.mruVersion;
@@ -885,7 +964,7 @@ createApp({
       const tag = (e.target && e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
       // Don't navigate while a modal is open over the story
-      if (this.showSettings || this.showQuiz || this.inspectingImage ||
+      if (this.showSettings || this.showQuiz || this.inspectingImage || this.showReleaseNotes ||
           this.copyrightModal || this.warningModal || this.showCharactersModal) return;
       // Arrow keys play the same turn animation (fall back to instant nav).
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -950,6 +1029,37 @@ createApp({
       this.showSettings = false;
     },
     resetGenTimings() { clearGenTimings(); this.genTimingVersion++; },
+
+    // ---- Release notes (v1.3.2) --------------------------------------
+    // Fetched from CHANGELOG.txt (the same bullets that go into the git
+    // commits) with a ?v= cache-buster so a fresh version never serves a
+    // stale changelog. Parsed once per session.
+    async openReleaseNotes() {
+      this.showReleaseNotes = true;
+      if (this.releaseNotes) return;
+      this.releaseNotesError = '';
+      try {
+        const res = await fetch('CHANGELOG.txt?v=' + encodeURIComponent(this.version));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const parsed = parseChangelog(await res.text());
+        if (!parsed.length) throw new Error('empty changelog');
+        this.releaseNotes = parsed;
+      } catch (e) {
+        console.warn('Release notes fetch failed:', e);
+        this.releaseNotesError = 'Couldn\'t load the release notes — check your connection and try again.';
+      }
+    },
+    closeReleaseNotes() { this.showReleaseNotes = false; },
+
+    // "1m 42s" for the Settings "last book" readout
+    fmtGenTime(ms) {
+      const s = Math.round((ms || 0) / 1000);
+      return s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's';
+    },
+    lengthLabelFor(key) {
+      const l = this.lengths.find(x => x.value === key);
+      return l ? l.label : (key || '');
+    },
     toggleImageEngine() {
       this.imageEngine = this.imageEngine === 'v2' ? 'v1' : 'v2';
       localStorage.setItem('storytime_image_engine', this.imageEngine);
@@ -1350,21 +1460,29 @@ createApp({
       }
     },
 
-    // ---- Loading-screen catch-the-stars game ----
+    // ---- Loading-screen progress, messages + catch-the-stars game ----
     // Sparse, calm: at most a few stars falling at once, spawned into the
     // .loading-stars layer. Tap a star to catch it. Cleaned up when loading ends.
     startLoadingFx() {
-      this.stopLoadingFx();
+      this._clearLoadingTimers();
       this.loadingStarsCaught = 0;
 
-      // Cycle the flavour messages through the same arc, holding on the last one
-      // if generation runs long.
-      let mi = 0;
-      this._loadingMsgTimer = setInterval(() => {
-        if (!this.loading) return;
+      // One ticker drives BOTH the gold arc and the flavour text (v1.3.2).
+      // Progress comes from real milestones + the calibrated clock; messages
+      // unlock at % thresholds and only ever walk forward, so late-stage
+      // wording can't appear early no matter how long generation runs.
+      let mi = -1;
+      this._loadingTicker = setInterval(() => {
+        if (!this.loading) { this.stopLoadingFx(); return; }
+        const pct = this._progressPct();
+        if (pct !== null) this.loadingPct = pct;
         const msgs = this._loadingMsgs || [];
-        if (mi < msgs.length - 1) { mi++; this.loadingMessage = msgs[mi]; }
-      }, 4200);
+        let next = mi;
+        for (let i = mi + 1; i < msgs.length; i++) {
+          if ((this.loadingPct || 0) >= msgs[i].at) next = i; else break;
+        }
+        if (next !== mi && msgs[next]) { mi = next; this.loadingMessage = msgs[next].text; }
+      }, 300);
 
       const layer = document.querySelector('.loading-stars');
       if (!layer) return;
@@ -1383,6 +1501,7 @@ createApp({
         s.style.setProperty('--drift', (Math.random() * 26 - 13) + 'px');
         s.addEventListener('pointerdown', (e) => {
           e.stopPropagation();
+          e.preventDefault();   // belt-and-braces vs iOS double-tap zoom (v1.3.2)
           if (s._caught) return;
           s._caught = true;
           this.loadingStarsCaught++;
@@ -1402,11 +1521,53 @@ createApp({
         layer.appendChild(s);
       }, 1500);
     },
-    stopLoadingFx() {
+    _clearLoadingTimers() {
       if (this._loadingStarTimer) { clearInterval(this._loadingStarTimer); this._loadingStarTimer = null; }
-      if (this._loadingMsgTimer) { clearInterval(this._loadingMsgTimer); this._loadingMsgTimer = null; }
+      if (this._loadingTicker) { clearInterval(this._loadingTicker); this._loadingTicker = null; }
+    },
+    stopLoadingFx() {
+      this._clearLoadingTimers();
+      this._genProgress = null;
+      this.loadingPct = null;
+      this.loadingGameOn = false;   // don't leak game UI into "Opening book…" loads
       const layer = document.querySelector('.loading-stars');
       if (layer) layer.innerHTML = '';
+    },
+
+    // ---- Honest progress (v1.3.2) ------------------------------------
+    // The road to "book opens" has real milestones: story text → draft
+    // anchor (New engine only) → cover + first wave of pages (parallel).
+    // Between milestones we ease along the calibrated clock but never
+    // reach the next checkpoint — the real event SNAPS us forward. So the
+    // arc is honest: 100% happens exactly when the book opens.
+    _progressBegin(totalSecs, hasAnchor, imageCount) {
+      const F = [0, hasAnchor ? 0.30 : 0.36];             // → story text done
+      if (hasAnchor) F.push(0.42);                         // → draft anchor done
+      const start = F[F.length - 1];
+      for (let i = 1; i <= imageCount; i++) F.push(start + (0.99 - start) * (i / imageCount));
+      this._genProgress = { F, k: 0, segT0: Date.now(), totalMs: Math.max(20, totalSecs || 0) * 1000 };
+      this.loadingPct = 0;
+    },
+    _progressMilestone() {
+      const g = this._genProgress;
+      if (!g || g.k >= g.F.length - 1) return;
+      g.k++; g.segT0 = Date.now();
+    },
+    _progressDone() {
+      if (this._genProgress) this._genProgress.k = this._genProgress.F.length - 1;
+      if (this.loadingPct !== null) this.loadingPct = 100;
+    },
+    _progressPct() {
+      const g = this._genProgress;
+      if (!g) return null;
+      if (g.k >= g.F.length - 1) return 100;
+      const floor = g.F[g.k], ceil = g.F[g.k + 1];
+      const segMs = Math.max(1500, (ceil - floor) * g.totalMs);
+      const u = (Date.now() - g.segT0) / segMs;
+      // near-linear while on schedule, then asymptote below the ceiling
+      const eased = u < 1 ? u * (1 - 0.18 * u) : 0.82 + 0.16 * (1 - Math.exp(-(u - 1) * 1.2));
+      const pct = (floor + (ceil - floor) * Math.min(0.985, eased)) * 100;
+      return Math.max(this.loadingPct || 0, Math.min(99, pct));   // monotonic
     },
 
     toggleIngredient(value) {
@@ -1776,14 +1937,19 @@ createApp({
         this.error = 'Please fill in "Created By" before generating.'; return;
       }
       this.loading = true;
-      this._loadingMsgs = buildLoadingMessages();      // fresh flavour text each run
-      this.loadingMessage = this._loadingMsgs[0];
-      // Estimate: prefer the measured median of past runs at this length; fall
-      // back to the hardcoded guess until we have enough real samples.
+      // Fresh personalised flavour text each run (character names + genre + art style)
+      this._loadingMsgs = buildLoadingMessages(this.formData, this.selectedCharacters.map(c => c.name));
+      this.loadingMessage = this._loadingMsgs[0].text;
+      // Progress clock: prefer the measured median of past runs at this
+      // length; fall back to a hardcoded guess until we have real samples.
       const genLen = this.formData.length;
       const genT0 = Date.now();
       const measuredSecs = measuredGenSeconds(genLen);
-      this.loadingHint = measuredSecs ? ('~' + measuredSecs + ' seconds') : loadingHintForLength(genLen);
+      const genMode = this.imageGenMode || 'all';
+      const genIsV2 = this._imageModel() === 'gpt-image-2' && genMode !== 'skip';
+      // first-wave image count = cover + pages drawn before the book opens
+      const genWave = genMode === 'skip' ? 0 : (genMode === 'first-two' ? 2 : (genIsV2 ? 5 : 2));
+      this._progressBegin(measuredSecs || fallbackGenSeconds(genLen), genIsV2, genWave);
       this.loadingProgress = '';
       this.loadingGameOn = true;                          // enable the catch-the-stars game
       this.$nextTick(() => this.startLoadingFx());
@@ -1815,6 +1981,7 @@ createApp({
         // along so the new title doesn't echo the library (v1.3.1).
         const recentTitles = (this.libraryBooks || []).slice(0, 10).map(b => b.title).filter(Boolean);
         const textResult = await generateStory(this.formData, selected, this.password, recentTitles);
+        this._progressMilestone();   // story text done
 
         selected.forEach(c => touchCharacterLastUsed(c.id));
         this.characters = getStoredCharacters();
@@ -1916,18 +2083,23 @@ createApp({
           // cover; draft-anchored covers as good as unanchored ones).
           // Classic engine keeps the original cover+page1 flow.
           const isV2 = this._imageModel() === 'gpt-image-2';
-          if (isV2) await this._makeDraftAnchor(storyData);
+          if (isV2) { await this._makeDraftAnchor(storyData); this._progressMilestone(); }
 
+          // Each finished first-wave image snaps the progress arc forward
+          const trackImg = (p) => p.then((r) => { this._progressMilestone(); return r; });
           const wave = mode === 'first-two' ? 1 : (isV2 ? 4 : 1);
-          const firstBatch = [this.generateOneImage('cover', storyData)];
+          const firstBatch = [trackImg(this.generateOneImage('cover', storyData))];
           for (let i = 0; i < Math.min(wave, storyData.pages.length); i++) {
-            firstBatch.push(this.generateOneImage(i, storyData));
+            firstBatch.push(trackImg(this.generateOneImage(i, storyData)));
           }
           await Promise.all(firstBatch);
+          this._progressDone();
 
           // Record how long "ready to read" actually took, to calibrate the
           // estimate for next time (only the real image path is representative).
           recordGenTiming(genLen, Date.now() - genT0);
+          setLastGenInfo(genLen, Date.now() - genT0);   // Settings "last book" readout
+          this.lastGenInfo = getLastGenInfo();
           this.genTimingVersion++;
 
           // Open the book now
@@ -3061,7 +3233,6 @@ createApp({
       this.shareNetworkError = false;
       this.loading = true;                 // keeps the book-loader up if the splash auto-dismisses first
       this.loadingMessage = 'Opening story…';
-      this.loadingHint = 'just a moment';
       try { document.body.classList.add('share-page'); } catch (e) {}
       const info = window.__SHARE__ || {};
       const api = info.api || getWorkerUrl();
@@ -4305,7 +4476,6 @@ createApp({
       this.error = '';
       this.loading = true;
       this.loadingMessage = 'Opening book…';
-      this.loadingHint = 'just a moment';
       try {
         let story = preloadedStory || getStoredStories().find(s => s.id === meta.id);
         if (!story) {

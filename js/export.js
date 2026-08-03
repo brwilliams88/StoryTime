@@ -495,7 +495,9 @@ const STExport = (() => {
     const ax = 18, ay = 64;
     const ops = [
       { op: 'image-cover', key: 'coloring', clip: { x: ax, y: ay, w: artSize, h: artSize } },
-      { op: 'ctext', text: `${meta.title} · Made with StoryTime`, fontKey: 'sans', size: 9.5, color: C.pageno, cx: PAGE_W / 2, y: PAGE_H - 32 },
+      // v1.3.2: caption prints BLACK — the coloring page is the one export
+      // that must be strictly black & white on paper (tan ink broke that).
+      { op: 'ctext', text: `${meta.title} · Made with StoryTime`, fontKey: 'sans', size: 9.5, color: [0, 0, 0], cx: PAGE_W / 2, y: PAGE_H - 32 },
     ];
     return { kind: 'coloring', sheets: [{ ops }], sheetsOfPaper: 1 };
   }

@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   LIBRARY_INDEX: 'storytime_library_index',    // cloud book metadata (for offline list)
   SPEND_LEDGER: 'storytime_spend_ledger',      // running API-spend record (survives story deletes)
   GEN_TIMINGS: 'storytime_gen_timings',        // measured generation times per length { length: [ms,...] }
+  LAST_GEN_INFO: 'storytime_last_gen_info',    // { ms, length, ts } of the last real generation (Settings readout)
 };
 
 // ---- Generation-time calibrator ------------------------------------------
@@ -49,6 +50,22 @@ function measuredGenSeconds(lengthKey) {
   return Math.round(medMs / 1000);
 }
 function clearGenTimings() { try { localStorage.removeItem(STORAGE_KEYS.GEN_TIMINGS); } catch (e) {} }
+
+// The last real generation's time-to-open, shown in Settings → Usage & Costs
+// (v1.3.2 — replaces the loading screen's "ready in ~Xs" line).
+function setLastGenInfo(lengthKey, ms) {
+  if (!ms || ms < 1000) return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.LAST_GEN_INFO,
+      JSON.stringify({ ms: Math.round(ms), length: lengthKey || '', ts: Date.now() }));
+  } catch (e) {}
+}
+function getLastGenInfo() {
+  try {
+    const v = JSON.parse(localStorage.getItem(STORAGE_KEYS.LAST_GEN_INFO) || 'null');
+    return (v && v.ms) ? v : null;
+  } catch (e) { return null; }
+}
 
 // ---- API spend ledger ----------------------------------------------------
 // We record every paid API call (story text, illustrations, character

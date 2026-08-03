@@ -66,6 +66,11 @@ html {
      accessibility zoom stays — but removes the double-tap gesture. */
   touch-action: manipulation;
 }
+/* v1.3.2: the html-level rule above did NOT stop it on iPhone — iOS Safari
+   only honors touch-action reliably on the element actually touched, and
+   game taps land on .loading-screen / .loading-star, not <html>. Cover the
+   whole loading screen subtree explicitly. */
+.loading-screen, .loading-screen * { touch-action: manipulation; }
 /* In the Library, everything ABOVE the shelf (the toolbar / pull-to-refresh) is
    the night-indigo "wall". The full-bleed wooden bookshelf has a min-height of
    ~4 rows (>1000px), so it always overflows the viewport — the shelf and its
@@ -2257,6 +2262,31 @@ body.reading-align-left .spread-text p { text-align: left; }
 .settings-row span { color: var(--text-dim); }
 .settings-row strong { color: var(--text-main); font-weight: 600; }
 
+/* v1.3.2: tappable settings rows (version / What's new → release notes) */
+.settings-row-link { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.settings-row-link strong { color: var(--accent); }
+.settings-row-link:hover strong { text-decoration: underline; }
+
+/* v1.3.2: release-notes modal — one collapsible entry per version, newest
+   open. Same bullets that go into the git commits (CHANGELOG.txt).
+   Opened from inside Settings → must stack above it (base overlay is 900). */
+.release-notes-overlay { z-index: 940; }
+.release-notes-status { color: var(--text-dim); font-size: 0.9rem; }
+.release-entry { border-bottom: 1px solid var(--border-soft); padding: 0.55rem 0; }
+.release-entry:last-child { border-bottom: none; }
+.release-entry summary {
+  cursor: pointer; list-style: none; display: flex; align-items: baseline;
+  gap: 0.55rem; -webkit-tap-highlight-color: transparent;
+}
+.release-entry summary::-webkit-details-marker { display: none; }
+.release-entry summary::before { content: '▸'; color: var(--text-dim); font-size: 0.8rem; flex: none; transition: transform 0.15s ease; }
+.release-entry[open] summary::before { transform: rotate(90deg); }
+.release-version { color: var(--accent); font-family: var(--font-display); flex: none; }
+.release-title { color: var(--text-main); font-size: 0.9rem; min-width: 0; }
+.release-date { margin-left: auto; color: var(--text-dim); font-size: 0.75rem; flex: none; }
+.release-bullets { margin: 0.6rem 0 0.3rem 1.15rem; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.release-bullets li { font-size: 0.85rem; line-height: 1.5; color: var(--text-main); }
+
 .settings-row-actions {
   display: flex;
   gap: 0.5rem;
@@ -2990,6 +3020,29 @@ body.reading-align-left .spread-text p { text-align: left; }
   position: relative; z-index: 2;
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 1.6rem;
+  /* v1.3.2: room for the progress arc so it never overlaps the text below */
+  min-width: 210px; min-height: 210px;
+}
+/* v1.3.2: gold progress arc — a "magic circle" drawing itself clockwise
+   around the lamplight glow as generation gets closer. Driven by
+   loaderRingOffset (stroke-dashoffset on the r=90 circle, C = 565.49). */
+.loader-ring {
+  position: absolute; left: 50%; top: 50%; z-index: 1; pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-90deg);   /* start at 12 o'clock */
+}
+.loader-ring-track { fill: none; stroke: rgba(255, 255, 255, .08); stroke-width: 5; }
+.loader-ring-fill {
+  fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
+  stroke-dasharray: 565.49;
+  filter: drop-shadow(0 0 5px rgba(244, 183, 64, .8));
+  transition: stroke-dashoffset .45s ease;
+}
+/* the % under the book — quiet, gold, part of the scene */
+.loading-pct {
+  position: relative; z-index: 2; pointer-events: none;
+  color: var(--accent); font-weight: 700; font-size: .85rem;
+  margin: -0.4rem 0 0.55rem;
+  text-shadow: 0 0 8px rgba(244, 183, 64, .35);
 }
 .loader-glow {
   position: absolute; left: 50%; top: 50%; width: 230px; height: 230px;

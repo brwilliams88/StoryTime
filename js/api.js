@@ -704,20 +704,15 @@ function generateFakeStory(formData) {
 }
 
 
-// Time until the reader OPENS — i.e. the cover + first page are drawn and the
-// loading screen disappears. The rest of the pictures stream in while reading,
-// so this is roughly constant regardless of book length (only text gen scales).
-function loadingHintForLength(lengthKey) {
-  // Fallback guesses until the calibrator has 3 real samples. v1.3.1 flow:
-  // story text (~20s) + draft anchor (~21s) + first wave of cover + 4 pages
-  // in parallel (~60s) ≈ 100s before the book opens, fully anchored.
-  const map = {
-    short:        '~100 seconds',
-    regular:      '~110 seconds',
-    long:         '~2 minutes',
-    'extra-long': '~2 minutes',
-  };
-  return map[lengthKey] || '~110 seconds';
+// Time until the reader OPENS — i.e. the cover + first wave of pages are drawn
+// and the loading screen disappears. The rest of the pictures stream in while
+// reading, so this is roughly constant regardless of book length (only text gen
+// scales). v1.3.2: numeric, feeds the progress arc instead of a hint string.
+// Fallback guesses until the calibrator has 3 real samples: story text (~20s)
+// + draft anchor (~21s) + first wave of cover + 4 pages in parallel (~60s).
+function fallbackGenSeconds(lengthKey) {
+  const map = { short: 100, regular: 110, long: 120, 'extra-long': 120 };
+  return map[lengthKey] || 110;
 }
 
 
@@ -941,6 +936,11 @@ ${text}`;
 // COLORING PAGE — redraw one of the story's real pictures as line art
 // (true image-to-image via /v1/images/edits; needs Worker REV v1.2.4+,
 // which forwards multipart bodies)
+// v1.3.2: gpt-image-2 LOW — the offline lab (2 pages × 4 configs) showed it
+// beats image-1 medium on fidelity (kept lego studs / brick walls, no solid
+// black fills in hair) at $0.0146 vs $0.0448 measured. image-2 medium added
+// nothing visible. NOTE: image-2 bills the source picture at 1024 input
+// tokens (image-1: 194), so "low" is ~$0.015 here, not the $0.006 headline.
 // =====================================================================
 async function generateColoringImage(imageBlob, password) {
   const prompt = [
@@ -953,12 +953,13 @@ async function generateColoringImage(imageBlob, password) {
   ].join(' ');
 
   const form = new FormData();
-  form.append('model', 'gpt-image-1');
+  form.append('model', 'gpt-image-2');
   form.append('image', imageBlob, imageBlob.type === 'image/png' ? 'page.png' : 'page.jpg');
   form.append('prompt', prompt);
   form.append('n', '1');
   form.append('size', '1024x1024');
-  form.append('quality', 'medium');
+  form.append('quality', 'low');
+  // (no input_fidelity — gpt-image-2 rejects the param)
 
   // NOTE: no Content-Type header — the browser sets the multipart boundary.
   const response = await fetch(`${WORKER_URL}/v1/images/edits`, {
@@ -979,7 +980,7 @@ async function generateColoringImage(imageBlob, password) {
   const data = await response.json();
   const b64 = data.data && data.data[0] && data.data[0].b64_json;
   if (!b64) throw new Error('No image data in response');
-  return { b64, cost: imageCostFromUsage('gpt-image-1', data, 'medium', '1024x1024') };
+  return { b64, cost: imageCostFromUsage('gpt-image-2', data, 'low', '1024x1024') };
 }
 
 

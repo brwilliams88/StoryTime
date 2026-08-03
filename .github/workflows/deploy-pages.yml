@@ -42,7 +42,8 @@ jobs:
       - name: Assemble site (only the files we actually serve — no .git / dev dirs)
         run: |
           mkdir _site
-          cp -r index.html sw.js manifest.json .nojekyll css js assets vendor _site/
+          # CHANGELOG.txt is fetched at runtime by Settings → What's New (v1.3.2)
+          cp -r index.html sw.js manifest.json .nojekyll CHANGELOG.txt css js assets vendor _site/
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:

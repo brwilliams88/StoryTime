@@ -10,10 +10,10 @@
 
   <title>StoryTime</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.3.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.3.1" />
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.3.1" />
-  <link rel="manifest" href="manifest.json?v=1.3.1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png?v=1.3.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png?v=1.3.2" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png?v=1.3.2" />
+  <link rel="manifest" href="manifest.json?v=1.3.2" />
   <meta name="theme-color" content="#1b1b3a" />
   <!-- NO apple-mobile-web-app-capable / status-bar-style ON PURPOSE (removed v1.0.4).
        Adding them in v1.0.0 made the iOS home-screen launch STANDALONE, which changed
@@ -26,8 +26,8 @@
        Do NOT re-add these without redesigning the reader for safe areas first. -->
   <meta name="apple-mobile-web-app-title" content="StoryTime" />
 
-  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.3.1" />
-  <link rel="stylesheet" href="css/style.css?v=1.3.1" />
+  <link rel="stylesheet" href="vendor/cropper.min.css?v=1.3.2" />
+  <link rel="stylesheet" href="css/style.css?v=1.3.2" />
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div v-if="showSplash" class="splash" @click="dismissSplash">
       <div class="splash-content">
         <div class="splash-icon-wrap">
-          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.3.1" alt="StoryTime" width="512" height="512" />
+          <img class="splash-icon" src="assets/icons/icon-splash.png?v=1.3.2" alt="StoryTime" width="512" height="512" />
         </div>
         <h1 class="splash-title">StoryTime</h1>
         <div class="splash-version">{{ version }}</div>
@@ -82,6 +82,12 @@
 
           <div class="book-loader-wrap">
             <div class="loader-glow"></div>
+            <!-- v1.3.2: gold progress arc — a magic circle drawing itself around
+                 the lamplight as the book gets closer. Generation only. -->
+            <svg v-if="loadingGameOn && loadingPct !== null" class="loader-ring" width="196" height="196" viewBox="0 0 196 196" aria-hidden="true">
+              <circle class="loader-ring-track" cx="98" cy="98" r="90"></circle>
+              <circle class="loader-ring-fill" cx="98" cy="98" r="90" :style="{ strokeDashoffset: loaderRingOffset }"></circle>
+            </svg>
             <div class="book-loader" aria-label="Loading">
               <div class="book-loader-base"></div>
               <div class="book-loader-page"></div>
@@ -98,8 +104,8 @@
             <span class="loader-spark">⋆</span>
             <span class="loader-spark">✧</span>
           </div>
+          <p v-if="loadingGameOn && loadingPct !== null" class="loading-pct">{{ loadingPctLabel }}</p>
           <p class="loading-text">{{ loadingMessage }}</p>
-          <p class="loading-hint">Ready to read in about {{ loadingHint }}.</p>
           <p v-if="loadingGameOn" class="loading-play-hint">✨ Tap the falling stars while you wait</p>
         </div>
 
@@ -675,7 +681,7 @@
           </details>
 
           <details class="inspect-section" open>
-            <summary>Full prompt sent to gpt-image-1</summary>
+            <summary>Full prompt sent to the picture engine</summary>
             <pre class="debug-code">{{ inspectingImage.full_prompt }}</pre>
           </details>
 
@@ -987,6 +993,32 @@
         </div>
       </div>
 
+      <!-- ============== RELEASE NOTES (What's New) ==============
+           Opened from Settings, so this overlay must stack ABOVE the
+           settings modal (base .modal-overlay is z-index 900). -->
+      <div v-if="showReleaseNotes" class="modal-overlay release-notes-overlay" @click.self="closeReleaseNotes">
+        <div class="modal modal-wide release-notes-modal">
+          <div class="modal-header">
+            <h2>📖 What's New</h2>
+            <button @click="closeReleaseNotes" class="modal-close modal-close-big" aria-label="Close">✕</button>
+          </div>
+          <p v-if="releaseNotesError" class="release-notes-status">{{ releaseNotesError }}</p>
+          <p v-else-if="!releaseNotes" class="release-notes-status">Fetching the story so far…</p>
+          <template v-else>
+            <details v-for="(rel, i) in releaseNotes" :key="rel.version" class="release-entry" :open="i === 0">
+              <summary>
+                <strong class="release-version">{{ rel.version }}</strong>
+                <span class="release-title">{{ rel.title }}</span>
+                <span class="release-date">{{ rel.date }}</span>
+              </summary>
+              <ul class="release-bullets">
+                <li v-for="(b, j) in rel.bullets" :key="j">{{ b }}</li>
+              </ul>
+            </details>
+          </template>
+        </div>
+      </div>
+
       <!-- ============== SETTINGS MENU ============== -->
       <div v-if="showSettings" class="modal-overlay" @click.self="closeSettings">
         <div class="modal modal-wide settings-modal">
@@ -997,8 +1029,13 @@
 
           <div class="settings-section">
             <div class="settings-section-title">About</div>
-            <div class="settings-row"><span>Version</span><strong>{{ version }}</strong></div>
+            <div class="settings-row settings-row-link" @click="openReleaseNotes" role="button" tabindex="0" @keydown.enter="openReleaseNotes">
+              <span>Version</span><strong>{{ version }} ›</strong>
+            </div>
             <div class="settings-row"><span>Build Date</span><strong>{{ buildDate }}</strong></div>
+            <div class="settings-row settings-row-link" @click="openReleaseNotes" role="button" tabindex="0" @keydown.enter="openReleaseNotes">
+              <span>What's new</span><strong>Release notes ›</strong>
+            </div>
           </div>
 
           <div class="settings-section">
@@ -1018,7 +1055,6 @@
             <div class="settings-row"><span>Characters</span><strong>{{ characters.length }}</strong></div>
             <div class="settings-row"><span>Pictures</span><strong>{{ galleryAll.length || '…' }}</strong></div>
             <div v-if="coloringCount" class="settings-row"><span>Coloring pages</span><strong>{{ coloringCount }}</strong></div>
-            <div class="settings-row settings-subnote"><span>Stored files <em class="toggle-note">(incl. thumbnails)</em></span><strong>{{ cloudUsage.loaded ? cloudUsage.r2Count : '…' }}</strong></div>
             <div class="settings-row"><span>Cloud storage</span><strong>{{ cloudUsage.loaded ? fmtBytes(cloudUsage.bytes) + ' / 10 GB' : 'checking…' }}</strong></div>
             <div v-if="cloudUsage.loaded" class="usage-bar"><div class="usage-fill" :style="{ width: Math.max(cloudUsagePercent, 1) + '%' }"></div></div>
             <p v-if="cloudUsage.loaded" class="usage-caption">{{ cloudUsagePercent < 1 ? 'Under 1%' : cloudUsagePercent + '%' }} of 10 GB used</p>
@@ -1097,6 +1133,10 @@
               Last story cost <strong>{{ fmtUsd(spend.lastStory.total) }}</strong>
               <span class="spend-last-split">({{ fmtUsd(spend.lastStory.text) }} writing · {{ fmtUsd(spend.lastStory.pictures) }} pictures)</span>
             </div>
+            <div v-if="lastGenInfo" class="spend-last">
+              Last book was ready to read in <strong>{{ fmtGenTime(lastGenInfo.ms) }}</strong>
+              <span class="spend-last-split">({{ lengthLabelFor(lastGenInfo.length) }} story)</span>
+            </div>
           </div>
 
           <div class="settings-section">
@@ -1109,7 +1149,7 @@
             <div class="settings-row"><span>Storyteller</span><strong>gpt-4o</strong></div>
             <div class="settings-row"><span>Pictures</span><strong>{{ imageEngine === 'v2' ? 'gpt-image-2 + cover anchor' : 'gpt-image-1 (Classic)' }}</strong></div>
             <div class="settings-row"><span>Prompt polish &amp; quizzes</span><strong>gpt-4o-mini</strong></div>
-            <div class="settings-row"><span>Coloring pages</span><strong>gpt-image-1</strong></div>
+            <div class="settings-row"><span>Coloring pages</span><strong>gpt-image-2 (low)</strong></div>
             <div class="settings-row"><span>Character thumbnails</span><strong>gpt-image-2 (low)</strong></div>
             <div class="settings-row-actions">
               <button @click="resetPassword" class="btn-secondary btn-small">🚪 Log Out of StoryTime</button>
@@ -1513,18 +1553,18 @@
   <!-- Self-hosted + version-pinned so the app boots and runs fully offline (the
        service worker caches same-origin assets; it can't cache cross-origin CDNs).
        Vue 3.5.40 · Cropper 1.5.13 · canvas-confetti 1.9.3 · GSAP 3.12.5 -->
-  <script src="vendor/vue.global.js?v=1.3.1"></script>
-  <script src="vendor/cropper.min.js?v=1.3.1"></script>
-  <script src="vendor/canvas-confetti.min.js?v=1.3.1"></script>
-  <script src="vendor/gsap.min.js?v=1.3.1"></script>
-  <script src="js/storage.js?v=1.3.1"></script>
-  <script src="js/imageStorage.js?v=1.3.1"></script>
-  <script src="js/api.js?v=1.3.1"></script>
-  <script src="js/sync.js?v=1.3.1"></script>
-  <script src="js/pageShadow.js?v=1.3.1"></script>
-  <script src="js/pageCurl.js?v=1.3.1"></script>
-  <script src="js/export.js?v=1.3.1"></script>
-  <script src="js/app.js?v=1.3.1"></script>
+  <script src="vendor/vue.global.js?v=1.3.2"></script>
+  <script src="vendor/cropper.min.js?v=1.3.2"></script>
+  <script src="vendor/canvas-confetti.min.js?v=1.3.2"></script>
+  <script src="vendor/gsap.min.js?v=1.3.2"></script>
+  <script src="js/storage.js?v=1.3.2"></script>
+  <script src="js/imageStorage.js?v=1.3.2"></script>
+  <script src="js/api.js?v=1.3.2"></script>
+  <script src="js/sync.js?v=1.3.2"></script>
+  <script src="js/pageShadow.js?v=1.3.2"></script>
+  <script src="js/pageCurl.js?v=1.3.2"></script>
+  <script src="js/export.js?v=1.3.2"></script>
+  <script src="js/app.js?v=1.3.2"></script>
 
   <script>
     // Shared links are served from the Worker origin (cross-origin to sw.js) and

@@ -9,6 +9,17 @@ Versioning guide:
   Patch rev (+0.0.1): bug fix, small tweak (optional — skip if change is trivial)
 
 --------------------------
+v1.3.2 - 2026-08-02 - A loading screen worth watching; cheaper, better coloring pages
+  • THE LOADING SCREEN NOW KNOWS YOUR STORY. While you wait, the messages come from the book being made: "Waking up Kai and Nozomi…", "Saddling the horses…" for a western, "Tipping out the box of bricks…" for a Lego book — built from the characters, genre and art style you picked, with zero extra AI calls.
+  • AN HONEST PROGRESS ARC: a gold magic circle draws itself around the glowing book, with a % that tracks REAL milestones (story written → anchor drawn → each opening picture finished) eased along the measured clock — so 100% happens exactly when the book opens. Late-stage messages ("Binding the book…") can no longer appear two minutes early.
+  • The "Ready to read in about ~X seconds" line is gone (less text on screen). Instead, Settings → Usage & Costs now shows how long the last book actually took to be ready, and the Developer section still keeps the per-length timing calibration that drives the arc.
+  • COLORING PAGES: switched to the new picture engine at low quality after an offline lab (2 real pages × 4 model/quality configs, costs measured off the API). Better line art than before — it kept the Lego studs and brick walls the old setting flattened away, and no more solid-black filled hair — at a THIRD of the cost ($0.015 vs $0.045 a page).
+  • The coloring page's printed caption is now BLACK, so the coloring PDF is finally strictly black & white (it was sneakily tan since v1.2.5).
+  • WHAT'S NEW lives in Settings → About: tap the version (or "Release notes") for this full illustrated history of the app, newest release open, every version back to the beginning.
+  • iPhone ZOOM ON THE LOADING SCREEN IS DEAD (for real this time): v1.3.1's fix told the page not to zoom, but iOS only listens when the rule is on the exact element being tapped — now the whole loading screen and its stars say so themselves, so rapid star-catching can't zoom the game anymore.
+  • Housekeeping: the "Stored files (incl. thumbnails)" row left Settings; the release-notes file now ships with the deployed site.
+
+--------------------------
 v1.3.1 - 2026-08-02 - Consistency Engine tuned by the first real book
   • PAGE 1 NOW MATCHES THE REST OF THE BOOK. A cheap throwaway draft of the cover (~21s, half a cent, never shown or saved) becomes the story's anchor, so the real cover AND the first pages all draw in parallel from the same reference — no more Akhil changing shirts between the cover and page 1. Verified 3-for-3 in an offline lab before shipping.
   • CHARACTERS STOP SNEAKING INTO EVERY PICTURE. Each page's prompt now only describes the characters actually in that scene, plus explicit rules that anyone else is a brand-new stranger — and, when a reference image rides along, that its faces and outfits must never be reused for strangers. (In "The One-Dollar Adventure", the girl and boy Kai traded with were both drawn as Akhil. Both halves of this fix were proven in the lab — either alone wasn't enough.)
