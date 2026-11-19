@@ -9,6 +9,9 @@ The Cloudflare Worker talks to Supabase using the **Secret Key**.
 1. Supabase Dashboard → **SQL Editor** (left sidebar) → **New query**.
 2. Open `schema.sql` (in this folder), copy all of it, paste into the editor.
 3. Click **Run**. You should see "Success. No rows returned."
+   The last block of `schema.sql` sets table permissions explicitly (Supabase
+   no longer grants them automatically for new tables). If you ever add a
+   table, add it to that block too, or the Worker will get `permission denied`.
 4. Check **Table Editor** → you should now see `stories` and `characters`.
 
 ## Step 2 — Create the image Storage bucket

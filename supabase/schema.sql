@@ -172,3 +172,28 @@ update public.stories
     '{}'
   )
   where (character_ids is null or character_ids = '{}') and data ? 'character_ids';
+
+
+-- ============================================================
+-- v1.3.3 — Explicit table permissions (GRANTs). Safe to re-run.
+-- Supabase stopped auto-granting new `public` tables to the API roles
+-- on 2026-10-30, and that change covers service_role too. Without
+-- these lines, running this file on a NEW project would leave the
+-- Worker (which uses the Secret Key = service_role) with
+-- "permission denied" on every table.
+--
+-- Least privilege, matching Option A:
+--   • service_role (the Worker): read/write only — no TRUNCATE etc.
+--   • anon / authenticated (the browser's publishable key): nothing.
+--     The browser never talks to Supabase directly, so these roles
+--     get no table access at all. RLS-with-no-policies stays on as a
+--     second lock.
+-- KEEP THIS BLOCK LAST, and add any new table to both lists below.
+-- ============================================================
+grant select, insert, update, delete
+  on public.characters, public.stories, public.spend_events
+  to service_role;
+
+revoke all
+  on public.characters, public.stories, public.spend_events
+  from anon, authenticated;
